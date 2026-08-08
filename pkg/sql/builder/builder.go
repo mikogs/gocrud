@@ -79,7 +79,9 @@ func New(obj interface{}, options Options) *Builder {
 // DropTable returns an SQL query for dropping the table.
 func (b *Builder) DropTable() string { return b.dropTable + ";" }
 
-// CreateTable returns an SQL query for creating the table.
+// CreateTable returns SQL statements for creating the table, separated by "; ".
+// When the struct has fields tagged with 'idx' or 'uidx', a CREATE INDEX statement is
+// appended for each index after the CREATE TABLE statement.
 func (b *Builder) CreateTable() string { return b.createTable + ";" }
 
 // Insert returns an SQL query for inserting a new object to the table.

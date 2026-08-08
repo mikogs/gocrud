@@ -18,6 +18,10 @@ type QueryContainer struct {
 
 	FieldColumnName map[string]string
 
+	// IndexStatements contains a CREATE INDEX statement for each index declared via
+	// 'idx'/'uidx' struct tags. It is empty when the struct has no indexed fields.
+	IndexStatements []string
+
 	CreateTable string
 	DropTable   string
 
@@ -50,7 +54,8 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		objTypeName = strings.Split(objTypeName, "_")[0]
 	}
 
-	qc.TableName = fmt.Sprintf(`"%s"`, tableNamePrefix+FieldToColumn(objTypeName))
+	rawTableName := tableNamePrefix + FieldToColumn(objTypeName)
+	qc.TableName = fmt.Sprintf(`"%s"`, rawTableName)
 
 	numField := objType.NumField()
 	qc.ColumnFieldName = make(map[string]string, numField)
@@ -89,6 +94,8 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		qc.ColumnDefinitions = append(qc.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(columnName), columnDefinition))
 		qc.ColumnNames = append(qc.ColumnNames, QuoteColumn(columnName))
 	}
+
+	qc.IndexStatements = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
 
 	err := qc.setQueries(obj, tableNamePrefix)
 	if err != nil {
@@ -141,7 +148,8 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) err
 		}
 		q.CreateTable = query
 	} else {
-		q.CreateTable = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", q.TableName, strings.Join(q.ColumnDefinitions, ","))
+		statements := append([]string{fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", q.TableName, strings.Join(q.ColumnDefinitions, ","))}, q.IndexStatements...)
+		q.CreateTable = strings.Join(statements, "; ")
 	}
 
 	if deleteByIDBuilderImpl, ok := obj.(querycontainer.DeleteByIDBuilder); ok {

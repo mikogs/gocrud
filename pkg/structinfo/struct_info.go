@@ -28,6 +28,8 @@ type StructInfo struct {
 	UniqueFields []string
 	// PasswordFields contains a list of field names that are marked with a tag 'pass'.
 	PasswordFields []string
+	// Indexes contains the database indexes built from fields marked with 'idx' or 'uidx' tags.
+	Indexes []*IndexInfo
 }
 
 func New(obj interface{}, tagName string) *StructInfo {
@@ -79,6 +81,8 @@ func New(obj interface{}, tagName string) *StructInfo {
 		structInfo.ModificationFields = true
 	}
 
+	structInfo.buildIndexes()
+
 	return structInfo
 }
 
@@ -106,6 +110,40 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 	if opt == "pass" {
 		s.Fields[fieldName].Password = true
 		s.PasswordFields = append(s.PasswordFields, fieldName)
+		return
+	}
+
+	if opt == "idx" {
+		s.Fields[fieldName].Index = true
+		return
+	}
+
+	if opt == "uidx" {
+		s.Fields[fieldName].Index = true
+		s.Fields[fieldName].IndexUnique = true
+		return
+	}
+
+	if strings.HasPrefix(opt, "idx:") {
+		s.Fields[fieldName].Index = true
+
+		name := strings.TrimPrefix(opt, "idx:")
+		if regexpColumnNameTag.MatchString(name) {
+			s.Fields[fieldName].IndexName = name
+		}
+
+		return
+	}
+
+	if strings.HasPrefix(opt, "uidx:") {
+		s.Fields[fieldName].Index = true
+		s.Fields[fieldName].IndexUnique = true
+
+		name := strings.TrimPrefix(opt, "uidx:")
+		if regexpColumnNameTag.MatchString(name) {
+			s.Fields[fieldName].IndexName = name
+		}
+
 		return
 	}
 

@@ -15,4 +15,12 @@ type FieldInfo struct {
 	Password bool
 	// Ignored is set to true if the field is marked with a "-" tag.
 	Ignored bool
+	// Index is set to true if the field is marked with an 'idx' or 'uidx' tag.
+	Index bool
+	// IndexName is the name given via 'idx:<name>' or 'uidx:<name>'. Fields sharing the same
+	// IndexName are combined into a single composite index. Empty when the tag has no name,
+	// in which case the field gets its own auto-named, single-column index.
+	IndexName string
+	// IndexUnique is set to true if the field's index tag is 'uidx' (or 'uidx:<name>').
+	IndexUnique bool
 }

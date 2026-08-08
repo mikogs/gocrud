@@ -18,6 +18,10 @@ type QueryContainer struct {
 
 	FieldColumnName map[string]string
 
+	// IndexStatements contains a CREATE INDEX statement for each index declared via
+	// 'idx'/'uidx' struct tags. It is empty when the struct has no indexed fields.
+	IndexStatements []string
+
 	CreateTable string
 	DropTable   string
 
@@ -51,7 +55,8 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		objTypeName = strings.Split(objTypeName, "_")[0]
 	}
 
-	queryContainer.TableName = fmt.Sprintf(`"%s"`, tableNamePrefix+FieldToColumn(objTypeName))
+	rawTableName := tableNamePrefix + FieldToColumn(objTypeName)
+	queryContainer.TableName = fmt.Sprintf(`"%s"`, rawTableName)
 
 	numField := objType.NumField()
 
@@ -98,6 +103,8 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		queryContainer.ColumnDefinitions = append(queryContainer.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(columnName), columnDefinition))
 		queryContainer.ColumnNames = append(queryContainer.ColumnNames, QuoteColumn(columnName))
 	}
+
+	queryContainer.IndexStatements = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
 	// Assuming that primary field is named ID and that it is always first -> TODO: add check
 	err := queryContainer.setQueries(obj, tableNamePrefix)
@@ -156,7 +163,8 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		}
 		q.CreateTable = query
 	} else {
-		q.CreateTable = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", q.TableName, strings.Join(q.ColumnDefinitions, ","))
+		statements := append([]string{fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", q.TableName, strings.Join(q.ColumnDefinitions, ","))}, q.IndexStatements...)
+		q.CreateTable = strings.Join(statements, "; ")
 	}
 
 	if deleteByIDBuilderImpl, ok := obj.(querycontainer.DeleteByIDBuilder); ok {

@@ -40,9 +40,18 @@ type TestStructWithIgnoredFields struct {
 	IgnoreMe2 string `json:"-" sql:"-"`
 }
 
+type TestStructWithIndexes struct {
+	ID        uint64 `json:"id"`
+	Email     string `json:"email" sql:"idx"`
+	FirstName string `json:"first_name" sql:"idx:name_idx"`
+	LastName  string `json:"last_name" sql:"idx:name_idx"`
+	Code      string `json:"code" sql:"uidx:code_idx"`
+}
+
 var testStructObj = &TestStruct{}
 var testStructWithCustomSelectObj = &TestStructWithCustomSelect{}
 var testStructWithIgnoredFieldsObj = &TestStructWithIgnoredFields{}
+var testStructWithIndexesObj = &TestStructWithIndexes{}
 
 func TestSQLQueries(t *testing.T) {
 	h := New(testStructObj, Options{})
@@ -336,6 +345,20 @@ func TestSQLIgnoredFields(t *testing.T) {
 	got := h.CreateTable()
 	want := `CREATE TABLE IF NOT EXISTS "test_struct_with_ignored_fields" ("id" SERIAL PRIMARY KEY,"name" VARCHAR(255) NOT NULL DEFAULT '',` +
 		`"price" BIGINT NOT NULL DEFAULT 0);`
+	if got != want {
+		t.Fatalf("\nwant %v\ngot  %v", want, got)
+	}
+}
+
+func TestSQLIndexes(t *testing.T) {
+	h := New(testStructWithIndexesObj, Options{})
+
+	got := h.CreateTable()
+	want := `CREATE TABLE IF NOT EXISTS "test_struct_with_indexes" ("id" SERIAL PRIMARY KEY,"email" VARCHAR(255) NOT NULL DEFAULT '',` +
+		`"first_name" VARCHAR(255) NOT NULL DEFAULT '',"last_name" VARCHAR(255) NOT NULL DEFAULT '',"code" VARCHAR(255) NOT NULL DEFAULT ''); ` +
+		`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_indexes_email" ON "test_struct_with_indexes" ("email"); ` +
+		`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_indexes_name_idx" ON "test_struct_with_indexes" ("first_name","last_name"); ` +
+		`CREATE UNIQUE INDEX IF NOT EXISTS "idx_test_struct_with_indexes_code_idx" ON "test_struct_with_indexes" ("code");`
 	if got != want {
 		t.Fatalf("\nwant %v\ngot  %v", want, got)
 	}

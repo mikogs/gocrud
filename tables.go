@@ -1,8 +1,12 @@
 package gocrud
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
-// CreateTable creates a database table for the specified object.
+// CreateTable creates a database table for the specified object, along with any
+// indexes declared via 'idx'/'uidx' struct tags.
 func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 	builder, err := c.builder(obj)
 	if err != nil {
@@ -21,9 +25,19 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 		query = builder.CreateTable()
 	}
 
-	_, err = c.db.ExecContext(ctx, query)
-	if err != nil {
-		return getDBFuncCRUDError("exec", err)
+	// The query may consist of multiple ';'-separated statements (the table itself
+	// plus any indexes), so each is executed separately rather than relying on
+	// driver support for multi-statement Exec calls.
+	for _, stmt := range strings.Split(query, ";") {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		_, err = c.db.ExecContext(ctx, stmt)
+		if err != nil {
+			return getDBFuncCRUDError("exec", err)
+		}
 	}
 
 	return nil

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/mikolajgasior/gocrud/pkg/structinfo"
 )
 
 func FieldToColumn(s string) string {
@@ -42,4 +44,42 @@ func QuoteColumn(column string) string {
 		}
 	}
 	return fmt.Sprintf(`"%s"`, column)
+}
+
+// indexStatements builds a CREATE INDEX statement for each index in 'indexes'.
+// Indexes referencing only ignored fields (absent from fieldColumnName) are skipped.
+func indexStatements(rawTableName string, quotedTableName string, indexes []*structinfo.IndexInfo, fieldColumnName map[string]string) []string {
+	statements := make([]string, 0, len(indexes))
+
+	for _, idx := range indexes {
+		columns := make([]string, 0, len(idx.Fields))
+		columnNames := make([]string, 0, len(idx.Fields))
+
+		for _, fieldName := range idx.Fields {
+			columnName, ok := fieldColumnName[fieldName]
+			if !ok {
+				continue
+			}
+			columns = append(columns, QuoteColumn(columnName))
+			columnNames = append(columnNames, columnName)
+		}
+
+		if len(columns) == 0 {
+			continue
+		}
+
+		indexName := idx.Name
+		if indexName == "" {
+			indexName = strings.Join(columnNames, "_")
+		}
+
+		unique := ""
+		if idx.Unique {
+			unique = "UNIQUE "
+		}
+
+		statements = append(statements, fmt.Sprintf(`CREATE %sINDEX IF NOT EXISTS "idx_%s_%s" ON %s (%s)`, unique, rawTableName, indexName, quotedTableName, strings.Join(columns, ",")))
+	}
+
+	return statements
 }

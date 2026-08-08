@@ -50,6 +50,9 @@ You can combine multiple rules within a single crud tag string.
 * `email`: Validates that the string is a properly formatted email address.
 * `crud_regexp`:"pattern": Validates the field against a regular expression.
 * `pass`: Marks a `string` field as a password. On **Save** the plain-text value is automatically bcrypt-hashed before it is written to the database. On **Load** and **Get** the field is zeroed after the row is scanned so that bcrypt hashes never appear in memory after a read. When using [gorestapi](https://github.com/mikolajgasior/gorestapi), the field is omitted entirely from JSON responses.
+* `uniq`: Adds a `UNIQUE` constraint to the field's column when the table is created.
+* `idx`: Creates a database index on the field. Use `idx:<name>` to give the index an explicit name; fields sharing the same `<name>` are combined into a single composite index, in the order they're declared in the struct. A bare `idx` (no name) creates its own single-column index.
+* `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
 
 At least one of `min`, `max` must be specified.
 
@@ -67,14 +70,14 @@ type User struct {
 	// Username: Required, length 3-30, must match regex
 	Username   string `json:"username" crud:"req len:3,30 crud_regexp:\"^[a-z0-9_-]+$\""`
 
-	// Email: Required, must be valid email format
-	Email      string `json:"email" crud:"req email"`
+	// Email: Required, must be valid email format, indexed for fast lookups
+	Email      string `json:"email" crud:"req email idx"`
 
-	// First Name: Required, length 2-50
-	FirstName  string `json:"first_name" crud:"req len:2,50"`
+	// First Name: Required, length 2-50, part of a composite index with LastName
+	FirstName  string `json:"first_name" crud:"req len:2,50 idx:full_name"`
 
-	// Last Name: Required, length 2-50
-	LastName   string `json:"last_name" crud:"req len:2,50"`
+	// Last Name: Required, length 2-50, part of a composite index with FirstName
+	LastName   string `json:"last_name" crud:"req len:2,50 idx:full_name"`
 
 	// Phone: Optional, length 7-20
 	Phone      string `json:"phone" crud:"len:7,20"`

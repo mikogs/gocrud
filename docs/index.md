@@ -2,7 +2,7 @@
 
 **gocrud** is a Go library designed to streamline the development of CRUDL (Create, Read, Update, Delete, List) operations for SQL-backed applications. By leveraging reflection, gocrud automatically generates a database persistence layer from Go structs containing basic field types (such as int, string, time.Time, etc.).
 
-The library is intended to provided atabase persistence layer. Maps Go structs to database tables, handling schema creation and data operations.
+The library is intended to provide a database persistence layer. Maps Go structs to database tables, handling schema creation and data operations.
 
 ## Supported Databases
 

@@ -363,3 +363,114 @@ func TestSQLIndexes(t *testing.T) {
 		t.Fatalf("\nwant %v\ngot  %v", want, got)
 	}
 }
+
+type TestStructWithAliases struct {
+	ID    uint64 `sql:"name:t1.id"`
+	Name  string `sql:"name:t1.name idx"`
+	Price int64  `sql:"name:t2.price"`
+}
+
+func (s *TestStructWithAliases) BuildSelectPrefixQuery(tableNamePrefix string) (string, error) {
+	return `SELECT t1.id, t1.name, t2.price FROM "` + tableNamePrefix + `test_struct_with_aliases" t1 ` +
+		`INNER JOIN prices t2 ON t1.id=t2.test_struct_with_aliases_id`, nil
+}
+
+func (s *TestStructWithAliases) BuildSelectCountPrefixQuery(tableNamePrefix string) (string, error) {
+	return `SELECT COUNT(*) AS cnt FROM "` + tableNamePrefix + `test_struct_with_aliases" t1 ` +
+		`INNER JOIN prices t2 ON t1.id=t2.test_struct_with_aliases_id`, nil
+}
+
+type TestStructWithAliasesWithoutCustomSelect struct {
+	ID    uint64 `sql:"name:t1.id"`
+	Name  string `sql:"name:t1.name idx"`
+	Price int64  `sql:"name:t2.price"`
+}
+
+var aliasesTestFilters = &filters.Filters{
+	"Name":      {Op: filters.OpLike, Val: "a%"},
+	"Price":     {Op: filters.OpGreater, Val: 1},
+	filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Price < ?", 100}},
+}
+
+func TestSQLAliasedColumnQueries(t *testing.T) {
+	h := New(&TestStructWithAliases{}, Options{})
+
+	if !h.HasAliasedColumnNames() {
+		t.Fatal("HasAliasedColumnNames returned false for a struct with aliased column names")
+	}
+
+	join := `FROM "test_struct_with_aliases" t1 INNER JOIN prices t2 ON t1.id=t2.test_struct_with_aliases_id`
+	where := `WHERE (t1."name" LIKE $1 AND t2."price">$2) AND (t2."price" < $3)`
+	whereWithoutAliases := `WHERE ("name" LIKE $2 AND "price">$3) AND ("price" < $4)`
+
+	selectQuery, _ := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
+	selectCountQuery, _ := h.SelectCount(aliasesTestFilters)
+	updateQuery, _ := h.Update(map[string]interface{}{"Price": 5}, aliasesTestFilters)
+	deleteQuery, _ := h.DeleteReturningID(aliasesTestFilters)
+
+	tests := map[string][2]string{
+		"CreateTable": {h.CreateTable(), `CREATE TABLE IF NOT EXISTS "test_struct_with_aliases" ("id" SERIAL PRIMARY KEY,` +
+			`"name" VARCHAR(255) NOT NULL DEFAULT '',"price" BIGINT NOT NULL DEFAULT 0); ` +
+			`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_aliases_name" ON "test_struct_with_aliases" ("name");`},
+		"Insert":            {h.Insert(), `INSERT INTO "test_struct_with_aliases"("name","price") VALUES ($1,$2) RETURNING "id";`},
+		"UpdateByID":        {h.UpdateByID(), `UPDATE "test_struct_with_aliases" SET "name"=$1,"price"=$2 WHERE "id" = $3;`},
+		"SelectByID":        {h.SelectByID(), `SELECT "id","name","price" FROM "test_struct_with_aliases" WHERE "id" = $1;`},
+		"Select":            {selectQuery, `SELECT t1.id, t1.name, t2.price ` + join + ` ` + where + ` ORDER BY t2."price" DESC LIMIT 10;`},
+		"SelectCount":       {selectCountQuery, `SELECT COUNT(*) AS cnt ` + join + ` ` + where + `;`},
+		"Update":            {updateQuery, `UPDATE "test_struct_with_aliases" SET "price"=$1 ` + whereWithoutAliases + `;`},
+		"DeleteReturningID": {deleteQuery, `DELETE FROM "test_struct_with_aliases" WHERE ("name" LIKE $1 AND "price">$2) AND ("price" < $3) RETURNING "id";`},
+	}
+
+	for name, gotWant := range tests {
+		t.Run(name, func(t *testing.T) {
+			if gotWant[0] != gotWant[1] {
+				t.Fatalf("\nwant %v\ngot  %v", gotWant[1], gotWant[0])
+			}
+		})
+	}
+}
+
+func TestSQLAliasedColumnQueries_WithoutCustomSelect(t *testing.T) {
+	h := New(&TestStructWithAliasesWithoutCustomSelect{}, Options{})
+
+	got, err := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
+	want := `SELECT "id","name","price" FROM "test_struct_with_aliases_without_custom_select" ` +
+		`WHERE ("name" LIKE $1 AND "price">$2) AND ("price" < $3) ORDER BY "price" DESC LIMIT 10;`
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if got != want {
+		t.Fatalf("\nwant %v\ngot  %v", want, got)
+	}
+}
+
+func TestSQLiteAliasedColumnQueries(t *testing.T) {
+	h := New(&TestStructWithAliases{}, Options{Dialect: DialectSQLite})
+
+	join := `FROM "test_struct_with_aliases" t1 INNER JOIN prices t2 ON t1.id=t2.test_struct_with_aliases_id`
+	where := `WHERE (t1."name" LIKE ? AND t2."price">?) AND (t2."price" < ?)`
+
+	selectQuery, _ := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
+	selectCountQuery, _ := h.SelectCount(aliasesTestFilters)
+	updateQuery, _ := h.Update(map[string]interface{}{"Price": 5}, aliasesTestFilters)
+	deleteQuery, _ := h.DeleteReturningID(aliasesTestFilters)
+
+	tests := map[string][2]string{
+		"CreateTable": {h.CreateTable(), `CREATE TABLE IF NOT EXISTS "test_struct_with_aliases" ("id" INTEGER PRIMARY KEY,` +
+			`"name" TEXT NOT NULL DEFAULT '',"price" INTEGER NOT NULL DEFAULT 0); ` +
+			`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_aliases_name" ON "test_struct_with_aliases" ("name");`},
+		"Insert":            {h.Insert(), `INSERT INTO "test_struct_with_aliases"("name","price") VALUES (?,?) RETURNING "id";`},
+		"Select":            {selectQuery, `SELECT t1.id, t1.name, t2.price ` + join + ` ` + where + ` ORDER BY t2."price" DESC LIMIT 10;`},
+		"SelectCount":       {selectCountQuery, `SELECT COUNT(*) AS cnt ` + join + ` ` + where + `;`},
+		"Update":            {updateQuery, `UPDATE "test_struct_with_aliases" SET "price"=? WHERE ("name" LIKE ? AND "price">?) AND ("price" < ?);`},
+		"DeleteReturningID": {deleteQuery, `DELETE FROM "test_struct_with_aliases" WHERE ("name" LIKE ? AND "price">?) AND ("price" < ?) RETURNING "id";`},
+	}
+
+	for name, gotWant := range tests {
+		t.Run(name, func(t *testing.T) {
+			if gotWant[0] != gotWant[1] {
+				t.Fatalf("\nwant %v\ngot  %v", gotWant[1], gotWant[0])
+			}
+		})
+	}
+}

@@ -123,3 +123,34 @@ func TestNew_WithoutModificationFields(t *testing.T) {
 		t.Fatal("New detected modification fields in a struct that does not have all of them")
 	}
 }
+
+func TestNew_AliasedColumnNames(t *testing.T) {
+	type aliasedStruct struct {
+		ID       uint64 `crud:"name:t1.id"`
+		Name     string `crud:"name:t2.name idx:t2.name_idx"`
+		Invalid  string `crud:"name:t1.t2.invalid"`
+		Invalid2 string `crud:"name:.invalid"`
+	}
+
+	info := New(&aliasedStruct{}, "crud")
+
+	if !info.AliasedColumnNames {
+		t.Fatal("New did not detect aliased column names")
+	}
+
+	want := map[string]FieldInfo{
+		"ID":       {OverrideColumnName: "t1.id"},
+		"Name":     {OverrideColumnName: "t2.name", Index: true},
+		"Invalid":  {},
+		"Invalid2": {},
+	}
+	for name, wantField := range want {
+		if *info.Fields[name] != wantField {
+			t.Fatalf("New returned %+v for field %s, want %+v", *info.Fields[name], name, wantField)
+		}
+	}
+
+	if New(&tagsTestStruct{}, "crud").AliasedColumnNames {
+		t.Fatal("New detected aliased column names in a struct without them")
+	}
+}

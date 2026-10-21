@@ -10,7 +10,7 @@ import (
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 )
 
-func (b *QueryBuilder) queryOrder(order []string) (string, error) {
+func (b *QueryBuilder) queryOrder(order []string, withAlias bool) (string, error) {
 	if len(order) == 0 {
 		return "", nil
 	}
@@ -30,7 +30,7 @@ func (b *QueryBuilder) queryOrder(order []string) (string, error) {
 			return "", getColumnNameBuilderError("order")
 		}
 
-		qOrder += fmt.Sprintf(`,%s %s`, postgresQueryContainer.QuoteColumn(columnName), queryDirection)
+		qOrder += fmt.Sprintf(`,%s %s`, quoteColumn(columnName, withAlias), queryDirection)
 	}
 
 	if qOrder == "" {
@@ -72,13 +72,13 @@ func (b *QueryBuilder) querySet(values map[string]interface{}) (string, int, err
 
 	querySet := ""
 	for i := 1; i <= numColumn; i++ {
-		querySet += fmt.Sprintf(`,%s=$%d`, postgresQueryContainer.QuoteColumn(columns[i-1]), i)
+		querySet += fmt.Sprintf(`,%s=$%d`, postgresQueryContainer.QuoteColumn(postgresQueryContainer.ColumnWithoutAlias(columns[i-1])), i)
 	}
 
 	return querySet[1:], numColumn, nil
 }
 
-func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum int) (string, error) {
+func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum int, withAlias bool) (string, error) {
 	if filters == nil || len(*filters) == 0 {
 		return "", nil
 	}
@@ -113,9 +113,9 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 
 		var fieldColumn string
 		if b.queryContainer.ColumnNotString[columnName] && ((*filters)[name].Op == pkgfilters.OpLike || (*filters)[name].Op == pkgfilters.OpMatch) {
-			fieldColumn = fmt.Sprintf(`CAST(%s AS TEXT)`, postgresQueryContainer.QuoteColumn(columnName))
+			fieldColumn = fmt.Sprintf(`CAST(%s AS TEXT)`, quoteColumn(columnName, withAlias))
 		} else {
-			fieldColumn = fmt.Sprintf(`%s`, postgresQueryContainer.QuoteColumn(columnName))
+			fieldColumn = quoteColumn(columnName, withAlias)
 		}
 
 		switch (*filters)[name].Op {
@@ -184,7 +184,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 			return "", getColumnNameBuilderError("raw query")
 		}
 
-		rawQuery = strings.ReplaceAll(rawQuery, fieldInRaw, fmt.Sprintf(`%s`, postgresQueryContainer.QuoteColumn(columnName)))
+		rawQuery = strings.ReplaceAll(rawQuery, fieldInRaw, quoteColumn(columnName, withAlias))
 		alreadyReplaced[fieldInRaw] = true
 	}
 
@@ -216,4 +216,13 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 	queryWhere += rawQuery + ")"
 
 	return queryWhere, nil
+}
+
+// quoteColumn quotes the column name, keeping its alias (eg. "t1.name") only when withAlias is true.
+func quoteColumn(columnName string, withAlias bool) string {
+	if !withAlias {
+		columnName = postgresQueryContainer.ColumnWithoutAlias(columnName)
+	}
+
+	return postgresQueryContainer.QuoteColumn(columnName)
 }

@@ -55,6 +55,15 @@ func QuoteColumn(column string) string {
 	return fmt.Sprintf(`"%s"`, column)
 }
 
+// ColumnWithoutAlias returns the column name without its alias, eg. "name" for "t1.name".
+func ColumnWithoutAlias(column string) string {
+	if i := strings.Index(column, "."); i >= 0 {
+		return column[i+1:]
+	}
+
+	return column
+}
+
 // indexStatements builds a CREATE INDEX statement for each index in 'indexes'.
 // Indexes referencing only ignored fields (absent from fieldColumnName) are skipped.
 func indexStatements(rawTableName string, quotedTableName string, indexes []*structinfo.IndexInfo, fieldColumnName map[string]string) []string {
@@ -69,6 +78,7 @@ func indexStatements(rawTableName string, quotedTableName string, indexes []*str
 			if !ok {
 				continue
 			}
+			columnName = ColumnWithoutAlias(columnName)
 			columns = append(columns, QuoteColumn(columnName))
 			columnNames = append(columnNames, columnName)
 		}

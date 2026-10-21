@@ -26,13 +26,13 @@ func New(structInfo *structinfo.StructInfo, queryContainer *sqliteQueryContainer
 func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *filters.Filters) (string, error) {
 	query := b.queryContainer.SelectPrefix
 
-	qOrder, err := b.queryOrder(order)
+	qOrder, err := b.queryOrder(order, b.queryContainer.CustomSelectPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("order", "order array", err)
 	}
 
 	qLimitOffset := LimitOffset(limit, offset)
-	qWhere, err := b.queryFilters(filters)
+	qWhere, err := b.queryFilters(filters, b.queryContainer.CustomSelectPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -53,7 +53,7 @@ func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *fi
 func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 	query := b.queryContainer.SelectCountPrefix
 
-	qWhere, err := b.queryFilters(filters)
+	qWhere, err := b.queryFilters(filters, b.queryContainer.CustomSelectCountPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -68,7 +68,7 @@ func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
 	query := b.queryContainer.DeletePrefix
 
-	qWhere, err := b.queryFilters(filters)
+	qWhere, err := b.queryFilters(filters, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -88,7 +88,7 @@ func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, erro
 
 	query := b.queryContainer.DeletePrefix
 
-	qWhere, err := b.queryFilters(filters)
+	qWhere, err := b.queryFilters(filters, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -97,7 +97,7 @@ func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, erro
 		query += " WHERE " + qWhere
 	}
 
-	query += fmt.Sprintf(` RETURNING "%s"`, idFieldColumnName)
+	query += fmt.Sprintf(` RETURNING "%s"`, sqliteQueryContainer.ColumnWithoutAlias(idFieldColumnName))
 
 	return query, nil
 }
@@ -112,7 +112,7 @@ func (b *QueryBuilder) Update(values map[string]interface{}, filters *filters.Fi
 
 	query += " " + qSet
 
-	qWhere, err := b.queryFilters(filters)
+	qWhere, err := b.queryFilters(filters, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}

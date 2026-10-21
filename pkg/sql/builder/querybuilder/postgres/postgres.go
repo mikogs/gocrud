@@ -32,13 +32,13 @@ func New(structInfo *structinfo.StructInfo, queryContainer *postgresQueryContain
 func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *filters.Filters) (string, error) {
 	query := b.queryContainer.SelectPrefix
 
-	qOrder, err := b.queryOrder(order)
+	qOrder, err := b.queryOrder(order, b.queryContainer.CustomSelectPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("order", "order array", err)
 	}
 
 	qLimitOffset := LimitOffset(limit, offset)
-	qWhere, err := b.queryFilters(filters, 1)
+	qWhere, err := b.queryFilters(filters, 1, b.queryContainer.CustomSelectPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -61,7 +61,7 @@ func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *fi
 func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 	query := b.queryContainer.SelectCountPrefix
 
-	qWhere, err := b.queryFilters(filters, 1)
+	qWhere, err := b.queryFilters(filters, 1, b.queryContainer.CustomSelectCountPrefix)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -78,7 +78,7 @@ func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
 	query := b.queryContainer.DeletePrefix
 
-	qWhere, err := b.queryFilters(filters, 1)
+	qWhere, err := b.queryFilters(filters, 1, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -98,11 +98,11 @@ func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, erro
 		panic(idFieldNotFoundInQueryContainerError)
 	}
 
-	idColumn := idFieldColumnName
+	idColumn := postgresQueryContainer.ColumnWithoutAlias(idFieldColumnName)
 
 	query := b.queryContainer.DeletePrefix
 
-	qWhere, err := b.queryFilters(filters, 1)
+	qWhere, err := b.queryFilters(filters, 1, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}
@@ -128,7 +128,7 @@ func (b *QueryBuilder) Update(values map[string]interface{}, filters *filters.Fi
 
 	query += " " + qSet
 
-	qWhere, err := b.queryFilters(filters, lastVarNumber+1)
+	qWhere, err := b.queryFilters(filters, lastVarNumber+1, false)
 	if err != nil {
 		return "", getClauseBuilderError("where", "filters", err)
 	}

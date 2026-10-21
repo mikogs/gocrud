@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	regexpColumnNameTag  = regexp.MustCompile(`^(.[a-z0-9_]){0,1}[a-z0-9_]+$`)
+	regexpColumnNameTag  = regexp.MustCompile(`^([a-z0-9_]+\.)?[a-z0-9_]+$`)
+	regexpIndexNameTag   = regexp.MustCompile(`^[a-z0-9_]+$`)
 	regexpVarCharDBTypes = regexp.MustCompile(`^(VARCHAR|CHARACTER VARYING|BPCHAR|CHAR|CHARACTER)\([0-9]+\)$`)
 )
 
@@ -128,7 +129,7 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 		s.Fields[fieldName].Index = true
 
 		name := strings.TrimPrefix(opt, "idx:")
-		if regexpColumnNameTag.MatchString(name) {
+		if regexpIndexNameTag.MatchString(name) {
 			s.Fields[fieldName].IndexName = name
 		}
 
@@ -140,7 +141,7 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 		s.Fields[fieldName].IndexUnique = true
 
 		name := strings.TrimPrefix(opt, "uidx:")
-		if regexpColumnNameTag.MatchString(name) {
+		if regexpIndexNameTag.MatchString(name) {
 			s.Fields[fieldName].IndexName = name
 		}
 

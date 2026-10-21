@@ -66,6 +66,34 @@ The `crud` tag defines how the field is stored in the database. Multiple options
 * `uniq`: Adds a `UNIQUE` constraint to the field's column when the table is created.
 * `idx`: Creates a database index on the field. Use `idx:<name>` to give the index an explicit name; fields sharing the same `<name>` are combined into a single composite index, in the order they're declared in the struct. A bare `idx` (no name) creates its own single-column index.
 * `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
+* `name:<column>`: Overrides the column name generated from the field name. Only lowercase letters, digits and `_` are allowed.
+
+### Column Aliases
+
+A struct can read rows from more than one table when it builds its own SELECT queries by implementing `BuildSelectPrefixQuery` and `BuildSelectCountPrefixQuery`. In such a case, the column name can be prefixed with a table alias defined in that query, using `name:<alias>.<column>`. The alias is then used in the `WHERE` and `ORDER BY` clauses of `Get` and `GetCount`, so that filters on columns that exist in more than one table are not ambiguous.
+
+All other queries (`CREATE TABLE`, `INSERT`, `UPDATE`, `DELETE` and the default `SELECT` queries) use the column name without the alias.
+
+```go
+type Product_WithPrice struct {
+	ID        uint64 `json:"id" crud:"name:t1.id"`
+	Name      string `json:"name" crud:"name:t1.name"`
+	PriceName string `json:"price_name" crud:"name:t2.name"`
+	Price     int64  `json:"price" crud:"name:t2.price"`
+}
+
+func (p *Product_WithPrice) BuildSelectPrefixQuery(tableNamePrefix string) (string, error) {
+	return `SELECT t1.id, t1.name, t2.name, t2.price FROM "` + tableNamePrefix + `product" t1 ` +
+		`INNER JOIN "` + tableNamePrefix + `price" t2 ON t1.id=t2.product_id`, nil
+}
+
+func (p *Product_WithPrice) BuildSelectCountPrefixQuery(tableNamePrefix string) (string, error) {
+	return `SELECT COUNT(*) AS cnt FROM "` + tableNamePrefix + `product" t1 ` +
+		`INNER JOIN "` + tableNamePrefix + `price" t2 ON t1.id=t2.product_id`, nil
+}
+```
+
+The columns in the custom SELECT query must be in the same order as the struct fields.
 
 ### Validation Errors
 

@@ -10,7 +10,7 @@ import (
 	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
 )
 
-func (b *QueryBuilder) queryOrder(order []string) (string, error) {
+func (b *QueryBuilder) queryOrder(order []string, withAlias bool) (string, error) {
 	if len(order) == 0 {
 		return "", nil
 	}
@@ -33,7 +33,7 @@ func (b *QueryBuilder) queryOrder(order []string) (string, error) {
 			return "", getColumnNameBuilderError("order")
 		}
 
-		parts = append(parts, fmt.Sprintf(`%s %s`, sqliteQueryContainer.QuoteColumn(columnName), queryDirection))
+		parts = append(parts, fmt.Sprintf(`%s %s`, quoteColumn(columnName, withAlias), queryDirection))
 	}
 
 	return strings.Join(parts, ","), nil
@@ -66,13 +66,13 @@ func (b *QueryBuilder) querySet(values map[string]interface{}) (string, error) {
 
 	parts := make([]string, len(columns))
 	for i, col := range columns {
-		parts[i] = fmt.Sprintf(`%s=?`, sqliteQueryContainer.QuoteColumn(col))
+		parts[i] = fmt.Sprintf(`%s=?`, sqliteQueryContainer.QuoteColumn(sqliteQueryContainer.ColumnWithoutAlias(col)))
 	}
 
 	return strings.Join(parts, ","), nil
 }
 
-func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters) (string, error) {
+func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool) (string, error) {
 	if filters == nil || len(*filters) == 0 {
 		return "", nil
 	}
@@ -103,7 +103,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters) (string, error)
 			return "", getColumnNameBuilderError("filter")
 		}
 
-		fieldColumn := sqliteQueryContainer.QuoteColumn(columnName)
+		fieldColumn := quoteColumn(columnName, withAlias)
 
 		var clause string
 		switch (*filters)[name].Op {
@@ -166,7 +166,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters) (string, error)
 		if !ok {
 			return "", getColumnNameBuilderError("raw query")
 		}
-		rawQuery = strings.ReplaceAll(rawQuery, fieldInRaw, sqliteQueryContainer.QuoteColumn(columnName))
+		rawQuery = strings.ReplaceAll(rawQuery, fieldInRaw, quoteColumn(columnName, withAlias))
 		alreadyReplaced[fieldInRaw] = true
 	}
 
@@ -202,4 +202,13 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters) (string, error)
 	queryWhere += rawQuery + ")"
 
 	return queryWhere, nil
+}
+
+// quoteColumn quotes the column name, keeping its alias (eg. "t1.name") only when withAlias is true.
+func quoteColumn(columnName string, withAlias bool) string {
+	if !withAlias {
+		columnName = sqliteQueryContainer.ColumnWithoutAlias(columnName)
+	}
+
+	return sqliteQueryContainer.QuoteColumn(columnName)
 }

@@ -22,6 +22,11 @@ type QueryContainer struct {
 	// 'idx'/'uidx' struct tags. It is empty when the struct has no indexed fields.
 	IndexStatements []string
 
+	// CustomSelectPrefix and CustomSelectCountPrefix are set to true when the object builds its own
+	// SELECT prefixes. Only then column aliases (eg. "t1.name") are used, as only the custom FROM clause defines them.
+	CustomSelectPrefix      bool
+	CustomSelectCountPrefix bool
+
 	CreateTable string
 	DropTable   string
 
@@ -91,8 +96,8 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		unique := structInfo.Fields[field.Name].Unique
 		columnDefinition := columnDefinitionFromField(field.Name, field.Type.String(), unique, structInfo.Fields[field.Name].OverrideColumnType)
-		qc.ColumnDefinitions = append(qc.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(columnName), columnDefinition))
-		qc.ColumnNames = append(qc.ColumnNames, QuoteColumn(columnName))
+		qc.ColumnDefinitions = append(qc.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
+		qc.ColumnNames = append(qc.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}
 
 	qc.IndexStatements = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
@@ -228,6 +233,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) err
 			return err
 		}
 		q.SelectPrefix = query
+		q.CustomSelectPrefix = true
 	} else {
 		q.SelectPrefix = fmt.Sprintf("SELECT %s FROM %s", columnNames, q.TableName)
 	}
@@ -238,6 +244,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) err
 			return err
 		}
 		q.SelectCountPrefix = query
+		q.CustomSelectCountPrefix = true
 	} else {
 		q.SelectCountPrefix = fmt.Sprintf("SELECT COUNT(*) AS cnt FROM %s", q.TableName)
 	}

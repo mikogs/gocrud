@@ -184,10 +184,16 @@ func ValidateFilters(obj interface{}, filters *sqlfilters.Filters, tagName strin
 
 	// IS NULL and IS NOT NULL conditions do not have a value to validate, but they are valid only for nullable fields
 	valueFilters := sqlfilters.Filters{}
+	inFilters := sqlfilters.Filters{}
 	nullViolations := map[string]string{}
 	objType := reflect.Indirect(reflect.ValueOf(obj)).Type()
 	for name, filter := range *filters {
 		field, isField := objType.FieldByName(name)
+
+		if filter.Op == sqlfilters.OpIn && name != sqlfilters.Raw {
+			inFilters[name] = filter
+			continue
+		}
 
 		if !filter.IsNull() {
 			// nil is valid only with OpEqual and OpNotEqual, as IS NULL and IS NOT NULL
@@ -208,27 +214,63 @@ func ValidateFilters(obj interface{}, filters *sqlfilters.Filters, tagName strin
 		return getObjInvalidCRUDError(nullViolations)
 	}
 
-	if len(valueFilters) == 0 {
-		return nil
+	if len(valueFilters) > 0 {
+		err := sqlfilters.SetObjFields(obj, &valueFilters)
+		if err != nil {
+			return getBuilderFuncCRUDError("set obj fields", err)
+		}
+
+		fieldsToValidate := map[string]bool{}
+		for filter := range valueFilters {
+			fieldsToValidate[filter] = true
+		}
+
+		ok, violations, err := Validate(obj, fieldsToValidate, tagName)
+		if err != nil {
+			return getValidateObjCRUDError(err)
+		}
+
+		if !ok {
+			return getObjInvalidCRUDError(violations)
+		}
 	}
 
-	err := sqlfilters.SetObjFields(obj, &valueFilters)
-	if err != nil {
-		return getBuilderFuncCRUDError("set obj fields", err)
+	for name, filter := range inFilters {
+		err := validateInFilter(obj, name, filter, tagName)
+		if err != nil {
+			return err
+		}
 	}
 
-	fieldsToValidate := map[string]bool{}
-	for filter := range valueFilters {
-		fieldsToValidate[filter] = true
-	}
+	return nil
+}
 
-	ok, violations, err := Validate(obj, fieldsToValidate, tagName)
-	if err != nil {
-		return getValidateObjCRUDError(err)
-	}
-
+// validateInFilter validates each value of an OpIn filter as if it was the value of the field.
+func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tagName string) error {
+	values, ok := filter.InValues()
 	if !ok {
-		return getObjInvalidCRUDError(violations)
+		return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+	}
+
+	for _, value := range values {
+		// NULL is never IN a list
+		if isNilValue(value) {
+			return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+		}
+
+		err := sqlfilters.SetObjFields(obj, &sqlfilters.Filters{name: {Op: sqlfilters.OpEqual, Val: value}})
+		if err != nil {
+			return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+		}
+
+		ok, violations, err := Validate(obj, map[string]bool{name: true}, tagName)
+		if err != nil {
+			return getValidateObjCRUDError(err)
+		}
+
+		if !ok {
+			return getObjInvalidCRUDError(violations)
+		}
 	}
 
 	return nil
@@ -266,6 +308,23 @@ func convertFiltersFromString(obj interface{}, filters *sqlfilters.Filters) (*sq
 		valueAsString, ok := filterOpVal.Val.(string)
 		if !ok {
 			return nil, getObjInvalidCRUDError(map[string]string{filterName: ViolationType})
+		}
+
+		// the values of IN are separated with commas, and an empty string is an empty list
+		if filterOpVal.Op == sqlfilters.OpIn {
+			values := []interface{}{}
+			if valueAsString != "" {
+				for _, part := range strings.Split(valueAsString, ",") {
+					ok, value := sqlbuilder.StructFieldValueFromString(obj, filterName, part)
+					if !ok {
+						return nil, getObjInvalidCRUDError(map[string]string{filterName: ViolationType})
+					}
+					values = append(values, value)
+				}
+			}
+
+			newFilters.Add(filterName, sqlfilters.OpVal{Op: filterOpVal.Op, Val: values})
+			continue
 		}
 
 		ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)

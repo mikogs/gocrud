@@ -41,6 +41,14 @@ func FiltersInterfaces(filters *Filters) []interface{} {
 		if (*filters)[filter].IsNull() {
 			continue
 		}
+
+		// IN has a value for each element
+		if (*filters)[filter].Op == OpIn {
+			values, _ := (*filters)[filter].InValues()
+			interfaces = append(interfaces, values...)
+			continue
+		}
+
 		interfaces = append(interfaces, (*filters)[filter].Val)
 	}
 

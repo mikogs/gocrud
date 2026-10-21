@@ -144,6 +144,8 @@ func Op(op string) (int, error) {
 		return sqlfilters.OpMatch, nil
 	case "bit":
 		return sqlfilters.OpBit, nil
+	case "in":
+		return sqlfilters.OpIn, nil
 	default:
 		return 0, InvalidFilterOpError
 	}

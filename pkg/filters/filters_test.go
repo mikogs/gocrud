@@ -198,3 +198,24 @@ func TestSetObjFields_Nullable(t *testing.T) {
 		t.Fatal("SetObjFields did not return an err for a value of an incompatible type")
 	}
 }
+
+func TestOpVal_InValues(t *testing.T) {
+	tests := map[string]struct {
+		val    interface{}
+		want   []interface{}
+		wantOK bool
+	}{
+		"slice":              {[]uint64{1, 2}, []interface{}{uint64(1), uint64(2)}, true},
+		"array":              {[2]string{"a", "b"}, []interface{}{"a", "b"}, true},
+		"values of any type": {[]interface{}{1, "a"}, []interface{}{1, "a"}, true},
+		"empty slice":        {[]int{}, []interface{}{}, true},
+		"not a list":         {"a,b", nil, false},
+		"nil":                {nil, nil, false},
+	}
+	for name, test := range tests {
+		got, ok := OpVal{Op: OpIn, Val: test.val}.InValues()
+		if ok != test.wantOK || !reflect.DeepEqual(got, test.want) {
+			t.Fatalf("%s: InValues returned %v, %v, want %v, %v", name, got, ok, test.want, test.wantOK)
+		}
+	}
+}

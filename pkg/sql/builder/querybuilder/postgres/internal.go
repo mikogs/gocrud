@@ -127,6 +127,16 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 			fieldColumn = quoteColumn(columnName, withAlias)
 		}
 
+		if (*filters)[name].Op == pkgfilters.OpIn {
+			values, ok := (*filters)[name].InValues()
+			if !ok {
+				return "", getInFilterBuilderError()
+			}
+			queryWhere += " AND " + inCondition(fieldColumn, len(values), valueNum)
+			valueNum += len(values)
+			continue
+		}
+
 		switch (*filters)[name].Op {
 		case pkgfilters.OpLike:
 			queryWhere += fmt.Sprintf(` AND %s LIKE $%d`, fieldColumn, valueNum)
@@ -266,4 +276,18 @@ func nullCondition(column string, op int) string {
 	}
 
 	return column + " IS NULL"
+}
+
+// inCondition returns an IN condition with num placeholders, starting with $first. An empty list matches nothing.
+func inCondition(column string, num int, first int) string {
+	if num == 0 {
+		return "1=0"
+	}
+
+	placeholders := make([]string, num)
+	for i := range placeholders {
+		placeholders[i] = fmt.Sprintf("$%d", first+i)
+	}
+
+	return column + " IN (" + strings.Join(placeholders, ",") + ")"
 }

@@ -52,3 +52,12 @@ var getOrderBuilderError = func() *QueryBuilderError {
 		Err: orderError,
 	}
 }
+
+var inFilterError = errors.New("value of an OpIn filter must be a slice or an array")
+
+var getInFilterBuilderError = func() *QueryBuilderError {
+	return &QueryBuilderError{
+		Op:  "get in filter",
+		Err: inFilterError,
+	}
+}

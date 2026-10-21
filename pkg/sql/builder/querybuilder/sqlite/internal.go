@@ -110,6 +110,15 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 			continue
 		}
 
+		if (*filters)[name].Op == pkgfilters.OpIn {
+			values, ok := (*filters)[name].InValues()
+			if !ok {
+				return "", getInFilterBuilderError()
+			}
+			parts = append(parts, inCondition(fieldColumn, len(values)))
+			continue
+		}
+
 		var clause string
 		switch (*filters)[name].Op {
 		case pkgfilters.OpLike:
@@ -249,4 +258,13 @@ func nullCondition(column string, op int) string {
 	}
 
 	return column + " IS NULL"
+}
+
+// inCondition returns an IN condition with num placeholders. An empty list matches nothing.
+func inCondition(column string, num int) string {
+	if num == 0 {
+		return "1=0"
+	}
+
+	return column + " IN (" + strings.Repeat("?,", num)[:num*2-1] + ")"
 }

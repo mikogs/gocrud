@@ -152,3 +152,30 @@ func TestList_InvalidFilterValue(t *testing.T) {
 		nil, nil, nil)
 	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
 }
+
+func TestList_InFilter(t *testing.T) {
+	recreateTestStructTable()
+
+	for _, age := range []int{20, 30, 40} {
+		ts := test.TestStructWithData()
+		ts.Age = age
+		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
+	}
+
+	objs, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc",
+		map[string]string{"Age": "20,40"},
+		map[string]string{"Age": "in"},
+		nil, nil, nil)
+	if err != nil {
+		t.Fatalf("List failed: %s", err.Error())
+	}
+	if len(objs) != 2 || objs[0].(*test.TestStruct).Age != 20 || objs[1].(*test.TestStruct).Age != 40 {
+		t.Fatalf("List returned %+v, want the objects with Age 20 and 40", objs)
+	}
+
+	num, err := testService.Num(context.Background(), "teststruct", map[string]string{"Age": "30,200"}, map[string]string{"Age": "in"})
+	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
+	if num != 0 {
+		t.Fatalf("Num returned %d for an invalid value, want 0", num)
+	}
+}

@@ -168,6 +168,34 @@ type GetOptions struct {
   * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`). A `nil` value with `OpEqual` or `OpNotEqual` is an `IS NULL` or `IS NOT NULL` condition, see [Optional values](../struct.md#5-optional-values-null).
   * *Raw SQL (`sqlfilters.Raw`)**: Allows injecting raw SQL fragments for complex logic. Warning: Use with caution as it bypasses automatic escaping.
 
+  The operators of standard filters:
+
+  | Operator | SQL | Value |
+  |---|---|---|
+  | `OpEqual` | `=`, or `IS NULL` for `nil` | a value of the field type |
+  | `OpNotEqual` | `!=`, or `IS NOT NULL` for `nil` | a value of the field type |
+  | `OpGreater`, `OpGreaterOrEqual` | `>`, `>=` | a value of the field type |
+  | `OpLower`, `OpLowerOrEqual` | `<`, `<=` | a value of the field type |
+  | `OpLike` | `LIKE` | a pattern, e.g. `"%smith%"` |
+  | `OpMatch` | `~` (PostgreSQL only) | a regular expression |
+  | `OpBit` | `& value > 0` | a bit mask |
+  | `OpIn` | `IN (...)` | a slice or an array of values of the field type |
+
+  `OpIn` matches any of the values in the list. Each value is validated like the value of the field. An empty list matches nothing.
+
+  ```go
+  orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
+      Filters: &sqlfilters.Filters{
+          "Status":     {Op: sqlfilters.OpIn, Val: []string{"paid", "shipped"}},
+          "CustomerID": {Op: sqlfilters.OpIn, Val: customerIDs}, // e.g. []uint64{3, 8, 21}
+      },
+  })
+  ```
+
+  With `ConvertFiltersFromString`, the values of `OpIn` are separated with commas, e.g. `"paid,shipped"`, and an empty string is an empty list. A value cannot contain a comma.
+
+  Each value of `OpIn` is a parameter of the query, and databases limit their number: 65535 in PostgreSQL and 32766 in SQLite.
+
 * **Type Conversion (ConvertFiltersFromString)**: Automatically casts string inputs (e.g., from HTTP query parameters) to the correct Go data types required by the database columns. Times can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).
 
 * **Row Transformation (RowObjTransformFunc)**: Instead of returning raw structs, you can transform each row into a different format (e.g., a map for JSON, a string for CSV, or HTML snippets).

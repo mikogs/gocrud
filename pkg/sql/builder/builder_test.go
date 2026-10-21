@@ -2,6 +2,7 @@ package builder
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -723,6 +724,45 @@ func TestSQLNullConditions(t *testing.T) {
 
 	wantValues := []interface{}{"Alice", 1.5, 5}
 	if got := filters.FiltersInterfaces(f); len(got) != 3 || got[0] != wantValues[0] || got[1] != wantValues[1] || got[2] != wantValues[2] {
+		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
+	}
+}
+
+func TestSQLInConditions(t *testing.T) {
+	f := &filters.Filters{
+		"Age":       {Op: filters.OpEqual, Val: nil},
+		"Name":      {Op: filters.OpIn, Val: []string{"Alice", "Bob"}},
+		"Rate":      {Op: filters.OpIn, Val: []float32{}},
+		"Score":     {Op: filters.OpGreater, Val: 1.5},
+		filters.Raw: {Op: filters.OpAND, Val: []interface{}{".ID IN (?)", []uint64{1, 2}}},
+	}
+
+	wants := map[string]string{
+		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "name" IN ($1,$2) ` +
+			`AND 1=0 AND "score">$3) AND ("id" IN ($4,$5));`,
+		DialectSQLite: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "name" IN (?,?) ` +
+			`AND 1=0 AND "score">?) AND ("id" IN (?,?));`,
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			h := mustNew(t, &TestStructWithNullableFields{}, Options{Dialect: dialect})
+			got, err := h.SelectCount(f)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			}
+
+			if _, err := h.SelectCount(&filters.Filters{"Name": {Op: filters.OpIn, Val: "Alice"}}); err == nil {
+				t.Fatal("SelectCount did not return an err for an OpIn filter that is not a list")
+			}
+		})
+	}
+
+	wantValues := []interface{}{"Alice", "Bob", 1.5, uint64(1), uint64(2)}
+	if got := filters.FiltersInterfaces(f); !reflect.DeepEqual(got, wantValues) {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
 	}
 }

@@ -24,9 +24,15 @@ const (
 const validateTagName = "validate"
 
 var (
-	structValidator = validator.New()
-	regexpCache     sync.Map
+	structValidator    = validator.New()
+	regexpCache        sync.Map
+	relationFieldCache sync.Map
 )
+
+type relationFieldCacheKey struct {
+	typ     reflect.Type
+	tagName string
+}
 
 // Validate validates obj field values against their go-playground `validate` tags and their
 // <tagName>_regexp tags. If restrictFields is not empty, only the listed fields are validated.
@@ -44,16 +50,26 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 		return false, nil, fmt.Errorf("obj is not a struct or pointer to struct, got %s", val.Kind())
 	}
 
+	// related objects are validated when they are saved, and not as a part of the object that holds them
+	relationFields := getRelationFieldNames(val.Type(), tagName)
+
 	var err error
-	if len(restrictFields) > 0 {
+	switch {
+	case len(restrictFields) > 0:
 		fields := make([]string, 0, len(restrictFields))
 		for name, ok := range restrictFields {
-			if ok {
+			if ok && !relationFields[name] {
 				fields = append(fields, name)
 			}
 		}
 		err = structValidator.StructPartial(obj, fields...)
-	} else {
+	case len(relationFields) > 0:
+		fields := make([]string, 0, len(relationFields))
+		for name := range relationFields {
+			fields = append(fields, name)
+		}
+		err = structValidator.StructExcept(obj, fields...)
+	default:
 		err = structValidator.Struct(obj)
 	}
 
@@ -274,6 +290,22 @@ func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tag
 	}
 
 	return nil
+}
+
+// getRelationFieldNames returns the names of the relation fields of the struct type t, caching them for subsequent calls.
+func getRelationFieldNames(t reflect.Type, tagName string) map[string]bool {
+	key := relationFieldCacheKey{typ: t, tagName: tagName}
+	if v, ok := relationFieldCache.Load(key); ok {
+		return v.(map[string]bool)
+	}
+
+	names := map[string]bool{}
+	for _, name := range structinfo.RelationFieldNames(t, tagName) {
+		names[name] = true
+	}
+
+	relationFieldCache.Store(key, names)
+	return names
 }
 
 // getCompiledRegexp returns a compiled regexp for the pattern, caching it for subsequent calls.

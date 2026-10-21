@@ -48,6 +48,10 @@ type StructInfo struct {
 	TimeFields []string
 	// Indexes contains the database indexes built from fields marked with 'idx' or 'uidx' tags.
 	Indexes []*IndexInfo
+	// Relations contains the fields that hold related objects, declared with 'rel' tags, in the order of the fields.
+	Relations []*RelationInfo
+	// ForeignKeyFields contains the names of the fields that are foreign keys, declared with 'fk' tags.
+	ForeignKeyFields []string
 }
 
 // New returns information on the obj struct fields, read from their tagName tags.
@@ -61,6 +65,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 	}
 
 	objType := objValue.Elem().Type()
+	structInfo.Name = objType.Name()
 
 	numField := objType.NumField()
 
@@ -73,6 +78,20 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 
 	for j := 0; j < objType.NumField(); j++ {
 		field := objType.Field(j)
+
+		if _, isRelation := relationTagKey(field.Tag.Get(tagName)); isRelation {
+			// a field stored in a column cannot hold related objects
+			if field.IsExported() && IsFieldTypeSupported(field.Type) {
+				return nil, fmt.Errorf("struct %s: %w: field %s: the rel option is for a field that holds related objects, e.g. Customer *Customer, not for a column", objType.Name(), RelationError, field.Name)
+			}
+
+			relation, err := newRelationInfo(field, tagName)
+			if err != nil {
+				return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
+			}
+			structInfo.Relations = append(structInfo.Relations, relation)
+			continue
+		}
 
 		// Only exported fields of basic golang types are included as columns for the database table.
 		// Check the function below for the details.
@@ -106,6 +125,16 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 	}
 
 	err := structInfo.checkColumns(objType)
+	if err != nil {
+		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
+	}
+
+	err = structInfo.checkBelongsToKeys(objType)
+	if err != nil {
+		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
+	}
+
+	err = structInfo.checkForeignKeys(objType)
 	if err != nil {
 		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
 	}
@@ -233,6 +262,16 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 			}
 		}
 
+		return
+	}
+
+	if strings.HasPrefix(opt, "fk:") {
+		s.Fields[fieldName].ForeignKeyTable = strings.TrimPrefix(opt, "fk:")
+		return
+	}
+
+	if strings.HasPrefix(opt, "on_delete:") {
+		s.Fields[fieldName].OnDelete = strings.TrimPrefix(opt, "on_delete:")
 		return
 	}
 

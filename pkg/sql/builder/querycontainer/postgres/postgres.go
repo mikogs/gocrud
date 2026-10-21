@@ -108,14 +108,16 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 			unique = true
 		}
 
-		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable)
+		foreignKey := querycontainer.NewForeignKey(tableNamePrefix, structInfo.Fields[field.Name].ForeignKeyTable, structInfo.Fields[field.Name].OnDelete)
+		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable) + foreignKey.Clause()
 		queryContainer.ColumnDefinitions = append(queryContainer.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
 		queryContainer.Columns = append(queryContainer.Columns, querycontainer.Column{
-			Name:     ColumnWithoutAlias(columnName),
-			Type:     columnType(structinfo.BaseType(field.Type).String(), structInfo.Fields[field.Name].OverrideColumnType),
-			Nullable: structInfo.Fields[field.Name].Nullable,
-			Unique:   unique,
-			IsID:     field.Name == "ID",
+			Name:       ColumnWithoutAlias(columnName),
+			Type:       columnType(structinfo.BaseType(field.Type).String(), structInfo.Fields[field.Name].OverrideColumnType),
+			Nullable:   structInfo.Fields[field.Name].Nullable,
+			Unique:     unique,
+			IsID:       field.Name == "ID",
+			ForeignKey: foreignKey,
 			AddStatements: []string{
 				fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, queryContainer.TableName, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition),
 			},

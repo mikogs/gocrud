@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"reflect"
-	"strings"
 
 	"github.com/mikogs/gocrud"
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -38,22 +36,20 @@ func New(registry map[string]func() interface{}, dbConn *sql.DB, dialect string)
 // (partial) column set. Since registry iteration order is unspecified, this
 // keeps CreateTables deterministic regardless of how many projections are
 // registered alongside the owning struct.
+// The tables are created in the order of the registry keys, except that the
+// tables referenced by foreign keys are created before the tables that
+// reference them.
 func (c *CRUD) CreateTables(ctx context.Context) error {
 	logAttrService := logger.AttrService(c, "CreateTables")
 
-	var err error
-	for _, constructor := range c.registry {
-		obj := constructor()
+	keys, err := c.tableKeys()
+	if err != nil {
+		slog.Error("error ordering tables", logAttrService, logger.AttrError(err))
+		return err
+	}
 
-		typ := reflect.TypeOf(obj)
-		for typ.Kind() == reflect.Pointer {
-			typ = typ.Elem()
-		}
-		if strings.Contains(typ.Name(), "_") {
-			continue
-		}
-
-		err = c.crud.CreateTable(ctx, obj)
+	for _, key := range keys {
+		err = c.crud.CreateTable(ctx, c.registry[key]())
 		if err != nil {
 			slog.Error("error creating table", logAttrService, logger.AttrError(err))
 			return err

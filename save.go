@@ -3,6 +3,7 @@ package gocrud
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -180,6 +181,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 	return nil
 }
 
+var regexpSQLiteErrorCode = regexp.MustCompile(` \([0-9]+\)$`)
+
 // checkUniqueErr returns a *UniqError if err represents a unique-constraint
 // violation from either PostgreSQL (pq code 23505) or SQLite
 // ("UNIQUE constraint failed: table.column"), otherwise returns nil.
@@ -192,7 +195,8 @@ func checkUniqueErr(err error) *UniqError {
 	msg := err.Error()
 	const sqlitePrefix = "UNIQUE constraint failed: "
 	if idx := strings.Index(msg, sqlitePrefix); idx >= 0 {
-		return getUniqError(msg[idx+len(sqlitePrefix):])
+		// the driver adds the error code at the end, e.g. " (2067)"
+		return getUniqError(regexpSQLiteErrorCode.ReplaceAllString(msg[idx+len(sqlitePrefix):], ""))
 	}
 
 	return nil

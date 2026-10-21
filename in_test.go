@@ -174,7 +174,7 @@ func testInFiltersUpdateAndDelete(t *testing.T, crud *CRUD) {
 		Filters: &sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "shipped"}},
 	}, []uint64{1, 2, 3})
 
-	err = DeleteMultiple[Shipment](ctx, crud, DeleteMultipleOptions{
+	_, err = DeleteMultiple[Shipment](ctx, crud, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{"shipped", "delivered"}}},
 	})
 	if err != nil {

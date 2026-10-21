@@ -3,38 +3,28 @@ package service
 import (
 	"context"
 	"log/slog"
-	"reflect"
-	"sort"
-	"strings"
 
 	"github.com/mikogs/gocrud"
 	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 // Migrate runs gocrud.CRUD.Migrate for every constructor in the registry, in a single transaction, skipping
-// the structs that are projections of other structs, as CreateTables does. The migrations are returned in
-// the order of the registry keys.
+// the structs that are projections of other structs, as CreateTables does. The tables are migrated, and the
+// migrations returned, in the order of the registry keys, except that the tables referenced by foreign keys
+// come before the tables that reference them.
 func (c *CRUD) Migrate(ctx context.Context) ([]*gocrud.Migration, error) {
 	logAttrService := logger.AttrService(c, "Migrate")
 
-	keys := make([]string, 0, len(c.registry))
-	for key := range c.registry {
-		keys = append(keys, key)
+	keys, err := c.tableKeys()
+	if err != nil {
+		slog.Error("error ordering tables", logAttrService, logger.AttrError(err))
+		return nil, err
 	}
-	sort.Strings(keys)
 
 	var migrations []*gocrud.Migration
-	err := c.crud.RunInTx(ctx, func(tx *gocrud.CRUD) error {
+	err = c.crud.RunInTx(ctx, func(tx *gocrud.CRUD) error {
 		for _, key := range keys {
 			obj := c.registry[key]()
-
-			typ := reflect.TypeOf(obj)
-			for typ.Kind() == reflect.Pointer {
-				typ = typ.Elem()
-			}
-			if strings.Contains(typ.Name(), "_") {
-				continue
-			}
 
 			migration, err := tx.Migrate(ctx, obj)
 			if err != nil {

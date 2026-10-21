@@ -143,6 +143,9 @@ func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldN
 // TimeFields returns a list with names of the time.Time fields that are stored in the database.
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
 
+// StructName returns the name of the struct type.
+func (b *Builder) StructName() string { return b.structInfo.Name }
+
 // TableName returns the name of the table, without quotes.
 func (b *Builder) TableName() string { return b.tableName }
 
@@ -154,6 +157,9 @@ func (b *Builder) IndexStatements() []string { return b.indexStatements }
 
 // IndexNames returns the names of the indexes created by IndexStatements.
 func (b *Builder) IndexNames() []string { return b.indexNames }
+
+// Relations returns the fields that hold related objects, declared with 'rel' tags.
+func (b *Builder) Relations() []*structinfo.RelationInfo { return b.structInfo.Relations }
 
 // UniqueFields returns a list with field names that are unique.
 func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }

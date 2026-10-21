@@ -95,6 +95,10 @@ type LoadOptions struct {
     // VerifyPasswordFields maps a struct field name to a plaintext password
     // to verify against the bcrypt hash stored in that field.
     VerifyPasswordFields map[string]string
+
+    // Preload contains the relation fields whose related objects are loaded,
+    // e.g. []string{"Customer", "Items.Product"}, see Relations.
+    Preload []string
 }
 ```
 
@@ -121,13 +125,14 @@ func (c *CRUD) Get(
     ctx context.Context, 
     newObjFunc func() interface{}, 
     options GetOptions
-) ([]interface{}, error)
+) ([]interface{}, map[string]int, error)
 ```
 
 **Behavior**
 
 * **Dynamic Instantiation**: Uses `newObjFunc` to create a fresh instance of the target struct for every row fetched. This ensures type safety and avoids shared state issues.
 * **Result Set**: Returns a slice of `interface{}` containing the populated objects (or transformed results).
+* **Password verification**: The second result holds `PassOK` or `PassInvalid` for each field named in `VerifyPasswordFields`, when exactly one record is found, and is empty otherwise.
 * **Filtering & Sorting**: Supports standard SQL-like filtering (`WHERE`), ordering (`ORDER BY`), and pagination (`LIMIT/OFFSET`).
 * **Transformation**: Allows custom processing of each row before it is added to the result slice via `RowObjTransformFunc`.
 * **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` on every scanned row, before the transform function or the result slice is populated. Bcrypt hashes are never left in memory after a read.
@@ -158,6 +163,12 @@ type GetOptions struct {
 
     // Type Conversion
     ConvertFiltersFromString bool // Converts string filter values to target field types (useful for URL params)
+
+    // Passwords to verify against the stored hashes, by field name, when exactly one record is found
+    VerifyPasswordFields map[string]string
+
+    // Relation fields whose related objects are loaded, e.g. []string{"Customer", "Items.Product"}
+    Preload []string
 }
 ```
 
@@ -166,7 +177,7 @@ type GetOptions struct {
 
 * **Filtering (Filters)**: Uses `sqlfilters.Filters` to build `WHERE` clauses.
   * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`). A `nil` value with `OpEqual` or `OpNotEqual` is an `IS NULL` or `IS NOT NULL` condition, see [Optional values](../struct.md#5-optional-values-null).
-  * *Raw SQL (`sqlfilters.Raw`)**: Allows injecting raw SQL fragments for complex logic. Warning: Use with caution as it bypasses automatic escaping.
+  * **Raw SQL (`sqlfilters.Raw`)**: A fragment of SQL for conditions that standard filters cannot express, e.g. `".Price > ? OR .Stock = ?"`. Its `Op` is `sqlfilters.OpAND` or `sqlfilters.OpOR`, which joins it with the standard filters, and its `Val` is an `[]interface{}` with the SQL followed by the values, e.g. `{Op: sqlfilters.OpOR, Val: []interface{}{".Price > ?", 100}}`. Fields are written as `.FieldName` and replaced with their columns, and the values for `?` are passed as query parameters, so they are safe. The SQL text itself is used as it is, so never build it from user input.
 
   The operators of standard filters:
 
@@ -200,7 +211,8 @@ type GetOptions struct {
 
 * **Row Transformation (RowObjTransformFunc)**: Instead of returning raw structs, you can transform each row into a different format (e.g., a map for JSON, a string for CSV, or HTML snippets).
 
-** Note: ** The `sqlfilters.Raw` option allows direct SQL injection if not handled carefully. Ensure that any dynamic values passed to raw filters are strictly validated or parameterized. Refer to get_test.go in the source code for examples.
+* **Related objects (Preload)**: Loads the related objects of the relation fields, with one query per relation, see [Relations](relations.md#loading-related-objects).
+
 
 
 ## GetCount
@@ -238,36 +250,21 @@ type GetCountOptions struct {
 
 * **Type Conversion (`ConvertFiltersFromString`)**: Identical behavior to `Get`. When enabled, string-based filter values (e.g., from URL query parameters) are automatically converted to the correct Go data types before being applied to the query.
 
-## Cascade Delete
-
-The CRUD system supports automatic cascade operations when a parent object is deleted. This behavior is controlled entirely through struct tags on the slice fields that define parent-child relationships.
-
-**Tag Syntax**
-
-The `crud` tag is applied to child slice fields and supports the following keys:
-
-|Key|Description|
-|---|-----------|
-|`on_del`	|Action to perform on children: `del` (delete) or `upd` (update)|
-|`del_field`	|The field in the child struct that serves as the foreign key linking it to the parent|
-|`del_upd_field`	|(Only when `on_del:upd`) The field in the child struct to update|
-|`del_upd_val`	|(Only when `on_del:upd`) The value to set on `del_upd_field`|
-
 ## DeleteMultiple
 
-The `DeleteMultiple` method removes multiple records from the database table that match specific filter criteria, similar to how `Get` retrieves them. It also supports controlled cascade deletion.
+The `DeleteMultiple` method removes multiple records from the database table that match specific filter criteria, similar to how `Get` retrieves them.
 
 **Signature**
 
 ```go
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) error
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]uint64, error)
 ```
 
 **Behavior**
 
 * **Batch Deletion**: Executes a `DELETE` query based on the `Filters` provided, removing all rows that satisfy the conditions.
-* **Cascading**: If the deleted rows have child relationships defined via struct tags (see Cascade Delete), the system will automatically process those children according to their on_del rules.
-* **Depth Control**: The `CascadeDeleteDepth` option limits how many levels deep the cascade deletion propagates, preventing accidental mass deletions in deeply nested data structures.
+* **Deleted IDs**: Returns the IDs of the deleted rows, in the order the database returns them, or an empty slice when no rows matched. The rows of other tables that are deleted by foreign keys are not included.
+* **Related rows**: Rows of other tables that reference the deleted rows are deleted, updated or protected by the database, according to their foreign keys, see [Foreign keys](relations.md#foreign-keys).
 
 **Parameters**
 
@@ -328,3 +325,44 @@ type UpdateMultipleOptions struct {
 ## Transactions
 
 All the operations above can run in a database transaction, so that several changes are saved together or not at all. See [Transactions](transactions.md).
+
+## Validating without saving
+
+The operations validate objects and filters themselves, but the validation can also be run on its own, e.g. to show the errors of a form before anything is saved:
+
+```go
+// all the fields of obj
+ok, violations, err := gocrud.Validate(obj, nil, "crud")
+
+// only the named fields
+ok, violations, err = gocrud.Validate(obj, map[string]bool{"Email": true}, "crud")
+
+// values as UpdateMultiple validates them, without changing obj
+ok, violations, err = gocrud.ValidateValues(obj, map[string]interface{}{"Email": "x"}, "crud")
+
+// filters as Get validates them, returns a *gocrud.CRUDError with a *gocrud.ValidationError
+err = gocrud.ValidateFilters(obj, filters, "crud")
+```
+
+`violations` maps the names of the invalid fields to the names of the failed rules, see [Validation Errors](../struct.md#validation-errors). The last argument is the `TagName` of the CRUD, which is used for the `<tagName>_regexp` tags. `err` is set when `obj` cannot be validated, e.g. it is not a pointer to a struct.
+
+## Errors
+
+Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed, e.g. `"database exec"`, and whose `Err` is the cause. `UniqError`, and `NotFoundError` of `Load[T]`, are returned as they are. Use `errors.Is` and `errors.As` to check any of them:
+
+| Error | When |
+|---|---|
+| `*gocrud.ValidationError` | the object or a filter is not valid, `Violations` has the failed rules |
+| `*gocrud.UniqError` | a unique field already has the value, see below |
+| `gocrud.ForeignKeyViolationError` | a foreign key is violated, see [Relations](relations.md#violations) |
+| `gocrud.NotFoundError` | `Load[T]` did not find the object |
+| `gocrud.PreloadError` | a name in `Preload` is not a relation field |
+| `gocrud.UnsupportedOptionError` | an option is not supported by a [typed function](generics.md) |
+| `gocrud.AliasedColumnsMigrateError` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
+| `structinfo.NotStructPointerError`, `IDFieldError`, `NoColumnsError`, `PasswordFieldError`, `RelationError`, `ForeignKeyError` | the struct cannot be used, see [Struct](../struct.md) |
+
+The `Field` of `UniqError` depends on what detected the duplicate:
+
+* the name of the field, when it was found by the `GetCountOnUniq` check, e.g. `Email`,
+* the name of the constraint in PostgreSQL, e.g. `user_email_key`,
+* the table and the column in SQLite, e.g. `user.email`.

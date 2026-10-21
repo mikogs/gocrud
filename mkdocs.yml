@@ -18,9 +18,11 @@ nav:
     - Typed functions: crud/generics.md
     - Transactions: crud/transactions.md
     - Migrations: crud/migrations.md
-  #- Helper functions: helper-functions.md
+    - Relations: crud/relations.md
+    - Custom queries: crud/custom-queries.md
   - Additional packages:
     - Service: pkgs/service.md
+  - Helper functions: helper-functions.md
   #- Development: development.md
 
 extra:

@@ -36,10 +36,11 @@ func Get[T any](ctx context.Context, c *CRUD, options GetOptions) ([]*T, error) 
 }
 
 // Load returns the object of type T with the given ID, or NotFoundError when there is no such object.
-func Load[T any](ctx context.Context, c *CRUD, id uint64) (*T, error) {
+// The related objects of the relation fields named in preload are loaded as well.
+func Load[T any](ctx context.Context, c *CRUD, id uint64, preload ...string) (*T, error) {
 	obj := new(T)
 
-	output := c.Load(ctx, obj, strconv.FormatUint(id, 10), LoadOptions{})
+	output := c.Load(ctx, obj, strconv.FormatUint(id, 10), LoadOptions{Preload: preload})
 	if output.Error != nil {
 		return nil, output.Error
 	}
@@ -61,8 +62,8 @@ func UpdateMultiple[T any](ctx context.Context, c *CRUD, values map[string]inter
 	return c.UpdateMultiple(ctx, new(T), values, options)
 }
 
-// DeleteMultiple deletes all the objects of type T that match the options.
-func DeleteMultiple[T any](ctx context.Context, c *CRUD, options DeleteMultipleOptions) error {
+// DeleteMultiple deletes all the objects of type T that match the options, and returns their IDs.
+func DeleteMultiple[T any](ctx context.Context, c *CRUD, options DeleteMultipleOptions) ([]uint64, error) {
 	return c.DeleteMultiple(ctx, new(T), options)
 }
 

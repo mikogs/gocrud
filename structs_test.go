@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
@@ -39,6 +40,7 @@ func TestOperations_InvalidStruct(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, _, getErr := testCRUDSQLite.Get(ctx, func() interface{} { return test.obj }, GetOptions{})
 			_, getCountErr := testCRUDSQLite.GetCount(ctx, test.obj, GetCountOptions{})
+			_, deleteMultipleErr := testCRUDSQLite.DeleteMultiple(ctx, test.obj, DeleteMultipleOptions{})
 
 			errs := map[string]error{
 				"CreateTable":    testCRUDSQLite.CreateTable(ctx, test.obj),
@@ -46,7 +48,7 @@ func TestOperations_InvalidStruct(t *testing.T) {
 				"Save":           testCRUDSQLite.Save(ctx, test.obj, SaveOptions{}),
 				"Load":           testCRUDSQLite.Load(ctx, test.obj, "1", LoadOptions{}).Error,
 				"Delete":         testCRUDSQLite.Delete(ctx, test.obj, DeleteOptions{}),
-				"DeleteMultiple": testCRUDSQLite.DeleteMultiple(ctx, test.obj, DeleteMultipleOptions{}),
+				"DeleteMultiple": deleteMultipleErr,
 				"UpdateMultiple": testCRUDSQLite.UpdateMultiple(ctx, test.obj, map[string]interface{}{"Name": "x"}, UpdateMultipleOptions{}),
 				"Get":            getErr,
 				"GetCount":       getCountErr,
@@ -112,4 +114,25 @@ func TestSkippedFields(t *testing.T) {
 
 func TestSQLite_SkippedFields(t *testing.T) {
 	testSkippedFields(t, testCRUDSQLite)
+}
+
+func TestGet_BuilderErrorChain(t *testing.T) {
+	for name, crud := range map[string]*CRUD{"postgres": testCRUD, "sqlite": testCRUDSQLite} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := crud.Get(context.Background(), func() interface{} { return &StructWithSkippedFields{} }, GetOptions{
+				Filters: &sqlfilters.Filters{sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: ".Name = ?"}},
+			})
+
+			var builderErr *sqlbuilder.BuilderError
+			if !errors.As(err, &builderErr) || builderErr.Op != "QueryBuilder.Select" {
+				t.Fatalf("Get returned err %v, want a *builder.BuilderError of QueryBuilder.Select", err)
+			}
+
+			want := "builder select: QueryBuilder.Select: get where clause from filters: get raw filter: " +
+				"raw filter value must be an []interface{} starting with a query string"
+			if err.Error() != want {
+				t.Fatalf("Get returned err %q, want %q", err.Error(), want)
+			}
+		})
+	}
 }

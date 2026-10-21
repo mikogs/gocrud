@@ -116,7 +116,7 @@ func testGenericCountUpdateDelete(t *testing.T, crud *CRUD) {
 		t.Fatalf("GetCount returned %d drafts after UpdateMultiple, want 0", cnt)
 	}
 
-	err = DeleteMultiple[Article](ctx, crud, DeleteMultipleOptions{
+	_, err = DeleteMultiple[Article](ctx, crud, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{"Views": {Op: sqlfilters.OpLower, Val: 100}},
 	})
 	if err != nil {

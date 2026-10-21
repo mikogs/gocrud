@@ -124,8 +124,8 @@ func TestSQLite_Save_ErrUniq(t *testing.T) {
 	objWithSameKey.Key = "gottabeunique123456789012345678901234567890"
 	err := testCRUDSQLite.Save(context.Background(), objWithSameKey, SaveOptions{})
 	var uniqError *UniqError
-	if !errors.As(err, &uniqError) {
-		t.Fatalf("SQLite Save did not return UniqError on unique violation, got: %v", err)
+	if !errors.As(err, &uniqError) || uniqError.Field != "test_struct.key" || uniqError.Error() != "uniq failed for field: test_struct.key" {
+		t.Fatalf("SQLite Save did not return UniqError for test_struct.key on unique violation, got: %v", err)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestSQLite_DeleteMultiple_WithFilters(t *testing.T) {
 		_ = testCRUDSQLite.Save(context.Background(), ts, SaveOptions{})
 	}
 
-	err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
+	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
@@ -236,7 +236,7 @@ func TestSQLite_DeleteMultiple_WithRawQuery(t *testing.T) {
 		_ = testCRUDSQLite.Save(context.Background(), ts, SaveOptions{})
 	}
 
-	err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
+	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
@@ -279,7 +279,7 @@ func TestSQLite_DeleteMultiple_WithRawQueryOnly(t *testing.T) {
 		_ = testCRUDSQLite.Save(context.Background(), ts, SaveOptions{})
 	}
 
-	err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
+	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{
 			sqlfilters.Raw: {
 				Op: sqlfilters.OpOR,

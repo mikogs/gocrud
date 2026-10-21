@@ -143,8 +143,8 @@ func TestSave_ErrUniq(t *testing.T) {
 	objWithSameKey.Key = "gottabeunique123456789012345678901234567890"
 	err := testCRUD.Save(context.Background(), objWithSameKey, SaveOptions{})
 	var uniqError *UniqError
-	if !errors.As(err, &uniqError) {
-		t.Fatalf("Save failed to return uniq error")
+	if !errors.As(err, &uniqError) || uniqError.Field != "test_struct_key_key" || uniqError.Error() != "uniq failed for field: test_struct_key_key" {
+		t.Fatalf("Save failed to return uniq error for test_struct_key_key, got: %v", err)
 	}
 }
 
@@ -155,7 +155,9 @@ func TestSave_ErrUniqUsingGetCount(t *testing.T) {
 	objSaved.Key = "gottabeunique123456789012345678901234567890"
 	_ = testCRUD.Save(context.Background(), objSaved, SaveOptions{})
 
-	testCRUD.SetFlag(GetCountOnUniq)
+	// a CRUD of its own, so that the flag does not change the other tests
+	uniqCRUD := New(testDB, Options{Dialect: DialectPostgres})
+	uniqCRUD.SetFlag(GetCountOnUniq)
 
 	_, err := testDB.Exec("ALTER TABLE test_struct DROP CONSTRAINT IF EXISTS test_struct_key_key;")
 	if err != nil {
@@ -164,10 +166,10 @@ func TestSave_ErrUniqUsingGetCount(t *testing.T) {
 
 	objWithSameKey := test.TestStructWithData()
 	objWithSameKey.Key = "gottabeunique123456789012345678901234567890"
-	err = testCRUD.Save(context.Background(), objWithSameKey, SaveOptions{})
+	err = uniqCRUD.Save(context.Background(), objWithSameKey, SaveOptions{})
 	var uniqError *UniqError
-	if !errors.As(err, &uniqError) {
-		t.Fatalf("Save failed to return uniq error when there is no UNIQUE constraint")
+	if !errors.As(err, &uniqError) || uniqError.Field != "Key" {
+		t.Fatalf("Save failed to return uniq error for Key when there is no UNIQUE constraint, got: %v", err)
 	}
 }
 

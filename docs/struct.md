@@ -196,6 +196,8 @@ The `crud` tag defines how the field is stored in the database. Multiple options
 * `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
 * `-`: The field is not stored in the database.
 * `name:<column>`: Overrides the column name generated from the field name. Only lowercase letters, digits and `_` are allowed.
+* `fk:<table>` and `on_delete:<action>`: Make the field a foreign key that references the `id` of another table, see [Foreign keys](crud/relations.md#foreign-keys).
+* `rel:<key field>`: On a field that holds related objects, e.g. `Customer *Customer` or `Items []OrderItem`, which is not stored in a column. See [Relations](crud/relations.md).
 
 ### Column Aliases
 

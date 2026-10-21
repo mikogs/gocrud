@@ -3,6 +3,9 @@ package gocrud
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/lib/pq"
 )
 
 type CRUDError struct {
@@ -32,7 +35,7 @@ type UniqError struct {
 }
 
 func (e *UniqError) Error() string {
-	return "uniq %s failed for field: " + e.Field
+	return "uniq failed for field: " + e.Field
 }
 
 var getBuilderObjectCRUDError = func(err error) *CRUDError {
@@ -41,18 +44,33 @@ var getBuilderObjectCRUDError = func(err error) *CRUDError {
 		Err: err,
 	}
 }
+
+// ForeignKeyViolationError is matched by the errors of queries that violate a foreign key, e.g. a save of an object
+// that references an object that does not exist, or a delete of an object that is referenced.
+var ForeignKeyViolationError = errors.New("foreign key violation")
+
 var getDBFuncCRUDError = func(action string, err error) *CRUDError {
+	if isForeignKeyViolation(err) {
+		err = fmt.Errorf("%w: %w", ForeignKeyViolationError, err)
+	}
+
 	return &CRUDError{
 		Op:  "database " + action,
 		Err: err,
 	}
 }
-var getCascadingDeleteCRUDError = func(err error) *CRUDError {
-	return &CRUDError{
-		Op:  "cascading delete",
-		Err: err,
+
+// isForeignKeyViolation checks if err is a foreign key violation in PostgreSQL (pq code 23503)
+// or SQLite ("FOREIGN KEY constraint failed").
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pq.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23503"
 	}
+
+	return strings.Contains(err.Error(), "FOREIGN KEY constraint failed")
 }
+
 var getBuilderFuncCRUDError = func(action string, err error) *CRUDError {
 	return &CRUDError{
 		Op:  "builder " + action,

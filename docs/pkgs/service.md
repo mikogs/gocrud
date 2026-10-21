@@ -32,7 +32,7 @@ svc := svccrud.New(
 err := svc.CreateTables(ctx)
 ```
 
-Iterates over all registered keys and calls `CREATE TABLE IF NOT EXISTS` for each struct. Useful during application startup when `CREATE_TABLES=true` is set.
+Iterates over all registered keys and calls `CREATE TABLE IF NOT EXISTS` for each struct, skipping projections, with the tables referenced by foreign keys first. To also update existing tables, use `Migrate` below.
 
 ### Migrating tables
 
@@ -97,7 +97,7 @@ if err == nil && passwordFields["Password"] == gocrud.PassOK {
 err := svc.Delete(ctx, "users", id)
 ```
 
-Reads the record by `id` first (returning `NotFoundError` if absent), then deletes it. Cascade rules defined on the struct are applied automatically.
+Reads the record by `id` first (returning `NotFoundError` if absent), then deletes it. Rows of other tables that reference it are handled by the database, according to their [foreign keys](../crud/relations.md#foreign-keys).
 
 ---
 
@@ -185,8 +185,11 @@ Returns the count of records matching the given filters. Accepts the same `filte
 ### Helper methods
 
 ```go
-obj  := svc.New("users")   // returns a new zero-value *User, or nil if key unknown
-id   := svc.ID(obj)        // returns obj.ID as uint64
+obj   := svc.New("users")                // returns a new zero-value *User, or nil if key unknown
+id    := svc.ID(obj)                     // returns obj.ID as uint64
+keys  := svc.Registry()                  // returns the registry keys, in no particular order
+names := svc.PasswordFieldNames("users") // returns the fields tagged with pass, or nil if key unknown
+op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual, or InvalidFilterOpError
 ```
 
 ## Error types
@@ -197,6 +200,8 @@ id   := svc.ID(obj)        // returns obj.ID as uint64
 | `*FilterValidationError` | — | `List` / `Num`: unknown filter operator or filter validation failed |
 | `NotFoundError` | `errors.Is(err, NotFoundError)` | `Read` / `Delete`: no record with the given ID |
 | `InvalidKeyError` | `errors.Is(err, InvalidKeyError)` | Any method: key not found in the registry |
+| `InvalidFilterOpError` | `errors.Is(err, InvalidFilterOpError)` | `Op`: unknown operator string. `List` and `Num` return a `*FilterValidationError` for it instead |
+| `ForeignKeyCycleError` | `errors.Is(err, ForeignKeyCycleError)` | `CreateTables` / `Migrate`: foreign keys reference each other in a cycle |
 
 Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]string` field mapping each failed field to the name of the failed validation rule, e.g. `"required"` or `"min"` from the [go-playground/validator](https://github.com/go-playground/validator) library, `"regexp"` (`gocrud.ViolationRegExp`) for a failed `crud_regexp` pattern, or `"type"` (`gocrud.ViolationType`) for a value of a wrong type or an invalid filter operator.
 

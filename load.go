@@ -14,6 +14,9 @@ type LoadOptions struct {
 	// VerifyPasswordFields maps a struct field name to a plaintext password
 	// to verify against the bcrypt hash stored in that field.
 	VerifyPasswordFields map[string]string
+
+	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
+	Preload []string
 }
 
 // LoadOutput is returned by Load. PasswordFields holds, for every password
@@ -39,6 +42,11 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options Loa
 	builder, err := c.builder(obj)
 	if err != nil {
 		output.Error = getBuilderObjectCRUDError(err)
+		return output
+	}
+
+	if err := c.checkPreload(builder, options.Preload, ""); err != nil {
+		output.Error = getCRUDFuncCRUDError("preload", err)
 		return output
 	}
 
@@ -87,6 +95,8 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options Loa
 		}
 
 		zeroPasswordFields(obj, passwordFields)
+
+		output.Error = c.preload(ctx, builder, []interface{}{obj}, options.Preload)
 		return output
 	}
 }

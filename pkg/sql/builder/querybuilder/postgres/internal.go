@@ -25,7 +25,7 @@ func (b *QueryBuilder) queryOrder(order []string, withAlias bool) (string, error
 		direction := order[i+1]
 
 		queryDirection := "ASC"
-		if direction == strings.ToLower("desc") {
+		if strings.EqualFold(direction, "desc") {
 			queryDirection = "DESC"
 		}
 

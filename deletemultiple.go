@@ -10,16 +10,17 @@ type DeleteMultipleOptions struct {
 	Filters *sqlfilters.Filters
 }
 
-// DeleteMultiple removes objects from the database based on specified filters
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) error {
+// DeleteMultiple removes objects from the database based on specified filters, and returns the IDs of the
+// removed objects. Rows of other tables that are deleted by foreign keys are not included.
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]uint64, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
-		return getBuilderObjectCRUDError(err)
+		return nil, getBuilderObjectCRUDError(err)
 	}
 
 	err = ValidateFilters(obj, options.Filters, c.tagName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var query string
@@ -27,32 +28,33 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 	if deleteReturningIDerImpl, ok := obj.(deleteReturningIDQueryBuilder); ok {
 		query, err = deleteReturningIDerImpl.DeleteReturningIDQuery()
 		if err != nil {
-			return getObjFuncCRUDError("delete returning id query", err)
+			return nil, getObjFuncCRUDError("delete returning id query", err)
 		}
 	} else {
 		query, err = builder.DeleteReturningID(options.Filters)
 		if err != nil {
-			return getBuilderFuncCRUDError("delete returning id", err)
+			return nil, getBuilderFuncCRUDError("delete returning id", err)
 		}
 	}
 
 	rows, err := c.conn.QueryContext(ctx, query, c.args(sqlfilters.FiltersInterfaces(options.Filters))...)
 	if err != nil {
-		return getDBFuncCRUDError("query", err)
+		return nil, getDBFuncCRUDError("query", err)
 	}
 	defer rows.Close()
 
-	returnedIDs := []uint64{}
-
+	deletedIDs := []uint64{}
 	for rows.Next() {
-		var returnedID uint64
-		errScan := rows.Scan(&returnedID)
-		if errScan != nil {
-			return getDBFuncCRUDError("rows scan", errScan)
+		var deletedID uint64
+		if err := rows.Scan(&deletedID); err != nil {
+			return nil, getDBFuncCRUDError("rows scan", err)
 		}
 
-		returnedIDs = append(returnedIDs, returnedID)
+		deletedIDs = append(deletedIDs, deletedID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, getDBFuncCRUDError("rows", err)
 	}
 
-	return nil
+	return deletedIDs, nil
 }

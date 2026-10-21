@@ -14,10 +14,10 @@ They are functions and not methods, because methods in Go cannot have type param
 | Function | Instead of |
 |---|---|
 | `Get[T](ctx, crud, GetOptions) ([]*T, error)` | `crud.Get(ctx, func() interface{} { return &T{} }, options)` |
-| `Load[T](ctx, crud, id uint64) (*T, error)` | `crud.Load(ctx, &T{}, strconv.FormatUint(id, 10), LoadOptions{})` |
+| `Load[T](ctx, crud, id uint64, preload ...string) (*T, error)` | `crud.Load(ctx, &T{}, strconv.FormatUint(id, 10), LoadOptions{Preload: preload})` |
 | `GetCount[T](ctx, crud, GetCountOptions) (uint64, error)` | `crud.GetCount(ctx, &T{}, options)` |
 | `UpdateMultiple[T](ctx, crud, values, UpdateMultipleOptions) error` | `crud.UpdateMultiple(ctx, &T{}, values, options)` |
-| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) error` | `crud.DeleteMultiple(ctx, &T{}, options)` |
+| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]uint64, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
 | `CreateTable[T](ctx, crud) error` | `crud.CreateTable(ctx, &T{})` |
 | `DropTable[T](ctx, crud) error` | `crud.DropTable(ctx, &T{})` |
 
@@ -73,6 +73,12 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 `service.NotFoundError` is the same error, so `errors.Is` works with either of them.
 
+The names of relation fields after the ID load their related objects, see [Relations](relations.md#loading-related-objects):
+
+```go
+order, err := gocrud.Load[Order](ctx, crud, orderID, "Customer", "Items.Product")
+```
+
 Password verification with `LoadOptions.VerifyPasswordFields` is done with `CRUD.Load`.
 
 ## Counting, updating and deleting
@@ -91,8 +97,8 @@ err = gocrud.UpdateMultiple[Order](ctx, crud, map[string]interface{}{"Status": "
     },
 })
 
-// remove the items of an order
-err = gocrud.DeleteMultiple[OrderItem](ctx, crud, gocrud.DeleteMultipleOptions{
+// remove the items of an order, and get the IDs of the removed items
+removedIDs, err := gocrud.DeleteMultiple[OrderItem](ctx, crud, gocrud.DeleteMultipleOptions{
     Filters: &sqlfilters.Filters{"OrderID": {Op: sqlfilters.OpEqual, Val: orderID}},
 })
 ```
@@ -113,8 +119,9 @@ err := crud.RunInTx(ctx, func(tx *gocrud.CRUD) error {
         return err
     }
 
-    return gocrud.DeleteMultiple[OrderItem](ctx, tx, gocrud.DeleteMultipleOptions{
+    _, err = gocrud.DeleteMultiple[OrderItem](ctx, tx, gocrud.DeleteMultipleOptions{
         Filters: &sqlfilters.Filters{"OrderID": {Op: sqlfilters.OpEqual, Val: order.ID}},
     })
+    return err
 })
 ```

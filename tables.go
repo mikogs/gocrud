@@ -68,3 +68,32 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 
 	return nil
 }
+
+// TableName returns the name of the database table of obj.
+func (c *CRUD) TableName(obj interface{}) (string, error) {
+	builder, err := c.builder(obj)
+	if err != nil {
+		return "", getBuilderObjectCRUDError(err)
+	}
+
+	return builder.TableName(), nil
+}
+
+// ReferencedTables returns the names of the tables that the foreign keys of obj reference, without duplicates.
+func (c *CRUD) ReferencedTables(obj interface{}) ([]string, error) {
+	builder, err := c.builder(obj)
+	if err != nil {
+		return nil, getBuilderObjectCRUDError(err)
+	}
+
+	var tables []string
+	seen := map[string]bool{}
+	for _, column := range builder.Columns() {
+		if column.ForeignKey != nil && !seen[column.ForeignKey.Table] {
+			seen[column.ForeignKey.Table] = true
+			tables = append(tables, column.ForeignKey.Table)
+		}
+	}
+
+	return tables, nil
+}

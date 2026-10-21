@@ -237,7 +237,7 @@ The options are ignored when `fn` joins an existing transaction.
 
 ## Using your own transaction
 
-If you start the transaction yourself, for example because other code shares it, `WithTx` returns a `CRUD` that runs its queries in it. Committing or rolling back is then up to you.
+If you start the transaction yourself, for example because other code shares it, `WithTx` returns a `CRUD` that runs its queries in it. Committing or rolling back is then up to you. All the queries of a `CRUD` are run on a `gocrud.DBTX`, the interface of `*sql.DB`, `*sql.Tx` and `*sql.Conn`.
 
 A common case is the "transactional outbox": an event about a change is saved in the same transaction as the change, so a separate worker can publish it later. The event is never lost, and never published for a change that was rolled back:
 

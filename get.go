@@ -20,6 +20,9 @@ type GetOptions struct {
 	// only happens when the query matches exactly one record; for any other
 	// result count the returned map is empty.
 	VerifyPasswordFields map[string]string
+
+	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
+	Preload []string
 }
 
 // Get returns the matching records and, for every password field that also
@@ -32,6 +35,10 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, nil, getBuilderObjectCRUDError(err)
+	}
+
+	if err := c.checkPreload(builder, options.Preload, ""); err != nil {
+		return nil, nil, getCRUDFuncCRUDError("preload", err)
 	}
 
 	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
@@ -73,6 +80,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	passwordFields := builder.PasswordFields()
 
+	var objs []interface{}
 	for rows.Next() {
 		newObj := newObjFunc()
 		err = rows.Scan(objColumnInterfaces(newObj, builder.ColumnFieldNames(), true)...)
@@ -94,14 +102,29 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		timeFieldsToUTC(newObj, builder.TimeFields())
 		zeroPasswordFields(newObj, passwordFields)
 
+		objs = append(objs, newObj)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, nil, getDBFuncCRUDError("rows", err)
+	}
+
+	// Related objects are loaded with other queries, which cannot run on the same connection, e.g. in a transaction,
+	// while rows are open. Next closes the rows when it returns false, so this only makes sure they are closed.
+	rows.Close()
+
+	err = c.preload(ctx, builder, objs, options.Preload)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, obj := range objs {
 		// If options.RowObjTransformFunc is defined, then call it on the row.
 		if options.RowObjTransformFunc != nil {
-			returnValue = append(returnValue, options.RowObjTransformFunc(newObj))
+			returnValue = append(returnValue, options.RowObjTransformFunc(obj))
 			continue
 		}
 
-		// Normal append.
-		returnValue = append(returnValue, newObj)
+		returnValue = append(returnValue, obj)
 	}
 
 	verifiedPasswordFields := map[string]int{}

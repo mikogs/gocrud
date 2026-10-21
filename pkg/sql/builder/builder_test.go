@@ -766,3 +766,177 @@ func TestSQLInConditions(t *testing.T) {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
 	}
 }
+
+type TestStructWithForeignKeys struct {
+	ID         uint64
+	CustomerID uint64  `sql:"fk:customer on_delete:cascade"`
+	ShipperID  *uint64 `sql:"fk:shipper on_delete:set_null uniq"`
+	NoteID     uint64  `sql:"fk:note"`
+}
+
+func TestSQLForeignKeys(t *testing.T) {
+	wants := map[string][2]string{
+		DialectPostgres: {
+			`CREATE TABLE IF NOT EXISTS "app_test_struct_with_foreign_keys" ("id" SERIAL PRIMARY KEY,` +
+				`"customer_id" BIGINT NOT NULL DEFAULT 0 REFERENCES "app_customer"("id") ON DELETE CASCADE,` +
+				`"shipper_id" BIGINT UNIQUE REFERENCES "app_shipper"("id") ON DELETE SET NULL,` +
+				`"note_id" BIGINT NOT NULL DEFAULT 0 REFERENCES "app_note"("id"));`,
+			`ALTER TABLE "app_test_struct_with_foreign_keys" ADD COLUMN "shipper_id" BIGINT UNIQUE REFERENCES "app_shipper"("id") ON DELETE SET NULL`,
+		},
+		DialectSQLite: {
+			`CREATE TABLE IF NOT EXISTS "app_test_struct_with_foreign_keys" ("id" INTEGER PRIMARY KEY,` +
+				`"customer_id" INTEGER NOT NULL DEFAULT 0 REFERENCES "app_customer"("id") ON DELETE CASCADE,` +
+				`"shipper_id" INTEGER UNIQUE REFERENCES "app_shipper"("id") ON DELETE SET NULL,` +
+				`"note_id" INTEGER NOT NULL DEFAULT 0 REFERENCES "app_note"("id"));`,
+			`ALTER TABLE "app_test_struct_with_foreign_keys" ADD COLUMN "shipper_id" INTEGER REFERENCES "app_shipper"("id") ON DELETE SET NULL`,
+		},
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			h := mustNew(t, &TestStructWithForeignKeys{}, Options{Dialect: dialect, TableNamePrefix: "app_"})
+			if got := h.CreateTable(); got != want[0] {
+				t.Fatalf("\nwant %v\ngot  %v", want[0], got)
+			}
+			if got := h.Columns()[2].AddStatements[0]; got != want[1] {
+				t.Fatalf("\nwant %v\ngot  %v", want[1], got)
+			}
+			if fk := h.Columns()[3].ForeignKey; fk == nil || fk.Table != "app_note" || fk.OnDelete != "NO ACTION" {
+				t.Fatalf("Columns returned foreign key %+v, want app_note with NO ACTION", fk)
+			}
+		})
+	}
+}
+
+type TestStructWithAllBuilders struct {
+	ID   uint64
+	Name string
+}
+
+func (s *TestStructWithAllBuilders) BuildDropTableQuery(p string) (string, error) {
+	return "custom drop " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildCreateTableQuery(p string) (string, error) {
+	return "custom create " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildDeleteByIDQuery(p string) (string, error) {
+	return "custom delete by id " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildDeletePrefixQuery(p string) (string, error) {
+	return "custom delete prefix " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildUpdateByIDQuery(p string) (string, error) {
+	return "custom update by id " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildUpdatePrefixQuery(p string) (string, error) {
+	return "custom update prefix " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildInsertQuery(p string) (string, error) {
+	return "custom insert " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildInsertOnConflictUpdateQuery(p string) (string, error) {
+	return "custom upsert " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildSelectByIDQuery(p string) (string, error) {
+	return "custom select by id " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildSelectPrefixQuery(p string) (string, error) {
+	return "custom select prefix " + p, nil
+}
+func (s *TestStructWithAllBuilders) BuildSelectCountPrefixQuery(p string) (string, error) {
+	return "custom count prefix " + p, nil
+}
+
+type TestStructWithFailingBuilder struct {
+	ID   uint64
+	Name string
+}
+
+var errFailingBuilder = errors.New("failing builder")
+
+func (s *TestStructWithFailingBuilder) BuildInsertQuery(string) (string, error) {
+	return "", errFailingBuilder
+}
+
+func TestSQLCustomBuilders(t *testing.T) {
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		t.Run(dialect, func(t *testing.T) {
+			h := mustNew(t, &TestStructWithAllBuilders{}, Options{Dialect: dialect, TableNamePrefix: "p_"})
+
+			selectQuery, _ := h.Select(nil, 0, 0, nil)
+			selectCountQuery, _ := h.SelectCount(nil)
+			deleteQuery, _ := h.Delete(nil)
+			updateQuery, _ := h.Update(map[string]interface{}{"Name": "x"}, nil)
+
+			placeholder := map[string]string{DialectPostgres: "$1", DialectSQLite: "?"}[dialect]
+			tests := map[string][2]string{
+				"DropTable":              {h.DropTable(), "custom drop p_;"},
+				"CreateTable":            {h.CreateTable(), "custom create p_;"},
+				"DeleteByID":             {h.DeleteByID(), "custom delete by id p_;"},
+				"UpdateByID":             {h.UpdateByID(), "custom update by id p_;"},
+				"Insert":                 {h.Insert(), "custom insert p_;"},
+				"InsertOnConflictUpdate": {h.InsertOnConflictUpdate(), "custom upsert p_;"},
+				"SelectByID":             {h.SelectByID(), "custom select by id p_;"},
+				"Select":                 {selectQuery, "custom select prefix p_;"},
+				"SelectCount":            {selectCountQuery, "custom count prefix p_;"},
+				"Delete":                 {deleteQuery, "custom delete prefix p_;"},
+				"Update":                 {updateQuery, `custom update prefix p_ "name"=` + placeholder + ";"},
+			}
+			for name, gotWant := range tests {
+				if gotWant[0] != gotWant[1] {
+					t.Fatalf("%s returned %q, want %q", name, gotWant[0], gotWant[1])
+				}
+			}
+
+			if _, err := New(&TestStructWithFailingBuilder{}, Options{Dialect: dialect}); !errors.Is(err, errFailingBuilder) {
+				t.Fatalf("New returned err %v, want %v", err, errFailingBuilder)
+			}
+		})
+	}
+}
+
+func TestSQLiteDeleteQueries(t *testing.T) {
+	h := mustNew(t, testStructObj, Options{Dialect: DialectSQLite})
+
+	got, err := h.Delete(&filters.Filters{"Price": {Op: filters.OpEqual, Val: 444}, "Age": {Op: filters.OpIn, Val: []int{1, 2}}})
+	want := `DELETE FROM "test_struct" WHERE "age" IN (?,?) AND "price"=?;`
+	if err != nil || got != want {
+		t.Fatalf("Delete returned %q, %v, want %q", got, err, want)
+	}
+
+	if _, err := h.Delete(&filters.Filters{"Price": {Op: filters.OpIn, Val: 444}}); err == nil {
+		t.Fatal("Delete did not return an err for an invalid filter")
+	}
+}
+
+func TestBuilderHelpers(t *testing.T) {
+	h := mustNew(t, testStructObj, Options{})
+
+	if got := h.DatabaseColumnToFieldName("post_code2"); got != "PostCode2" {
+		t.Fatalf("DatabaseColumnToFieldName returned %q, want PostCode2", got)
+	}
+	if got := h.DatabaseColumnToFieldName("unknown"); got != "" {
+		t.Fatalf("DatabaseColumnToFieldName returned %q for an unknown column, want an empty string", got)
+	}
+
+	if !IsStructField(testStructObj, "PostCode") || IsStructField(testStructObj, "Unknown") {
+		t.Fatal("IsStructField returned wrong results")
+	}
+
+	want := "CREATE TABLE \"t\" (\n  \"id\" BIGINT,\n  \"name\" TEXT)"
+	if got := PrettifyCreateTable(`CREATE TABLE "t" ("id" BIGINT,"name" TEXT)`); got != want {
+		t.Fatalf("PrettifyCreateTable returned %q, want %q", got, want)
+	}
+}
+
+func TestSQLOrderDirections(t *testing.T) {
+	order := []string{"Age", "ASC", "Price", "DESC", "Flags", "desc", "Key", "Desc", "ID", "anything"}
+	want := `ORDER BY "age" ASC,"price" DESC,"flags" DESC,"key" DESC,"id" ASC;`
+
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		got, err := mustNew(t, testStructObj, Options{Dialect: dialect}).Select(order, 0, 0, nil)
+		if err != nil || !strings.HasSuffix(got, want) {
+			t.Fatalf("%s: Select returned %q, %v, want it to end with %q", dialect, got, err, want)
+		}
+	}
+}

@@ -62,6 +62,16 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 	migration := &Migration{Table: builder.TableName()}
 
 	err = c.RunInTx(ctx, func(tx *CRUD) error {
+		if hasForeignKeys(builder.Columns()) && c.dialect == DialectSQLite {
+			var enabled bool
+			if err := tx.conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&enabled); err != nil {
+				return getDBFuncCRUDError("query foreign_keys pragma", err)
+			}
+			if !enabled {
+				migration.Differences = append(migration.Differences, "foreign keys are not enforced, open the database with the _pragma=foreign_keys(1) parameter")
+			}
+		}
+
 		existingColumns, err := tx.databaseColumns(ctx, migration.Table)
 		if err != nil {
 			return err
@@ -134,6 +144,17 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 		for _, column := range builder.Columns() {
 			if column.Unique && existingColumns[column.Name].name != "" && !uniqueColumns[column.Name] {
 				migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not unique, the field is tagged with uniq`, column.Name))
+			}
+		}
+
+		// columns added above are created with their foreign keys, so only the existing ones are checked
+		foreignKeys, err := tx.databaseForeignKeys(ctx, migration.Table)
+		if err != nil {
+			return err
+		}
+		for _, column := range builder.Columns() {
+			if column.ForeignKey != nil && existingColumns[column.Name].name != "" {
+				migration.Differences = append(migration.Differences, foreignKeyDifferences(column, foreignKeys[column.Name])...)
 			}
 		}
 
@@ -241,6 +262,66 @@ func (c *CRUD) databaseUniqueColumns(ctx context.Context, table string) (map[str
 	}
 
 	return columns, nil
+}
+
+// databaseForeignKeys returns the foreign keys of single columns of the table, by the column name.
+func (c *CRUD) databaseForeignKeys(ctx context.Context, table string) (map[string]*querycontainer.ForeignKey, error) {
+	query := `SELECT a.attname, rt.relname, CASE c.confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'r' THEN 'RESTRICT' ` +
+		`WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' ELSE 'NO ACTION' END ` +
+		`FROM pg_constraint c ` +
+		`JOIN pg_class t ON t.oid = c.conrelid ` +
+		`JOIN pg_namespace n ON n.oid = t.relnamespace ` +
+		`JOIN pg_class rt ON rt.oid = c.confrelid ` +
+		`JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = c.conkey[1] ` +
+		`WHERE c.contype = 'f' AND array_length(c.conkey, 1) = 1 AND n.nspname = current_schema() AND t.relname = $1`
+	if c.dialect == DialectSQLite {
+		query = `SELECT "from", "table", on_delete FROM pragma_foreign_key_list(?) GROUP BY id HAVING COUNT(*) = 1`
+	}
+
+	rows, err := c.conn.QueryContext(ctx, query, table)
+	if err != nil {
+		return nil, getDBFuncCRUDError("query foreign keys", err)
+	}
+	defer rows.Close()
+
+	foreignKeys := map[string]*querycontainer.ForeignKey{}
+	for rows.Next() {
+		var column string
+		foreignKey := &querycontainer.ForeignKey{}
+		if err := rows.Scan(&column, &foreignKey.Table, &foreignKey.OnDelete); err != nil {
+			return nil, getDBFuncCRUDError("scan foreign keys", err)
+		}
+		foreignKeys[column] = foreignKey
+	}
+	if err := rows.Err(); err != nil {
+		return nil, getDBFuncCRUDError("query foreign keys", err)
+	}
+
+	return foreignKeys, nil
+}
+
+// foreignKeyDifferences describes how the foreign key of an existing column differs from the one of a struct field.
+func foreignKeyDifferences(column querycontainer.Column, existing *querycontainer.ForeignKey) []string {
+	switch {
+	case existing == nil:
+		return []string{fmt.Sprintf(`column "%s" has no foreign key, the field references table "%s"`, column.Name, column.ForeignKey.Table)}
+	case existing.Table != column.ForeignKey.Table:
+		return []string{fmt.Sprintf(`column "%s" references table "%s", the field references table "%s"`, column.Name, existing.Table, column.ForeignKey.Table)}
+	case !strings.EqualFold(existing.OnDelete, column.ForeignKey.OnDelete):
+		return []string{fmt.Sprintf(`foreign key of column "%s" has ON DELETE %s, the field needs %s`, column.Name, strings.ToUpper(existing.OnDelete), column.ForeignKey.OnDelete)}
+	default:
+		return nil
+	}
+}
+
+func hasForeignKeys(columns []querycontainer.Column) bool {
+	for _, column := range columns {
+		if column.ForeignKey != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // databaseIndexes returns the names of the indexes of the table.

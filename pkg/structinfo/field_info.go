@@ -15,6 +15,12 @@ type FieldInfo struct {
 	Password bool
 	// Nullable is set to true if the field is a pointer, stored in a column that can be NULL.
 	Nullable bool
+	// ForeignKeyTable is the name of the table that the field references with an 'fk:<table>' tag, without
+	// the table name prefix.
+	ForeignKeyTable string
+	// OnDelete is the action set with an 'on_delete:<action>' tag: OnDeleteCascade, OnDeleteRestrict or
+	// OnDeleteSetNull. It is empty when the tag is not set.
+	OnDelete string
 	// Ignored is set to true if the field is marked with a "-" tag.
 	Ignored bool
 	// Index is set to true if the field is marked with an 'idx' or 'uidx' tag.

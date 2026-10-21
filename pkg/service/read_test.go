@@ -38,4 +38,7 @@ func TestRead_WhenObjectDoesNotExist(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Read failed to return NotFoundError")
 	}
+	if !errors.Is(err, gocrud.NotFoundError) {
+		t.Fatalf("Read returned err %v, want it to match gocrud.NotFoundError", err)
+	}
 }

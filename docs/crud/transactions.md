@@ -79,12 +79,12 @@ func PlaceOrder(ctx context.Context, crud *gocrud.CRUD, customerID uint64, cart 
         }
 
         for _, item := range cart {
-            product := &Product{}
-            if err := tx.Load(ctx, product, strconv.FormatUint(item.ProductID, 10), gocrud.LoadOptions{}).Error; err != nil {
-                return err
-            }
-            if product.ID == 0 {
+            product, err := gocrud.Load[Product](ctx, tx, item.ProductID)
+            if errors.Is(err, gocrud.NotFoundError) {
                 return fmt.Errorf("%w: %d", ErrProductNotFound, item.ProductID)
+            }
+            if err != nil {
+                return err
             }
 
             // Take the stock only if there is enough of it, in a single query.
@@ -197,7 +197,7 @@ A sensible use is a report that runs several queries. By default in PostgreSQL, 
 ```go
 type SalesReport struct {
     PaidOrders   uint64
-    LatestOrders []interface{}
+    LatestOrders []*Order
 }
 
 func GetSalesReport(ctx context.Context, crud *gocrud.CRUD) (*SalesReport, error) {
@@ -209,12 +209,12 @@ func GetSalesReport(ctx context.Context, crud *gocrud.CRUD) (*SalesReport, error
     opts := &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true}
     err := crud.RunInTxWithOptions(ctx, opts, func(tx *gocrud.CRUD) error {
         var err error
-        report.PaidOrders, err = tx.GetCount(ctx, &Order{}, gocrud.GetCountOptions{Filters: paid})
+        report.PaidOrders, err = gocrud.GetCount[Order](ctx, tx, gocrud.GetCountOptions{Filters: paid})
         if err != nil {
             return err
         }
 
-        report.LatestOrders, _, err = tx.Get(ctx, func() interface{} { return &Order{} }, gocrud.GetOptions{
+        report.LatestOrders, err = gocrud.Get[Order](ctx, tx, gocrud.GetOptions{
             Filters: paid,
             Order:   []string{"ID", "desc"},
             Limit:   10,

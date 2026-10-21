@@ -57,7 +57,7 @@ type Meeting struct {
 ```go
 // the meetings that start within the next 7 days, soonest first
 now := time.Now()
-meetings, _, err := crud.Get(ctx, func() interface{} { return &Meeting{} }, gocrud.GetOptions{
+meetings, err := gocrud.Get[Meeting](ctx, crud, gocrud.GetOptions{
     Order: []string{"StartsAt", "asc"},
     Filters: &sqlfilters.Filters{
         sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{
@@ -133,7 +133,7 @@ In JSON, `nil` is `null`, so a task that is not estimated is encoded as `"estima
 
 ```go
 // open tasks that are due before the end of the week
-openTasks, _, err := crud.Get(ctx, func() interface{} { return &Task{} }, gocrud.GetOptions{
+openTasks, err := gocrud.Get[Task](ctx, crud, gocrud.GetOptions{
     Order: []string{"DueAt", "asc"},
     Filters: &sqlfilters.Filters{
         "CompletedAt": {Op: sqlfilters.OpEqual, Val: nil},

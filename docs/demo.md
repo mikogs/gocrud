@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/mikogs/gocrud"
@@ -57,7 +56,7 @@ A few important conventions:
 
 ## 2. Create the table
 
-`main` opens the database, creates the CRUD object and the table, and then runs the operations below.
+`main` opens the database, creates the CRUD object and the table, and then runs the operations below. The functions with a type parameter, like `gocrud.CreateTable[User]`, are [typed functions](crud/generics.md) that return values of your type.
 
 ```go
 func main() {
@@ -73,7 +72,7 @@ func main() {
 
 	crud := gocrud.New(db, gocrud.Options{Dialect: gocrud.DialectSQLite})
 
-	if err := crud.CreateTable(ctx, &User{}); err != nil {
+	if err := gocrud.CreateTable[User](ctx, crud); err != nil {
 		log.Fatal(err)
 	}
 
@@ -117,16 +116,16 @@ func createUsers(ctx context.Context, crud *gocrud.CRUD, adminID uint64) {
 
 ## 4. Read
 
-`Load` reads the object with the given ID. When there is no such object, it returns no error and leaves `ID` at `0`.
+`Load` reads the object with the given ID. When there is no such object, it returns `gocrud.NotFoundError`.
 
 ```go
 func loadUser(ctx context.Context, crud *gocrud.CRUD, id uint64) *User {
-	user := &User{}
-	if err := crud.Load(ctx, user, strconv.FormatUint(id, 10), gocrud.LoadOptions{}).Error; err != nil {
-		log.Fatalf("loading user %d: %v", id, err)
-	}
-	if user.ID == 0 {
+	user, err := gocrud.Load[User](ctx, crud, id)
+	if errors.Is(err, gocrud.NotFoundError) {
 		log.Fatalf("user %d not found", id)
+	}
+	if err != nil {
+		log.Fatalf("loading user %d: %v", id, err)
 	}
 
 	fmt.Printf("loaded %s, created at %s\n", user.Username, user.CreatedAt.Format(time.RFC3339))
@@ -153,11 +152,11 @@ func updateUser(ctx context.Context, crud *gocrud.CRUD, user *User, adminID uint
 
 ## 6. List
 
-`Get` returns the objects that match the filters, in the given order. `Order` is a list of field names and directions, and the filters map field names to an operator and a value. See [Operations](crud/ops.md#get) for all the options, including raw SQL conditions and pagination.
+`Get` returns the objects that match the filters, in the given order, as `[]*User`. `Order` is a list of field names and directions, and the filters map field names to an operator and a value. See [Operations](crud/ops.md#get) for all the options, including raw SQL conditions and pagination.
 
 ```go
 func listUsers(ctx context.Context, crud *gocrud.CRUD) {
-	objs, _, err := crud.Get(ctx, func() interface{} { return &User{} }, gocrud.GetOptions{
+	users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
 		Order: []string{"Username", "asc"},
 		Limit: 10,
 		Filters: &sqlfilters.Filters{
@@ -170,8 +169,7 @@ func listUsers(ctx context.Context, crud *gocrud.CRUD) {
 	}
 
 	fmt.Printf("active users in Engineering:\n")
-	for _, obj := range objs {
-		user := obj.(*User)
+	for _, user := range users {
 		lastLogin := "never"
 		if user.LastLogin != nil {
 			lastLogin = user.LastLogin.Format(time.RFC3339)
@@ -219,11 +217,11 @@ created alice with ID 1
 created bob with ID 2
 created carol with ID 3
 created dave with ID 4
-loaded bob, created at 2026-10-21T19:42:14Z
+loaded bob, created at 2026-10-21T19:49:07Z
 updated bob, now Bob Baker
 active users in Engineering:
   Alice Anderson (alice@example.com), last login: never
-  Bob Baker (bob@example.com), last login: 2026-10-21T19:42:14Z
+  Bob Baker (bob@example.com), last login: 2026-10-21T19:49:07Z
 deleted user 2
 invalid user: map[Email:email LastName:min Username:regexp]
 ```

@@ -1,5 +1,7 @@
 # Operations
 
+This page describes the methods of `CRUD`. Most of them also have a typed version, e.g. `gocrud.Get[User]` returns `[]*User` instead of `[]interface{}`, see [Typed functions](generics.md).
+
 ## Save
 
 The `Save` method handles both creating new records and updating existing ones based on the presence of an identifier.

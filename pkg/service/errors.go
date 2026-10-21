@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+
+	"github.com/mikogs/gocrud"
 )
 
 const (
@@ -9,7 +11,8 @@ const (
 	LogAttrError   = "err"
 )
 
-var NotFoundError = errors.New("item not found")
+// NotFoundError is the same error as gocrud.NotFoundError, so that errors.Is works with either of them.
+var NotFoundError = gocrud.NotFoundError
 var InvalidFilterOpError = errors.New("invalid filter op")
 
 type ModelValidationError struct {

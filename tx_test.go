@@ -53,12 +53,12 @@ func placeOrder(ctx context.Context, crud *CRUD, customerID uint64, cart []CartI
 		}
 
 		for _, item := range cart {
-			product := &Product{}
-			if err := tx.Load(ctx, product, strconv.FormatUint(item.ProductID, 10), LoadOptions{}).Error; err != nil {
-				return err
-			}
-			if product.ID == 0 {
+			product, err := Load[Product](ctx, tx, item.ProductID)
+			if errors.Is(err, NotFoundError) {
 				return fmt.Errorf("%w: %d", ErrProductNotFound, item.ProductID)
+			}
+			if err != nil {
+				return err
 			}
 
 			res, err := tx.Tx().ExecContext(ctx,

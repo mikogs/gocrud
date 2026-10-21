@@ -15,6 +15,7 @@ nav:
   - CRUD object:
     - Initialization: crud/init.md
     - Operations: crud/ops.md
+    - Typed functions: crud/generics.md
     - Transactions: crud/transactions.md
   #- Helper functions: helper-functions.md
   - Additional packages:

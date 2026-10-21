@@ -67,3 +67,30 @@ func TestUpdateMultiple(t *testing.T) {
 		t.Fatalf("UpdateMultiple updated invalid number of rows, there are %d rows left, instead of %d", cnt, 150)
 	}
 }
+
+func TestUpdateMultiple_InvalidValues(t *testing.T) {
+	recreateTestStructTable()
+
+	for i := 1; i < 11; i++ {
+		_ = testCRUD.Save(context.Background(), test.TestStructWithData(), SaveOptions{})
+	}
+
+	err := testCRUD.UpdateMultiple(context.Background(), &test.TestStruct{}, map[string]interface{}{
+		"FirstName": "x",
+		"Age":       "notanint",
+	}, UpdateMultipleOptions{})
+	fatalIfNotViolations(t, err, map[string]string{
+		"FirstName": "min",
+		"Age":       ViolationType,
+	})
+
+	cnt, _ := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
+		Filters: &sqlfilters.Filters{
+			"FirstName": {Op: sqlfilters.OpEqual, Val: "John"},
+			"Age":       {Op: sqlfilters.OpEqual, Val: 37},
+		},
+	})
+	if cnt != 10 {
+		t.Fatalf("UpdateMultiple updated rows with invalid values, got %d unchanged rows, want 10", cnt)
+	}
+}

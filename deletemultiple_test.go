@@ -154,3 +154,23 @@ func TestDeleteMultiple_WithRawQueryOnly(t *testing.T) {
 		t.Fatalf("DeleteMultiple removed invalid number of rows, there are %d rows left, instead of %d", cnt, 46)
 	}
 }
+
+func TestDeleteMultiple_InvalidFilterValue(t *testing.T) {
+	recreateTestStructTable()
+
+	for i := 1; i < 11; i++ {
+		_ = testCRUD.Save(context.Background(), test.TestStructWithData(), SaveOptions{})
+	}
+
+	err := testCRUD.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
+		Filters: &sqlfilters.Filters{
+			"Age": {Op: sqlfilters.OpEqual, Val: 500},
+		},
+	})
+	fatalIfNotViolations(t, err, map[string]string{"Age": "max"})
+
+	cnt, _ := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{})
+	if cnt != 10 {
+		t.Fatalf("DeleteMultiple deleted rows using an invalid filter, got %d rows, want 10", cnt)
+	}
+}

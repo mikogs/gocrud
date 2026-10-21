@@ -176,6 +176,19 @@ func TestSQLite_Save_ErrUniq(t *testing.T) {
 	}
 }
 
+func TestSQLite_Save_InvalidObject(t *testing.T) {
+	recreateTestStructTableSQLite()
+
+	obj, wantViolations := invalidTestStruct()
+	err := testCRUDSQLite.Save(context.Background(), obj, SaveOptions{})
+	fatalIfNotViolations(t, err, wantViolations)
+
+	cnt, _ := testCRUDSQLite.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{})
+	if cnt != 0 {
+		t.Fatalf("SQLite Save inserted an invalid object, got %d rows, want 0", cnt)
+	}
+}
+
 // ---------- Load ----------
 
 func TestSQLite_Load(t *testing.T) {
@@ -581,6 +594,33 @@ func TestSQLite_UpdateMultiple(t *testing.T) {
 	})
 	if cnt != 150 {
 		t.Fatalf("SQLite UpdateMultiple updated wrong number of rows: got %d with new values, want 150", cnt)
+	}
+}
+
+func TestSQLite_UpdateMultiple_InvalidValues(t *testing.T) {
+	recreateTestStructTableSQLite()
+
+	for i := 1; i < 11; i++ {
+		_ = testCRUDSQLite.Save(context.Background(), test.TestStructWithData(), SaveOptions{})
+	}
+
+	err := testCRUDSQLite.UpdateMultiple(context.Background(), &test.TestStruct{}, map[string]interface{}{
+		"FirstName": "x",
+		"Age":       "notanint",
+	}, UpdateMultipleOptions{})
+	fatalIfNotViolations(t, err, map[string]string{
+		"FirstName": "min",
+		"Age":       ViolationType,
+	})
+
+	cnt, _ := testCRUDSQLite.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
+		Filters: &sqlfilters.Filters{
+			"FirstName": {Op: sqlfilters.OpEqual, Val: "John"},
+			"Age":       {Op: sqlfilters.OpEqual, Val: 37},
+		},
+	})
+	if cnt != 10 {
+		t.Fatalf("SQLite UpdateMultiple updated rows with invalid values, got %d unchanged rows, want 10", cnt)
 	}
 }
 

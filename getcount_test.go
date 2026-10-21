@@ -87,3 +87,22 @@ func TestGetCount_WithRawQuery(t *testing.T) {
 		t.Fatalf("Get failed to return list of objects, want %v, got %v", 153, cnt)
 	}
 }
+
+func TestGetCount_InvalidFilterValue(t *testing.T) {
+	_, err := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
+		Filters: &sqlfilters.Filters{
+			"Age": {Op: sqlfilters.OpEqual, Val: 500},
+		},
+	})
+	fatalIfNotViolations(t, err, map[string]string{"Age": "max"})
+}
+
+func TestGetCount_UnconvertibleStringFilter(t *testing.T) {
+	_, err := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
+		Filters: &sqlfilters.Filters{
+			"Age": {Op: sqlfilters.OpEqual, Val: "notanint"},
+		},
+		ConvertFiltersFromString: true,
+	})
+	fatalIfNotViolations(t, err, map[string]string{"Age": ViolationType})
+}

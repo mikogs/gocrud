@@ -230,3 +230,26 @@ func TestGet_WithRowObjTransformFunc(t *testing.T) {
 		t.Fatalf("Get with transform func returned invalid objects")
 	}
 }
+
+func TestGet_InvalidFilterValue(t *testing.T) {
+	_, _, err := testCRUD.Get(context.Background(), func() interface{} {
+		return &test.TestStruct{}
+	}, GetOptions{
+		Filters: &sqlfilters.Filters{
+			"Age": {Op: sqlfilters.OpEqual, Val: 500},
+		},
+	})
+	fatalIfNotViolations(t, err, map[string]string{"Age": "max"})
+}
+
+func TestGet_UnconvertibleStringFilter(t *testing.T) {
+	_, _, err := testCRUD.Get(context.Background(), func() interface{} {
+		return &test.TestStruct{}
+	}, GetOptions{
+		Filters: &sqlfilters.Filters{
+			"Age": {Op: sqlfilters.OpEqual, Val: "notanint"},
+		},
+		ConvertFiltersFromString: true,
+	})
+	fatalIfNotViolations(t, err, map[string]string{"Age": ViolationType})
+}

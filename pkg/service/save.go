@@ -23,7 +23,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, now int64, userID uint
 			if errors.As(crudErr.Err, &validationErr) {
 				slog.Error("error with validation", logAttrService, logger.AttrError(err))
 				return &ModelValidationError{
-					Err: validationErr,
+					Err:        validationErr,
+					Violations: validationErr.Violations,
 				}
 			}
 		}

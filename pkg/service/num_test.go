@@ -44,3 +44,10 @@ func TestNum(t *testing.T) {
 		t.Fatalf("Num failed to return list of objects, want %v, got %v", 150, num)
 	}
 }
+
+func TestNum_InvalidFilterOp(t *testing.T) {
+	_, err := testService.Num(context.Background(), "teststruct",
+		map[string]string{"Price": "444"},
+		map[string]string{"Price": "bogus"})
+	fatalIfNotFilterViolations(t, err, map[string]string{"Price": gocrud.ViolationType})
+}

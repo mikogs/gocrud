@@ -222,3 +222,16 @@ func TestSave_ErrUniqUsingGetCount(t *testing.T) {
 		t.Fatalf("Save failed to return uniq error when there is no UNIQUE constraint")
 	}
 }
+
+func TestSave_InvalidObject(t *testing.T) {
+	recreateTestStructTable()
+
+	obj, wantViolations := invalidTestStruct()
+	err := testCRUD.Save(context.Background(), obj, SaveOptions{})
+	fatalIfNotViolations(t, err, wantViolations)
+
+	cnt, _ := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{})
+	if cnt != 0 {
+		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", cnt)
+	}
+}

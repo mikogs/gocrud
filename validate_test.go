@@ -1,9 +1,13 @@
 package gocrud
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/mikogs/gocrud/pkg/test"
 )
 
 type ValidationTestStruct struct {
@@ -103,7 +107,6 @@ func TestValidate_WithInvalidStruct(t *testing.T) {
 	}
 }
 
-// TestValidate_ViolationTags tests if Validate returns names of the failed tags
 func TestValidate_ViolationTags(t *testing.T) {
 	ts := validationTestStructWithData()
 	ts.PrimaryEmail = ""
@@ -133,7 +136,6 @@ func TestValidate_ViolationTags(t *testing.T) {
 	}
 }
 
-// TestValidateValues tests if ValidateValues validates values without modifying the object
 func TestValidateValues(t *testing.T) {
 	ts := validationTestStructWithData()
 	ok, violations, err := ValidateValues(ts, map[string]interface{}{
@@ -152,5 +154,36 @@ func TestValidateValues(t *testing.T) {
 	}
 	if ts.FirstName != "John" || ts.Price != 444 {
 		t.Fatal("ValidateValues modified the object")
+	}
+}
+
+func invalidTestStruct() (*test.TestStruct, map[string]string) {
+	ts := test.TestStructWithData()
+	ts.EmailSecondary = "invalidemail"
+	ts.FirstName = "x"
+	ts.PostCode2 = "abcdef"
+
+	return ts, map[string]string{
+		"EmailSecondary": "email",
+		"FirstName":      "min",
+		"PostCode2":      ViolationRegExp,
+	}
+}
+
+func fatalIfNotViolations(t *testing.T, err error, want map[string]string) {
+	t.Helper()
+
+	var crudErr *CRUDError
+	if !errors.As(err, &crudErr) {
+		t.Fatalf("want *CRUDError, got %v", err)
+	}
+
+	var validationErr *ValidationError
+	if !errors.As(crudErr.Err, &validationErr) {
+		t.Fatalf("want *ValidationError, got %v", crudErr.Err)
+	}
+
+	if !reflect.DeepEqual(validationErr.Violations, want) {
+		t.Fatalf("got violations %v, want %v", validationErr.Violations, want)
 	}
 }

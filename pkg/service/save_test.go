@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -45,5 +47,29 @@ func TestSave(t *testing.T) {
 	objLoaded = test.FatalIfNoTestStructInTheDatabase(t, testDB)
 	if objLoaded.ID == 0 || !test.AreTestStructObjectsSame(objSaved, objLoaded) {
 		t.Fatalf("Save failed to insert struct to the table")
+	}
+}
+
+func TestSave_ModelValidationError(t *testing.T) {
+	recreateTestStructTable()
+
+	obj := test.TestStructWithData()
+	obj.EmailSecondary = "invalidemail"
+	obj.FirstName = "x"
+	err := testService.Save(context.Background(), obj, time.Now().UTC().Unix(), 311)
+
+	var modelErr *ModelValidationError
+	if !errors.As(err, &modelErr) {
+		t.Fatalf("Save returned %v, want *ModelValidationError", err)
+	}
+
+	want := map[string]string{"EmailSecondary": "email", "FirstName": "min"}
+	if !reflect.DeepEqual(modelErr.Violations, want) {
+		t.Fatalf("Save returned violations %v, want %v", modelErr.Violations, want)
+	}
+
+	num, _ := testService.Num(context.Background(), "teststruct", nil, nil)
+	if num != 0 {
+		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", num)
 	}
 }

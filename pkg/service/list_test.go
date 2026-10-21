@@ -136,3 +136,19 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 		t.Fatalf("List with transform func returned invalid objects")
 	}
 }
+
+func TestList_InvalidFilterOp(t *testing.T) {
+	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
+		map[string]string{"Price": "444"},
+		map[string]string{"Price": "bogus"},
+		nil, nil, nil)
+	fatalIfNotFilterViolations(t, err, map[string]string{"Price": gocrud.ViolationType})
+}
+
+func TestList_InvalidFilterValue(t *testing.T) {
+	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
+		map[string]string{"Age": "500"},
+		map[string]string{"Age": "eq"},
+		nil, nil, nil)
+	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
+}

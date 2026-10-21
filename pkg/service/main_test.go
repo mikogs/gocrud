@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/mikogs/gocrud"
@@ -64,4 +66,17 @@ func recreateTestStructTable() {
 func recreatePasswordStructTable() {
 	_ = testCRUD.DropTable(context.Background(), &PasswordStruct{})
 	_ = testCRUD.CreateTable(context.Background(), &PasswordStruct{})
+}
+
+func fatalIfNotFilterViolations(t *testing.T, err error, want map[string]string) {
+	t.Helper()
+
+	var filterErr *FilterValidationError
+	if !errors.As(err, &filterErr) {
+		t.Fatalf("want *FilterValidationError, got %v", err)
+	}
+
+	if !reflect.DeepEqual(filterErr.Violations, want) {
+		t.Fatalf("got violations %v, want %v", filterErr.Violations, want)
+	}
 }

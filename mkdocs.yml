@@ -17,6 +17,7 @@ nav:
     - Operations: crud/ops.md
     - Typed functions: crud/generics.md
     - Transactions: crud/transactions.md
+    - Migrations: crud/migrations.md
   #- Helper functions: helper-functions.md
   - Additional packages:
     - Service: pkgs/service.md

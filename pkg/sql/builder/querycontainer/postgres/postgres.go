@@ -21,6 +21,13 @@ type QueryContainer struct {
 
 	FieldColumnName map[string]string
 
+	// RawTableName is the name of the table, without quotes.
+	RawTableName string
+	// Columns describes the columns of the table, in the same order as ColumnNames.
+	Columns []querycontainer.Column
+	// IndexNames contains the names of the indexes created by IndexStatements.
+	IndexNames []string
+
 	// IndexStatements contains a CREATE INDEX statement for each index declared via
 	// 'idx'/'uidx' struct tags. It is empty when the struct has no indexed fields.
 	IndexStatements []string
@@ -59,6 +66,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 	rawTableName := tableNamePrefix + FieldToColumn(objTypeName)
 	queryContainer.TableName = fmt.Sprintf(`"%s"`, rawTableName)
+	queryContainer.RawTableName = rawTableName
 
 	numField := objType.NumField()
 
@@ -102,6 +110,16 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable)
 		queryContainer.ColumnDefinitions = append(queryContainer.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
+		queryContainer.Columns = append(queryContainer.Columns, querycontainer.Column{
+			Name:     ColumnWithoutAlias(columnName),
+			Type:     columnType(structinfo.BaseType(field.Type).String(), structInfo.Fields[field.Name].OverrideColumnType),
+			Nullable: structInfo.Fields[field.Name].Nullable,
+			Unique:   unique,
+			IsID:     field.Name == "ID",
+			AddStatements: []string{
+				fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, queryContainer.TableName, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition),
+			},
+		})
 		queryContainer.ColumnNames = append(queryContainer.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}
 
@@ -109,7 +127,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		queryContainer.UpdateColumnNames = append(queryContainer.UpdateColumnNames, QuoteColumn(ColumnWithoutAlias(queryContainer.FieldColumnName[fieldName])))
 	}
 
-	queryContainer.IndexStatements = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
+	queryContainer.IndexStatements, queryContainer.IndexNames = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
 	err := queryContainer.setQueries(obj, tableNamePrefix)

@@ -34,6 +34,14 @@ err := svc.CreateTables(ctx)
 
 Iterates over all registered keys and calls `CREATE TABLE IF NOT EXISTS` for each struct. Useful during application startup when `CREATE_TABLES=true` is set.
 
+### Migrating tables
+
+```go
+migrations, err := svc.Migrate(ctx)
+```
+
+Updates the tables of all the registered structs to match them, in a single transaction: creates the missing tables, adds the columns of new fields, and creates new indexes. Differences that could lose data, such as columns that are not fields of a struct, are not changed but logged as warnings and returned. See [Migrations](../crud/migrations.md).
+
 ## Methods
 
 ### Save

@@ -58,8 +58,9 @@ func ColumnWithoutAlias(column string) string {
 
 // indexStatements builds a CREATE INDEX statement for each index in 'indexes'.
 // Indexes referencing only ignored fields (absent from fieldColumnName) are skipped.
-func indexStatements(rawTableName string, quotedTableName string, indexes []*structinfo.IndexInfo, fieldColumnName map[string]string) []string {
+func indexStatements(rawTableName string, quotedTableName string, indexes []*structinfo.IndexInfo, fieldColumnName map[string]string) ([]string, []string) {
 	statements := make([]string, 0, len(indexes))
+	names := make([]string, 0, len(indexes))
 
 	for _, idx := range indexes {
 		columns := make([]string, 0, len(idx.Fields))
@@ -90,9 +91,10 @@ func indexStatements(rawTableName string, quotedTableName string, indexes []*str
 		}
 
 		statements = append(statements, fmt.Sprintf(`CREATE %sINDEX IF NOT EXISTS "idx_%s_%s" ON %s (%s)`, unique, rawTableName, indexName, quotedTableName, strings.Join(columns, ",")))
+		names = append(names, fmt.Sprintf("idx_%s_%s", rawTableName, indexName))
 	}
 
-	return statements
+	return statements, names
 }
 
 // TimeFormat is the format that time values are stored in. All values are stored in UTC and have the same length,

@@ -1,6 +1,9 @@
 package sqlite
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // columnDefinitionFromField maps a struct field type to the definition of its database column.
 // Nullable columns do not have NOT NULL and DEFAULT, so that their values can be NULL.
@@ -43,4 +46,29 @@ func columnTypeFromField(fieldType string) (string, string) {
 		// all int/uint variants
 		return "INTEGER", "0"
 	}
+}
+
+// columnType returns the type of the column for a field type, or the type set in the field tag.
+func columnType(fieldType string, overrideColumnType string) string {
+	if overrideColumnType != "" {
+		return overrideColumnType
+	}
+
+	columnType, _ := columnTypeFromField(fieldType)
+	return columnType
+}
+
+// addColumnStatements returns the statements that add a column to an existing table. SQLite cannot add a column
+// with a UNIQUE constraint, so a unique index is created for it instead.
+func addColumnStatements(rawTableName string, columnName string, fieldName string, fieldType string, isUnique bool, overrideColumnType string, isNullable bool) []string {
+	definition := columnDefinitionFromField(fieldName, fieldType, false, overrideColumnType, isNullable)
+	statements := []string{
+		fmt.Sprintf(`ALTER TABLE "%s" ADD COLUMN %s %s`, rawTableName, QuoteColumn(columnName), definition),
+	}
+
+	if isUnique {
+		statements = append(statements, fmt.Sprintf(`CREATE UNIQUE INDEX IF NOT EXISTS "uniq_%s_%s" ON "%s" (%s)`, rawTableName, columnName, rawTableName, QuoteColumn(columnName)))
+	}
+
+	return statements
 }

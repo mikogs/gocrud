@@ -49,3 +49,13 @@ func columnTypeFromField(fieldType string) (string, string) {
 		return "VARCHAR(255)", "''"
 	}
 }
+
+// columnType returns the type of the column for a field type, or the type set in the field tag.
+func columnType(fieldType string, overrideColumnType string) string {
+	if overrideColumnType != "" {
+		return overrideColumnType
+	}
+
+	columnType, _ := columnTypeFromField(fieldType)
+	return columnType
+}

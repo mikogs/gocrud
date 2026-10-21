@@ -88,7 +88,7 @@ func main() {
 }
 ```
 
-`CreateTable` creates the table and its indexes if they do not exist yet. Table and column names are generated from the struct and field names: `User` is stored in the `user` table, and `FirstName` in the `first_name` column.
+`CreateTable` creates the table and its indexes if they do not exist yet. It does not change an existing table, so when the struct changes over time, use [`Migrate`](crud/migrations.md) instead, which also adds the columns of new fields. Table and column names are generated from the struct and field names: `User` is stored in the `user` table, and `FirstName` in the `first_name` column.
 
 To use PostgreSQL instead, import `github.com/lib/pq`, open the database with `sql.Open("postgres", "host=localhost user=... dbname=... sslmode=disable")`, and set `Dialect` to `gocrud.DialectPostgres`. `SetMaxOpenConns(1)` is needed only for the in-memory SQLite database.
 

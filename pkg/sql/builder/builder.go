@@ -4,6 +4,7 @@ import (
 	"github.com/mikogs/gocrud/pkg/filters"
 	postgresQueryBuilder "github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/postgres"
 	sqliteQueryBuilder "github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/sqlite"
+	"github.com/mikogs/gocrud/pkg/sql/builder/querycontainer"
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
 	"github.com/mikogs/gocrud/pkg/structinfo"
@@ -26,6 +27,10 @@ type Builder struct {
 	structInfo *structinfo.StructInfo
 
 	columnFieldName        map[string]string
+	tableName              string
+	columns                []querycontainer.Column
+	indexStatements        []string
+	indexNames             []string
 	dropTable              string
 	createTable            string
 	insert                 string
@@ -60,6 +65,10 @@ func New(obj interface{}, options Options) (*Builder, error) {
 			return nil, err
 		}
 		b.columnFieldName = container.ColumnFieldName
+		b.tableName = container.RawTableName
+		b.columns = container.Columns
+		b.indexStatements = container.IndexStatements
+		b.indexNames = container.IndexNames
 		b.dropTable = container.DropTable
 		b.createTable = container.CreateTable
 		b.insert = container.Insert
@@ -74,6 +83,10 @@ func New(obj interface{}, options Options) (*Builder, error) {
 			return nil, err
 		}
 		b.columnFieldName = container.ColumnFieldName
+		b.tableName = container.RawTableName
+		b.columns = container.Columns
+		b.indexStatements = container.IndexStatements
+		b.indexNames = container.IndexNames
 		b.dropTable = container.DropTable
 		b.createTable = container.CreateTable
 		b.insert = container.Insert
@@ -129,6 +142,18 @@ func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldN
 
 // TimeFields returns a list with names of the time.Time fields that are stored in the database.
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
+
+// TableName returns the name of the table, without quotes.
+func (b *Builder) TableName() string { return b.tableName }
+
+// Columns describes the columns of the table, in the order of the struct fields.
+func (b *Builder) Columns() []querycontainer.Column { return b.columns }
+
+// IndexStatements returns a CREATE INDEX IF NOT EXISTS statement for each index declared with 'idx' or 'uidx' tags.
+func (b *Builder) IndexStatements() []string { return b.indexStatements }
+
+// IndexNames returns the names of the indexes created by IndexStatements.
+func (b *Builder) IndexNames() []string { return b.indexNames }
 
 // UniqueFields returns a list with field names that are unique.
 func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }

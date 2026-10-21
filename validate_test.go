@@ -187,3 +187,62 @@ func fatalIfNotViolations(t *testing.T, err error, want map[string]string) {
 		t.Fatalf("got violations %v, want %v", validationErr.Violations, want)
 	}
 }
+
+type validationEdgeCasesTestStruct struct {
+	InvalidPattern string `crud_regexp:"[a-"`
+	Skipped        string `validate:"-" crud_regexp:"^[a-z]+$"`
+	Phone          string `validate:"omitempty,min=7" crud_regexp:"^[0-9]+$"`
+}
+
+func TestValidate_InvalidRegExpPattern(t *testing.T) {
+	_, violations, err := Validate(&validationEdgeCasesTestStruct{InvalidPattern: "abc"}, nil, "crud")
+	if err != nil {
+		t.Fatalf("Validate failed with an err: %s", err.Error())
+	}
+	if violations["InvalidPattern"] != ViolationRegExp {
+		t.Fatalf("Validate returned %q for an invalid pattern, want %q", violations["InvalidPattern"], ViolationRegExp)
+	}
+}
+
+func TestValidate_SkippedField(t *testing.T) {
+	_, violations, err := Validate(&validationEdgeCasesTestStruct{InvalidPattern: "abc", Skipped: "123"}, map[string]bool{
+		"Skipped": true,
+	}, "crud")
+	if err != nil {
+		t.Fatalf("Validate failed with an err: %s", err.Error())
+	}
+	if len(violations) > 0 {
+		t.Fatalf("Validate returned violations %v for a skipped field", violations)
+	}
+}
+
+func TestValidate_OmitEmpty(t *testing.T) {
+	restrictFields := map[string]bool{"Phone": true}
+
+	ok, violations, _ := Validate(&validationEdgeCasesTestStruct{}, restrictFields, "crud")
+	if !ok {
+		t.Fatalf("Validate returned violations %v for an empty optional field", violations)
+	}
+
+	_, violations, _ = Validate(&validationEdgeCasesTestStruct{Phone: "123"}, restrictFields, "crud")
+	if violations["Phone"] != "min" {
+		t.Fatalf("Validate returned %q for a too short optional field, want %q", violations["Phone"], "min")
+	}
+
+	_, violations, _ = Validate(&validationEdgeCasesTestStruct{Phone: "abcdefgh"}, restrictFields, "crud")
+	if violations["Phone"] != ViolationRegExp {
+		t.Fatalf("Validate returned %q for a non-matching optional field, want %q", violations["Phone"], ViolationRegExp)
+	}
+}
+
+func TestValidate_InvalidObject(t *testing.T) {
+	var nilObj *validationEdgeCasesTestStruct
+	for name, obj := range map[string]interface{}{"nil pointer": nilObj, "not a struct": "string"} {
+		if _, _, err := Validate(obj, nil, "crud"); err == nil {
+			t.Fatalf("Validate did not return an err for %s", name)
+		}
+		if _, _, err := ValidateValues(obj, map[string]interface{}{"Phone": "1234567"}, "crud"); err == nil {
+			t.Fatalf("ValidateValues did not return an err for %s", name)
+		}
+	}
+}

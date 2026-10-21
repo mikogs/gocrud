@@ -219,22 +219,36 @@ func SetObjFields(obj interface{}, values *Filters) error {
 
 		inVal := reflect.ValueOf(value.Val)
 
-		if inVal.Type().AssignableTo(dest.Type()) {
+		if inVal.IsValid() && inVal.Type().AssignableTo(dest.Type()) {
 			dest.Set(inVal)
 			continue
 		}
 
-		if inVal.Type().ConvertibleTo(dest.Type()) {
+		// reflect also converts integers to strings (as runes), so conversion is limited to numbers
+		if inVal.IsValid() && isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) {
 			dest.Set(inVal.Convert(dest.Type()))
 			continue
 		}
 
 		err := fmt.Errorf("cannot set field %s (%s) with value of type %T",
-			field.Name, dest.Type(), value)
+			field.Name, dest.Type(), value.Val)
 		if firstErr == nil {
 			firstErr = err
 		}
 	}
 
 	return firstErr
+}
+
+func isKindNumeric(k reflect.Kind) bool {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return true
+	case reflect.Float32, reflect.Float64:
+		return true
+	default:
+		return false
+	}
 }

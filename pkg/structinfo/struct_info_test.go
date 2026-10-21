@@ -1,0 +1,125 @@
+package structinfo
+
+import (
+	"reflect"
+	"testing"
+)
+
+type tagsTestStruct struct {
+	ID              uint64
+	Email           string `crud:"uniq idx"`
+	Password        string `crud:"pass"`
+	FirstName       string `crud:"idx:full_name"`
+	LastName        string `crud:"idx:full_name"`
+	Code            string `crud:"uidx"`
+	Slug            string `crud:"uidx:slug_idx"`
+	Bio             string `crud:"type:text"`
+	Title           string `crud:"type:varchar(100)"`
+	Renamed         string `crud:"name:renamed_col"`
+	InvalidSettings string `crud:"type:blob name:Invalid-Name idx:Invalid-Name"`
+	Skipped         string `crud:"-"`
+	Status          int    `crud_val:"1"`
+	Tags            []string
+	CreatedAt       int64
+	CreatedBy       uint64
+	ModifiedAt      int64
+	ModifiedBy      uint64
+}
+
+func TestNew_FieldsFromTags(t *testing.T) {
+	info := New(&tagsTestStruct{}, "crud")
+
+	tests := map[string]FieldInfo{
+		"ID":              {},
+		"Email":           {Unique: true, Index: true},
+		"Password":        {Password: true},
+		"FirstName":       {Index: true, IndexName: "full_name"},
+		"LastName":        {Index: true, IndexName: "full_name"},
+		"Code":            {Index: true, IndexUnique: true},
+		"Slug":            {Index: true, IndexUnique: true, IndexName: "slug_idx"},
+		"Bio":             {OverrideColumnType: "TEXT"},
+		"Title":           {OverrideColumnType: "VARCHAR(100)"},
+		"Renamed":         {OverrideColumnName: "renamed_col"},
+		"InvalidSettings": {Index: true},
+		"Skipped":         {Ignored: true},
+		"Status":          {Default: "1"},
+	}
+
+	for name, want := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := info.Fields[name]
+			if !ok {
+				t.Fatalf("New did not return field %s", name)
+			}
+			if *got != want {
+				t.Fatalf("New returned %+v for field %s, want %+v", *got, name, want)
+			}
+		})
+	}
+}
+
+func TestNew_StructInfo(t *testing.T) {
+	info := New(&tagsTestStruct{}, "crud")
+
+	if _, ok := info.Fields["Tags"]; ok {
+		t.Fatal("New returned a field of an unsupported kind")
+	}
+
+	wantFieldNames := []string{"ID", "Email", "Password", "FirstName", "LastName", "Code", "Slug", "Bio", "Title",
+		"Renamed", "InvalidSettings", "Skipped", "Status", "CreatedAt", "CreatedBy", "ModifiedAt", "ModifiedBy"}
+	if !reflect.DeepEqual(info.FieldNames, wantFieldNames) {
+		t.Fatalf("New returned field names %v, want %v", info.FieldNames, wantFieldNames)
+	}
+	if !reflect.DeepEqual(info.UniqueFields, []string{"Email"}) {
+		t.Fatalf("New returned unique fields %v, want %v", info.UniqueFields, []string{"Email"})
+	}
+	if !reflect.DeepEqual(info.PasswordFields, []string{"Password"}) {
+		t.Fatalf("New returned password fields %v, want %v", info.PasswordFields, []string{"Password"})
+	}
+	if !info.ModificationFields {
+		t.Fatal("New did not detect modification fields")
+	}
+
+	wantIndexes := []*IndexInfo{
+		{Fields: []string{"Email"}},
+		{Name: "full_name", Fields: []string{"FirstName", "LastName"}},
+		{Fields: []string{"Code"}, Unique: true},
+		{Name: "slug_idx", Fields: []string{"Slug"}, Unique: true},
+		{Fields: []string{"InvalidSettings"}},
+	}
+	if !reflect.DeepEqual(info.Indexes, wantIndexes) {
+		t.Fatalf("New returned indexes %+v, want %+v", info.Indexes, wantIndexes)
+	}
+}
+
+func TestNew_CustomTagName(t *testing.T) {
+	type customTagStruct struct {
+		ID    uint64
+		Email string `db:"uniq" crud:"pass"`
+		Name  string `db_val:"anonymous"`
+	}
+
+	info := New(&customTagStruct{}, "db")
+
+	if *info.Fields["Email"] != (FieldInfo{Unique: true}) {
+		t.Fatalf("New returned %+v for field Email, want only Unique set", *info.Fields["Email"])
+	}
+	if info.Fields["Name"].Default != "anonymous" {
+		t.Fatalf("New returned default %q for field Name, want %q", info.Fields["Name"].Default, "anonymous")
+	}
+}
+
+func TestNew_WithoutModificationFields(t *testing.T) {
+	type partialModificationStruct struct {
+		ID        uint64
+		CreatedAt int64
+		CreatedBy uint64
+		// wrong type, so it does not count as a modification field
+		ModifiedAt string
+		ModifiedBy uint64
+	}
+
+	if New(&partialModificationStruct{}, "crud").ModificationFields {
+		t.Fatal("New detected modification fields in a struct that does not have all of them")
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -17,6 +18,8 @@ const (
 	// ViolationRegExp is set when a value does not match the pattern from the field's <tagName>_regexp tag.
 	ViolationRegExp = "regexp"
 )
+
+const validateTagName = "validate"
 
 var (
 	structValidator = validator.New()
@@ -82,9 +85,19 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 			continue
 		}
 
+		validateTag := field.Tag.Get(validateTagName)
+		if validateTag == "-" {
+			continue
+		}
+
+		value := val.Field(i).String()
+		if value == "" && strings.Split(validateTag, ",")[0] == "omitempty" {
+			continue
+		}
+
 		compiled, err := getCompiledRegexp(pattern)
 		// invalid pattern is considered a failed regexp
-		if err != nil || !compiled.MatchString(val.Field(i).String()) {
+		if err != nil || !compiled.MatchString(value) {
 			violations[field.Name] = ViolationRegExp
 		}
 	}

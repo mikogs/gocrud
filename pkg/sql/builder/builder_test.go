@@ -661,3 +661,68 @@ func TestSQLModificationFieldsNotUpdated(t *testing.T) {
 		})
 	}
 }
+
+type TestStructWithNullableFields struct {
+	ID        uint64
+	Name      string
+	Nickname  *string `sql:"uniq"`
+	Bio       *string `sql:"type:text"`
+	Age       *int64
+	Score     *float64
+	Rate      float32
+	Verified  *bool
+	BirthDate *time.Time
+}
+
+func TestSQLNullableColumns(t *testing.T) {
+	wants := map[string]string{
+		DialectPostgres: `CREATE TABLE IF NOT EXISTS "test_struct_with_nullable_fields" ("id" SERIAL PRIMARY KEY,` +
+			`"name" VARCHAR(255) NOT NULL DEFAULT '',"nickname" VARCHAR(255) UNIQUE,"bio" TEXT,"age" BIGINT,` +
+			`"score" DOUBLE PRECISION,"rate" REAL NOT NULL DEFAULT 0,"verified" BOOLEAN,"birth_date" TIMESTAMPTZ);`,
+		DialectSQLite: `CREATE TABLE IF NOT EXISTS "test_struct_with_nullable_fields" ("id" INTEGER PRIMARY KEY,` +
+			`"name" TEXT NOT NULL DEFAULT '',"nickname" TEXT UNIQUE,"bio" TEXT,"age" INTEGER,` +
+			`"score" REAL,"rate" REAL NOT NULL DEFAULT 0,"verified" INTEGER,"birth_date" DATETIME);`,
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			if got := mustNew(t, &TestStructWithNullableFields{}, Options{Dialect: dialect}).CreateTable(); got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			}
+		})
+	}
+}
+
+func TestSQLNullConditions(t *testing.T) {
+	f := &filters.Filters{
+		"Age":       {Op: filters.OpEqual, Val: nil},
+		"BirthDate": {Op: filters.OpNotEqual, Val: (*time.Time)(nil)},
+		"Name":      {Op: filters.OpEqual, Val: "Alice"},
+		"Score":     {Op: filters.OpGreater, Val: 1.5},
+		filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Rate < ?", 5}},
+	}
+
+	wants := map[string]string{
+		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "birth_date" IS NOT NULL ` +
+			`AND "name"=$1 AND "score">$2) AND ("rate" < $3);`,
+		DialectSQLite: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "birth_date" IS NOT NULL ` +
+			`AND "name"=? AND "score">?) AND ("rate" < ?);`,
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			got, err := mustNew(t, &TestStructWithNullableFields{}, Options{Dialect: dialect}).SelectCount(f)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			}
+		})
+	}
+
+	wantValues := []interface{}{"Alice", 1.5, 5}
+	if got := filters.FiltersInterfaces(f); len(got) != 3 || got[0] != wantValues[0] || got[1] != wantValues[1] || got[2] != wantValues[2] {
+		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
+	}
+}

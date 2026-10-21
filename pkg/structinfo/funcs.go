@@ -24,9 +24,28 @@ func IsFieldKindSupported(k reflect.Kind) bool {
 	}
 }
 
-// IsFieldTypeSupported checks if a field of a specific type can be stored in the database.
+// IsFieldTypeSupported checks if a field of a specific type can be stored in the database: a basic type, time.Time,
+// or a pointer to one of them, which is stored in a nullable column.
 func IsFieldTypeSupported(t reflect.Type) bool {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
 	return IsTimeType(t) || IsFieldKindSupported(t.Kind())
+}
+
+// IsNullableType checks if a field of a specific type is stored in a nullable column, i.e. it is a pointer.
+func IsNullableType(t reflect.Type) bool {
+	return t.Kind() == reflect.Pointer && IsFieldTypeSupported(t.Elem())
+}
+
+// BaseType returns the type that a nullable field points to, or t itself for a field that is not nullable.
+func BaseType(t reflect.Type) reflect.Type {
+	if IsNullableType(t) {
+		return t.Elem()
+	}
+
+	return t
 }
 
 // IsTimeType checks if t is time.Time.

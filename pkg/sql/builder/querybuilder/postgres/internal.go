@@ -115,6 +115,11 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 			return "", getColumnNameBuilderError("filter")
 		}
 
+		if (*filters)[name].IsNull() {
+			queryWhere += " AND " + nullCondition(quoteColumn(columnName, withAlias), (*filters)[name].Op)
+			continue
+		}
+
 		var fieldColumn string
 		if b.queryContainer.ColumnNotString[columnName] && ((*filters)[name].Op == pkgfilters.OpLike || (*filters)[name].Op == pkgfilters.OpMatch) {
 			fieldColumn = fmt.Sprintf(`CAST(%s AS TEXT)`, quoteColumn(columnName, withAlias))
@@ -252,4 +257,13 @@ func rawQueryAndValues(rawFilter pkgfilters.OpVal) (string, []interface{}, error
 	}
 
 	return rawQuery, rawValues, nil
+}
+
+// nullCondition returns an IS NULL condition for a filter with OpEqual, and IS NOT NULL for OpNotEqual.
+func nullCondition(column string, op int) string {
+	if op == pkgfilters.OpNotEqual {
+		return column + " IS NOT NULL"
+	}
+
+	return column + " IS NULL"
 }

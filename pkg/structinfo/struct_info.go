@@ -12,6 +12,7 @@ var (
 	NotStructPointerError = errors.New("obj must be a non-nil pointer to a struct")
 	IDFieldError          = errors.New(`first field must be "ID" of type uint64`)
 	NoColumnsError        = errors.New(`struct must have at least one field other than "ID"`)
+	PasswordFieldError    = errors.New(`field tagged with "pass" must be of type string`)
 )
 
 var (
@@ -80,7 +81,9 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 		}
 
 		structInfo.FieldNames = append(structInfo.FieldNames, field.Name)
-		structInfo.Fields[field.Name] = &FieldInfo{}
+		structInfo.Fields[field.Name] = &FieldInfo{
+			Nullable: IsNullableType(field.Type),
+		}
 
 		// Get value of a field's 'sql' and 'sql_val' tags (unless different when TagName provided in options).
 		tagValue := field.Tag.Get(tagName)
@@ -146,8 +149,12 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 
 	for _, column := range columns {
 		field, _ := objType.FieldByName(column)
-		if IsTimeType(field.Type) {
+		if IsTimeType(BaseType(field.Type)) {
 			s.TimeFields = append(s.TimeFields, column)
+		}
+
+		if s.Fields[column].Password && field.Type.Kind() != reflect.String {
+			return fmt.Errorf("%w: %s", PasswordFieldError, column)
 		}
 	}
 

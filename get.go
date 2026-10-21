@@ -4,7 +4,6 @@ import (
 	"context"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -36,36 +35,11 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	}
 
 	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
-	if options.ConvertFiltersFromString && options.Filters != nil {
-		newFilters := &sqlfilters.Filters{}
-
-		for filterName, filterOpVal := range *(options.Filters) {
-			// ignore the raw filters entirely, that's too complicated
-			if filterName == sqlfilters.Raw {
-				continue
-			}
-
-			valueAsString, ok := filterOpVal.Val.(string)
-			if !ok {
-				return nil, nil, getObjInvalidCRUDError(map[string]string{
-					filterName: ViolationType,
-				})
-			}
-
-			ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)
-			if !ok {
-				return nil, nil, getObjInvalidCRUDError(map[string]string{
-					filterName: ViolationType,
-				})
-			}
-
-			newFilters.Add(filterName, sqlfilters.OpVal{
-				Op:  filterOpVal.Op,
-				Val: valueAsFieldType,
-			})
+	if options.ConvertFiltersFromString {
+		options.Filters, err = convertFiltersFromString(obj, options.Filters)
+		if err != nil {
+			return nil, nil, err
 		}
-
-		options.Filters = newFilters
 	}
 
 	err = ValidateFilters(obj, options.Filters, c.tagName)

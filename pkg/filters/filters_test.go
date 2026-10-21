@@ -152,3 +152,49 @@ func TestSetObjFields_Time(t *testing.T) {
 		t.Fatal("SetObjFields did not return an err for a string value")
 	}
 }
+
+func TestOpVal_IsNull(t *testing.T) {
+	tests := map[string]struct {
+		opVal OpVal
+		want  bool
+	}{
+		"nil with OpEqual":    {OpVal{Op: OpEqual, Val: nil}, true},
+		"nil with OpNotEqual": {OpVal{Op: OpNotEqual, Val: nil}, true},
+		"typed nil":           {OpVal{Op: OpEqual, Val: (*int)(nil)}, true},
+		"nil with OpGreater":  {OpVal{Op: OpGreater, Val: nil}, false},
+		"value":               {OpVal{Op: OpEqual, Val: 0}, false},
+		"pointer to a value":  {OpVal{Op: OpEqual, Val: new(int)}, false},
+		"empty string":        {OpVal{Op: OpEqual, Val: ""}, false},
+	}
+	for name, test := range tests {
+		if got := test.opVal.IsNull(); got != test.want {
+			t.Fatalf("%s: IsNull returned %v, want %v", name, got, test.want)
+		}
+	}
+}
+
+func TestSetObjFields_Nullable(t *testing.T) {
+	obj := &struct {
+		Age       *int64
+		Nickname  *string
+		BirthDate *time.Time
+	}{}
+	nickname := "ali"
+
+	err := SetObjFields(obj, &Filters{
+		"Age":       {Val: 30},
+		"Nickname":  {Val: &nickname},
+		"BirthDate": {Val: time.Date(1990, 5, 1, 0, 0, 0, 0, time.UTC)},
+	})
+	if err != nil || obj.Age == nil || *obj.Age != 30 || obj.Nickname == nil || *obj.Nickname != "ali" || obj.BirthDate == nil {
+		t.Fatalf("SetObjFields returned %v and set %+v", err, *obj)
+	}
+
+	if err := SetObjFields(obj, &Filters{"Age": {Val: nil}, "Nickname": {Val: (*string)(nil)}}); err != nil || obj.Age != nil || obj.Nickname != nil {
+		t.Fatalf("SetObjFields returned %v and set %+v, want NULL", err, *obj)
+	}
+
+	if err := SetObjFields(obj, &Filters{"Age": {Val: "30"}}); err == nil {
+		t.Fatal("SetObjFields did not return an err for a value of an incompatible type")
+	}
+}

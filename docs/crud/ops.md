@@ -163,7 +163,7 @@ type GetOptions struct {
   * Example: `[]string{"Age", "ASC", "Price", "DESC"}` sorts by `Age` ascending, then `Price` descending.
 
 * **Filtering (Filters)**: Uses `sqlfilters.Filters` to build `WHERE` clauses.
-  * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`).
+  * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`). A `nil` value with `OpEqual` or `OpNotEqual` is an `IS NULL` or `IS NOT NULL` condition, see [Optional values](../struct.md#5-optional-values-null).
   * *Raw SQL (`sqlfilters.Raw`)**: Allows injecting raw SQL fragments for complex logic. Warning: Use with caution as it bypasses automatic escaping.
 
 * **Type Conversion (ConvertFiltersFromString)**: Automatically casts string inputs (e.g., from HTTP query parameters) to the correct Go data types required by the database columns. Times can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).

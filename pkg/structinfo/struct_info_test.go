@@ -244,7 +244,11 @@ func TestIsFieldTypeSupported(t *testing.T) {
 		reflect.TypeOf(true):           true,
 		reflect.TypeOf(status("")):     true,
 		reflect.TypeOf(time.Time{}):    true,
-		reflect.TypeOf(&time.Time{}):   false,
+		reflect.TypeOf(&time.Time{}):   true,
+		reflect.TypeOf(new(string)):    true,
+		reflect.TypeOf(new(*string)):   false,
+		reflect.TypeOf(&[]string{}):    false,
+		reflect.TypeOf(&nested{}):      false,
 		reflect.TypeOf(time.Second):    true,
 		reflect.TypeOf(nested{}):       false,
 		reflect.TypeOf([]string{}):     false,
@@ -269,5 +273,39 @@ func TestNew_UpdateFieldNamesWithoutModificationFields(t *testing.T) {
 	want := []string{"Name", "CreatedAt", "CreatedBy"}
 	if info.ModificationFields || !reflect.DeepEqual(info.UpdateFieldNames, want) {
 		t.Fatalf("New returned update field names %v, want %v", info.UpdateFieldNames, want)
+	}
+}
+
+func TestNew_NullableFields(t *testing.T) {
+	type nullableStruct struct {
+		ID        uint64
+		Name      string
+		Nickname  *string
+		BirthDate *time.Time
+	}
+
+	info := mustNew(t, &nullableStruct{}, "crud")
+	if info.Fields["Name"].Nullable || !info.Fields["Nickname"].Nullable || !info.Fields["BirthDate"].Nullable {
+		t.Fatalf("New returned wrong nullable fields: %+v %+v %+v", *info.Fields["Name"], *info.Fields["Nickname"], *info.Fields["BirthDate"])
+	}
+	if !reflect.DeepEqual(info.TimeFields, []string{"BirthDate"}) {
+		t.Fatalf("New returned time fields %v, want [BirthDate]", info.TimeFields)
+	}
+}
+
+func TestNew_PasswordFieldOfWrongType(t *testing.T) {
+	for _, obj := range []interface{}{
+		&struct {
+			ID       uint64
+			Password *string `crud:"pass"`
+		}{},
+		&struct {
+			ID  uint64
+			PIN int `crud:"pass"`
+		}{},
+	} {
+		if _, err := New(obj, "crud"); !errors.Is(err, PasswordFieldError) {
+			t.Fatalf("New returned err %v for %T, want %v", err, obj, PasswordFieldError)
+		}
 	}
 }

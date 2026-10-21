@@ -147,6 +147,15 @@ objs, _, err := svc.List(ctx, "meetings", 50, 0, "StartsAt", "asc",
     nil, nil, nil)
 ```
 
+For a pointer field, an empty value is `NULL`: `eq` with an empty value lists the rows where the field is `NULL`, and `ne` the rows where it is not. For example, the open tasks for `/tasks?completed_at=`:
+
+```go
+objs, _, err := svc.List(ctx, "tasks", 50, 0, "DueAt", "asc",
+    map[string]string{"CompletedAt": r.URL.Query().Get("completed_at")},
+    map[string]string{"CompletedAt": "eq"},
+    nil, nil, nil)
+```
+
 **Returns** `*FilterValidationError` on an unknown operator or a filter field that fails struct validation.
 
 ---

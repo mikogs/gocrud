@@ -20,6 +20,7 @@ At this stage, the library supports the following basic data types for struct fi
 * Strings: string
 * Booleans: bool
 * Times: `time.Time`, see [Times](#3-times)
+* Pointers to any of the above, e.g. `*string` or `*time.Time`, for values that can be `NULL`, see [Optional values](#5-optional-values-null)
 
 Complex types (such as slices, maps, or nested structs) are not currently supported for direct mapping in this context. Fields of such types, as well as unexported fields, are not stored in the database.
 
@@ -107,6 +108,45 @@ type Note struct {
 After an update, the `CreatedAt` and `CreatedBy` fields of the object are not read from the database. When they were empty, `Save` sets them to the time and user of the update. Use `Load` to get the stored values.
 
 If any of the four fields is missing or has a different type, all of them are ordinary fields.
+
+### 5. Optional values (NULL)
+
+A field of any of the types above can be `NULL` when it is a pointer, e.g. `*string`, `*int64` or `*time.Time`. Its column does not have `NOT NULL` and a default value, and a `nil` pointer is saved and loaded as `NULL`.
+
+Use pointers when "no value" is different from the zero value: a score of `0` is not the same as no score yet, and `false` is not the same as not answered. Fields that are not pointers can never be `NULL`, and their zero values are stored instead.
+
+```go
+type Task struct {
+    ID          uint64     `json:"id"`
+    Title       string     `json:"title" validate:"required"`
+    Estimate    *int64     `json:"estimate" validate:"omitempty,min=1"` // in hours, nil when not estimated
+    DueAt       *time.Time `json:"due_at"`
+    CompletedAt *time.Time `json:"completed_at"` // nil while the task is open
+}
+```
+
+In JSON, `nil` is `null`, so a task that is not estimated is encoded as `"estimate": null`.
+
+**Validation.** Rules are checked only when a pointer is not `nil` if they follow `omitempty`, like `Estimate` above. Use `required` when a pointer must not be `nil`. A regular expression in `crud_regexp` is checked only for a value that is not `NULL`.
+
+**Filters.** A `nil` value with `OpEqual` is an `IS NULL` condition, and with `OpNotEqual` an `IS NOT NULL` condition:
+
+```go
+// open tasks that are due before the end of the week
+openTasks, _, err := crud.Get(ctx, func() interface{} { return &Task{} }, gocrud.GetOptions{
+    Order: []string{"DueAt", "asc"},
+    Filters: &sqlfilters.Filters{
+        "CompletedAt": {Op: sqlfilters.OpEqual, Val: nil},
+        "DueAt":       {Op: sqlfilters.OpLower, Val: endOfWeek},
+    },
+})
+```
+
+`nil` with any other operator, and on a field that is not a pointer, is a validation error with the `type` violation. As always in SQL, a comparison with `NULL` is never true, so `DueAt < endOfWeek` does not match the tasks without a due date.
+
+**Values as strings.** An empty string is `NULL` for a pointer field, when values are converted from strings: with `ConvertFiltersFromString`, `UpdateMultiple` with `ConvertValuesFromString`, and in the [service](pkgs/service.md) layer. This matches an empty optional input in an HTML form. For a `*string` field, it means that an empty string cannot be set this way, only `NULL`.
+
+**Unique fields.** A unique pointer field can be `NULL` in many rows, because `NULL` is not equal to another `NULL`. This is also how the `GetCountOnUniq` check treats it.
 
 ## Tagging
 

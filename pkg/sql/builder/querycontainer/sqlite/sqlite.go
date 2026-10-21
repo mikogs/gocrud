@@ -68,7 +68,6 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 	for j := 0; j < numField; j++ {
 		field := objType.Field(j)
-		fieldTypeKind := field.Type.Kind()
 
 		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
@@ -85,14 +84,14 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		qc.FieldColumnName[field.Name] = columnName
 
-		if fieldTypeKind != reflect.String {
+		if structinfo.BaseType(field.Type).Kind() != reflect.String {
 			qc.ColumnNotString[columnName] = true
 		}
 
 		qc.ColumnFieldName[columnName] = field.Name
 
 		unique := structInfo.Fields[field.Name].Unique
-		columnDefinition := columnDefinitionFromField(field.Name, field.Type.String(), unique, structInfo.Fields[field.Name].OverrideColumnType)
+		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable)
 		qc.ColumnDefinitions = append(qc.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
 		qc.ColumnNames = append(qc.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}

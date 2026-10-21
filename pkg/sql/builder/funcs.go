@@ -95,99 +95,85 @@ func MapInterfaces(mapObj map[string]interface{}) []interface{} {
 }
 
 func valueFromString(obj interface{}, name string, value string, set bool) (bool, interface{}) {
-	objValue := reflect.ValueOf(obj)
-	objIndirect := reflect.Indirect(objValue)
-	objType := objIndirect.Type()
-
-	if objType.String() == "reflect.Value" {
-		objType = reflect.ValueOf(obj.(reflect.Value).Interface()).Type().Elem()
+	objIndirect := reflect.Indirect(reflect.ValueOf(obj))
+	if objValue, ok := obj.(reflect.Value); ok {
+		objIndirect = reflect.Indirect(objValue)
 	}
 
-	for j := 0; j < objType.NumField(); j++ {
-		field := objType.Field(j)
-		kind := field.Type.Kind()
-
-		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
-			continue
-		}
-
-		if field.Name == name {
-			if structinfo.IsTimeType(field.Type) {
-				v, ok := TimeFromString(value)
-				if !ok {
-					return false, nil
-				}
-				if set {
-					objIndirect.Field(j).Set(reflect.ValueOf(v))
-				}
-				return true, v
-			}
-
-			switch kind {
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				if intRegex.MatchString(value) {
-					v, err := strconv.ParseUint(value, 10, 64)
-					if err == nil {
-						if set {
-							fieldValue := objIndirect.Field(j)
-							if fieldValue.CanSet() {
-								fieldValue.SetUint(v)
-							}
-						}
-						return true, v
-					}
-				}
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				if intRegex.MatchString(value) {
-					v, err := strconv.ParseInt(value, 10, 64)
-					if err == nil {
-						if set {
-							fieldValue := objIndirect.Field(j)
-							if fieldValue.CanSet() {
-								fieldValue.SetInt(v)
-							}
-						}
-						return true, v
-					}
-				}
-			case reflect.Float32, reflect.Float64:
-				if floatRegex.MatchString(value) || intRegex.MatchString(value) {
-					v, err := strconv.ParseFloat(value, 64)
-					if err == nil {
-						if set {
-							fieldValue := objIndirect.Field(j)
-							if fieldValue.CanSet() {
-								fieldValue.SetFloat(v)
-							}
-						}
-						return true, v
-					}
-				}
-			case reflect.Bool:
-				if strings.ToLower(value) == "true" || strings.ToLower(value) == "false" {
-					v, err := strconv.ParseBool(value)
-					if err == nil {
-						if set {
-							fieldValue := objIndirect.Field(j)
-							if fieldValue.CanSet() {
-								fieldValue.SetBool(v)
-							}
-						}
-						return true, v
-					}
-				}
-			case reflect.String:
-				if set {
-					fieldValue := objIndirect.Field(j)
-					if fieldValue.CanSet() {
-						fieldValue.SetString(value)
-					}
-				}
-				return true, value
-			}
-			return false, nil
-		}
+	field, ok := objIndirect.Type().FieldByName(name)
+	if !ok || !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
+		return false, nil
 	}
 
-	return false, nil
+	fieldType := field.Type
+	if fieldType.Kind() == reflect.Pointer {
+		// an empty value of a nullable field is NULL
+		if value == "" {
+			if fieldValue := objIndirect.FieldByIndex(field.Index); set && fieldValue.CanSet() {
+				fieldValue.Set(reflect.Zero(fieldType))
+			}
+			return true, nil
+		}
+		fieldType = fieldType.Elem()
+	}
+
+	converted, ok := convertFromString(fieldType, value)
+	if !ok {
+		return false, nil
+	}
+
+	if fieldValue := objIndirect.FieldByIndex(field.Index); set && fieldValue.CanSet() {
+		typedValue := reflect.ValueOf(converted).Convert(fieldType)
+		if fieldValue.Kind() == reflect.Pointer {
+			pointer := reflect.New(fieldType)
+			pointer.Elem().Set(typedValue)
+			typedValue = pointer
+		}
+		fieldValue.Set(typedValue)
+	}
+
+	return true, converted
+}
+
+// convertFromString converts value to a value of a type of the same kind as t: uint64 for unsigned integers,
+// int64 for integers, float64 for floats, bool, string or time.Time.
+func convertFromString(t reflect.Type, value string) (interface{}, bool) {
+	if structinfo.IsTimeType(t) {
+		return TimeFromString(value)
+	}
+
+	switch t.Kind() {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if intRegex.MatchString(value) {
+			v, err := strconv.ParseUint(value, 10, 64)
+			if err == nil {
+				return v, true
+			}
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if intRegex.MatchString(value) {
+			v, err := strconv.ParseInt(value, 10, 64)
+			if err == nil {
+				return v, true
+			}
+		}
+	case reflect.Float32, reflect.Float64:
+		if floatRegex.MatchString(value) || intRegex.MatchString(value) {
+			v, err := strconv.ParseFloat(value, 64)
+			if err == nil {
+				return v, true
+			}
+		}
+	case reflect.Bool:
+		if strings.ToLower(value) == "true" || strings.ToLower(value) == "false" {
+			v, err := strconv.ParseBool(value)
+			if err == nil {
+				return v, true
+			}
+		}
+	case reflect.String:
+		return value, true
+	}
+
+	return nil, false
 }

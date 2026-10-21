@@ -55,6 +55,11 @@ func (c *CRUD) args(args []interface{}) []interface{} {
 			if v != nil {
 				args[i] = sqliteQueryContainer.TimeValue(*v)
 			}
+		case **time.Time:
+			// a nullable field
+			if v != nil && *v != nil {
+				args[i] = sqliteQueryContainer.TimeValue(**v)
+			}
 		}
 	}
 

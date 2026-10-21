@@ -105,6 +105,11 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 
 		fieldColumn := quoteColumn(columnName, withAlias)
 
+		if (*filters)[name].IsNull() {
+			parts = append(parts, nullCondition(fieldColumn, (*filters)[name].Op))
+			continue
+		}
+
 		var clause string
 		switch (*filters)[name].Op {
 		case pkgfilters.OpLike:
@@ -235,4 +240,13 @@ func rawQueryAndValues(rawFilter pkgfilters.OpVal) (string, []interface{}, error
 	}
 
 	return rawQuery, rawValues, nil
+}
+
+// nullCondition returns an IS NULL condition for a filter with OpEqual, and IS NOT NULL for OpNotEqual.
+func nullCondition(column string, op int) string {
+	if op == pkgfilters.OpNotEqual {
+		return column + " IS NOT NULL"
+	}
+
+	return column + " IS NULL"
 }

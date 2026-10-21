@@ -55,6 +55,12 @@ func timeFieldsToUTC(obj interface{}, fieldNames []string) {
 	objValue := reflect.ValueOf(obj).Elem()
 	for _, fieldName := range fieldNames {
 		field := objValue.FieldByName(fieldName)
+		if field.Kind() == reflect.Pointer {
+			if field.IsNil() {
+				continue
+			}
+			field = field.Elem()
+		}
 		field.Set(reflect.ValueOf(field.Interface().(time.Time).UTC()))
 	}
 }
@@ -119,6 +125,14 @@ func ObjFieldValue(obj interface{}, fieldName string) interface{} {
 	// The CanInterface check protects us from a panic.
 	if !field.CanInterface() {
 		return nil
+	}
+
+	// A nullable field returns the value it points to, or nil for NULL.
+	if field.Kind() == reflect.Pointer {
+		if field.IsNil() {
+			return nil
+		}
+		field = field.Elem()
 	}
 
 	// Return the value only for the supported kinds.

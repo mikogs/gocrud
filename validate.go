@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 const (
@@ -72,7 +74,7 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 	typ := val.Type()
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		if !field.IsExported() || field.Type.Kind() != reflect.String || violations[field.Name] != "" {
+		if !field.IsExported() || structinfo.BaseType(field.Type).Kind() != reflect.String || violations[field.Name] != "" {
 			continue
 		}
 
@@ -90,7 +92,16 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 			continue
 		}
 
-		value := val.Field(i).String()
+		fieldValue := val.Field(i)
+		if fieldValue.Kind() == reflect.Pointer {
+			// NULL does not have a value to match
+			if fieldValue.IsNil() {
+				continue
+			}
+			fieldValue = fieldValue.Elem()
+		}
+
+		value := fieldValue.String()
 		if value == "" && strings.Split(validateTag, ",")[0] == "omitempty" {
 			continue
 		}
@@ -132,12 +143,21 @@ func ValidateValues(obj interface{}, values map[string]interface{}, tagName stri
 		}
 
 		valueVal := reflect.ValueOf(value)
-		if !valueVal.IsValid() || !valueVal.Type().AssignableTo(field.Type()) {
+		switch {
+		case valueVal.IsValid() && valueVal.Type().AssignableTo(field.Type()):
+			field.Set(valueVal)
+		case field.Kind() == reflect.Pointer && !valueVal.IsValid():
+			// NULL
+			field.Set(reflect.Zero(field.Type()))
+		case field.Kind() == reflect.Pointer && valueVal.Type().AssignableTo(field.Type().Elem()):
+			pointer := reflect.New(field.Type().Elem())
+			pointer.Elem().Set(valueVal)
+			field.Set(pointer)
+		default:
 			typeViolations[name] = ViolationType
 			continue
 		}
 
-		field.Set(valueVal)
 		restrictFields[name] = true
 	}
 
@@ -162,13 +182,43 @@ func ValidateFilters(obj interface{}, filters *sqlfilters.Filters, tagName strin
 		return nil
 	}
 
-	err := sqlfilters.SetObjFields(obj, filters)
+	// IS NULL and IS NOT NULL conditions do not have a value to validate, but they are valid only for nullable fields
+	valueFilters := sqlfilters.Filters{}
+	nullViolations := map[string]string{}
+	objType := reflect.Indirect(reflect.ValueOf(obj)).Type()
+	for name, filter := range *filters {
+		field, isField := objType.FieldByName(name)
+
+		if !filter.IsNull() {
+			// nil is valid only with OpEqual and OpNotEqual, as IS NULL and IS NOT NULL
+			if isField && isNilValue(filter.Val) {
+				nullViolations[name] = ViolationType
+				continue
+			}
+			valueFilters[name] = filter
+			continue
+		}
+
+		if isField && !structinfo.IsNullableType(field.Type) {
+			nullViolations[name] = ViolationType
+		}
+	}
+
+	if len(nullViolations) > 0 {
+		return getObjInvalidCRUDError(nullViolations)
+	}
+
+	if len(valueFilters) == 0 {
+		return nil
+	}
+
+	err := sqlfilters.SetObjFields(obj, &valueFilters)
 	if err != nil {
 		return getBuilderFuncCRUDError("set obj fields", err)
 	}
 
 	fieldsToValidate := map[string]bool{}
-	for filter := range *filters {
+	for filter := range valueFilters {
 		fieldsToValidate[filter] = true
 	}
 
@@ -197,4 +247,46 @@ func getCompiledRegexp(pattern string) (*regexp.Regexp, error) {
 
 	regexpCache.Store(pattern, compiled)
 	return compiled, nil
+}
+
+// convertFiltersFromString returns filters with string values converted to the types of obj fields. The raw filter,
+// and IS NULL and IS NOT NULL conditions, which have a nil value, are not converted.
+func convertFiltersFromString(obj interface{}, filters *sqlfilters.Filters) (*sqlfilters.Filters, error) {
+	if filters == nil {
+		return nil, nil
+	}
+
+	newFilters := &sqlfilters.Filters{}
+	for filterName, filterOpVal := range *filters {
+		if filterName == sqlfilters.Raw || filterOpVal.IsNull() {
+			newFilters.Add(filterName, filterOpVal)
+			continue
+		}
+
+		valueAsString, ok := filterOpVal.Val.(string)
+		if !ok {
+			return nil, getObjInvalidCRUDError(map[string]string{filterName: ViolationType})
+		}
+
+		ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)
+		if !ok {
+			return nil, getObjInvalidCRUDError(map[string]string{filterName: ViolationType})
+		}
+
+		newFilters.Add(filterName, sqlfilters.OpVal{
+			Op:  filterOpVal.Op,
+			Val: valueAsFieldType,
+		})
+	}
+
+	return newFilters, nil
+}
+
+func isNilValue(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }

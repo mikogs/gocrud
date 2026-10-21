@@ -80,6 +80,8 @@ Pass `:memory:` as the path to `sql.Open` for an in-memory SQLite database (usef
 | String columns | `VARCHAR(255)` | `TEXT` |
 | Integer columns | `BIGINT`, `INTEGER`, … | `INTEGER` |
 | Boolean columns | `BOOLEAN` | `INTEGER` (0/1) |
-| Float columns | driver default | `REAL` |
+| Float columns | `DOUBLE PRECISION` (`float64`), `REAL` (`float32`) | `REAL` |
+| Time columns | `TIMESTAMPTZ` | `DATETIME` |
+| Pointer fields | nullable column, without `NOT NULL` and a default | the same |
 | Regex filter (`OpMatch`) | supported (`~`) | not supported |
 

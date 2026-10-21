@@ -79,12 +79,18 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 	if c.flags&GetCountOnUniq > 0 {
 		uniqFields := builder.UniqueFields()
 		for _, uniqField := range uniqFields {
+			// NULL values are not equal to each other, so they are never duplicates
+			uniqValue := ObjFieldValue(obj, uniqField)
+			if uniqValue == nil {
+				continue
+			}
+
 			count, err := c.GetCount(ctx, obj,
 				GetCountOptions{
 					Filters: &sqlfilters.Filters{
 						uniqField: sqlfilters.OpVal{
 							Op:  sqlfilters.OpEqual,
-							Val: ObjFieldValue(obj, uniqField),
+							Val: uniqValue,
 						},
 						"ID": sqlfilters.OpVal{
 							Op:  sqlfilters.OpNotEqual,

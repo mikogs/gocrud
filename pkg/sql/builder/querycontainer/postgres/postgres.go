@@ -70,7 +70,6 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 	for j := 0; j < numField; j++ {
 		field := objType.Field(j)
-		fieldTypeKind := field.Type.Kind()
 
 		// Only basic golang types are included as columns for the database table.
 		// Check the function below for the details.
@@ -90,7 +89,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		queryContainer.FieldColumnName[field.Name] = columnName
 
-		if fieldTypeKind != reflect.String {
+		if structinfo.BaseType(field.Type).Kind() != reflect.String {
 			queryContainer.ColumnNotString[columnName] = true
 		}
 
@@ -101,7 +100,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 			unique = true
 		}
 
-		columnDefinition := columnDefinitionFromField(field.Name, field.Type.String(), unique, structInfo.Fields[field.Name].OverrideColumnType)
+		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable)
 		queryContainer.ColumnDefinitions = append(queryContainer.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
 		queryContainer.ColumnNames = append(queryContainer.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}

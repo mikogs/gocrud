@@ -37,6 +37,10 @@ func FiltersInterfaces(filters *Filters) []interface{} {
 	sort.Strings(sorted)
 
 	for _, filter := range sorted {
+		// IS NULL and IS NOT NULL conditions do not have a value
+		if (*filters)[filter].IsNull() {
+			continue
+		}
 		interfaces = append(interfaces, (*filters)[filter].Val)
 	}
 
@@ -208,23 +212,28 @@ func SetObjFields(obj interface{}, values *Filters) error {
 		}
 
 		dest := objValue.Field(i)
-
-		// TODO: We do not support pointers at this stage
-		if dest.Kind() == reflect.Ptr {
-			continue
-		}
-
 		inVal := reflect.ValueOf(value.Val)
 
-		if inVal.IsValid() && inVal.Type().AssignableTo(dest.Type()) {
-			dest.Set(inVal)
+		if setValue(dest, inVal) {
 			continue
 		}
 
-		// reflect also converts integers to strings (as runes), so conversion is limited to numbers
-		if inVal.IsValid() && isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) {
-			dest.Set(inVal.Convert(dest.Type()))
-			continue
+		// a nullable field is set to nil, or to a pointer to a value of the type it points to
+		if dest.Kind() == reflect.Pointer {
+			if isNil(value.Val) {
+				dest.Set(reflect.Zero(dest.Type()))
+				continue
+			}
+
+			if inVal.Kind() == reflect.Pointer {
+				inVal = inVal.Elem()
+			}
+
+			elem := reflect.New(dest.Type().Elem())
+			if setValue(elem.Elem(), inVal) {
+				dest.Set(elem)
+				continue
+			}
 		}
 
 		err := fmt.Errorf("cannot set field %s (%s) with value of type %T",
@@ -235,6 +244,35 @@ func SetObjFields(obj interface{}, values *Filters) error {
 	}
 
 	return firstErr
+}
+
+// setValue sets dest to inVal when it is of the same type, or when both are numbers.
+func setValue(dest reflect.Value, inVal reflect.Value) bool {
+	if !inVal.IsValid() {
+		return false
+	}
+
+	if inVal.Type().AssignableTo(dest.Type()) {
+		dest.Set(inVal)
+		return true
+	}
+
+	// reflect also converts integers to strings (as runes), so conversion is limited to numbers
+	if isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) {
+		dest.Set(inVal.Convert(dest.Type()))
+		return true
+	}
+
+	return false
+}
+
+func isNil(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Pointer && rv.IsNil()
 }
 
 func isKindNumeric(k reflect.Kind) bool {

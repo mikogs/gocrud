@@ -1,56 +1,22 @@
 package postgres
 
-import "fmt"
-
-// Mapping database column type to struct field type
-func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool, overrideColumnType string) string {
+// columnDefinitionFromField maps a struct field type to the definition of its database column.
+// Nullable columns do not have NOT NULL and DEFAULT, so that their values can be NULL.
+func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool, overrideColumnType string, isNullable bool) string {
 	// 'ID' is a special field
 	if fieldName == "ID" {
 		return "SERIAL PRIMARY KEY"
 	}
 
+	columnType, defaultValue := columnTypeFromField(fieldType)
 	if overrideColumnType != "" {
-		definition := fmt.Sprintf("%s NOT NULL DEFAULT ''", overrideColumnType)
-
-		if isUnique {
-			definition += " UNIQUE"
-		}
-
-		return definition
+		columnType = overrideColumnType
+		defaultValue = "''"
 	}
 
-	definition := ""
-	switch fieldType {
-	case "string":
-		definition = "VARCHAR(255) NOT NULL DEFAULT ''"
-	case "bool":
-		definition = "BOOLEAN NOT NULL DEFAULT false"
-	case "int64":
-		definition = "BIGINT NOT NULL DEFAULT 0"
-	case "int32":
-		definition = "INTEGER NOT NULL DEFAULT 0"
-	case "int16":
-		definition = "SMALLINT NOT NULL DEFAULT 0"
-	case "int8":
-		definition = "SMALLINT NOT NULL DEFAULT 0"
-	case "int":
-		definition = "BIGINT NOT NULL DEFAULT 0"
-	case "uint64":
-		definition = "BIGINT NOT NULL DEFAULT 0"
-	case "uint32":
-		definition = "INTEGER NOT NULL DEFAULT 0"
-	case "uint16":
-		definition = "SMALLINT NOT NULL DEFAULT 0"
-	case "uint8":
-		definition = "SMALLINT NOT NULL DEFAULT 0"
-	case "uint":
-		definition = "BIGINT NOT NULL DEFAULT 0"
-	case "time.Time":
-		// the default is the zero value of time.Time
-		definition = "TIMESTAMPTZ NOT NULL DEFAULT '0001-01-01 00:00:00+00'"
-	// TODO: Consider something different
-	default:
-		definition = "VARCHAR(255) NOT NULL DEFAULT ''"
+	definition := columnType
+	if !isNullable {
+		definition += " NOT NULL DEFAULT " + defaultValue
 	}
 
 	if isUnique {
@@ -58,4 +24,28 @@ func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool
 	}
 
 	return definition
+}
+
+// columnTypeFromField returns the column type and the default value for a field type.
+func columnTypeFromField(fieldType string) (string, string) {
+	switch fieldType {
+	case "bool":
+		return "BOOLEAN", "false"
+	case "int64", "int", "uint64", "uint":
+		return "BIGINT", "0"
+	case "int32", "uint32":
+		return "INTEGER", "0"
+	case "int16", "int8", "uint16", "uint8":
+		return "SMALLINT", "0"
+	case "float64":
+		return "DOUBLE PRECISION", "0"
+	case "float32":
+		return "REAL", "0"
+	case "time.Time":
+		// the default is the zero value of time.Time
+		return "TIMESTAMPTZ", "'0001-01-01 00:00:00+00'"
+	default:
+		// TODO: Consider something different
+		return "VARCHAR(255)", "''"
+	}
 }

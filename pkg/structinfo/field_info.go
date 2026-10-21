@@ -13,6 +13,8 @@ type FieldInfo struct {
 	Unique bool
 	// Password is set to true if the field is marked with a "password" tag.
 	Password bool
+	// Nullable is set to true if the field is a pointer, stored in a column that can be NULL.
+	Nullable bool
 	// Ignored is set to true if the field is marked with a "-" tag.
 	Ignored bool
 	// Index is set to true if the field is marked with an 'idx' or 'uidx' tag.

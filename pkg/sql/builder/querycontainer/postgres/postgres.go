@@ -177,7 +177,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		if err != nil {
 			return err
 		}
-		q.CreateTable = query
+		q.DeleteByID = query
 	} else {
 		q.DeleteByID = fmt.Sprintf("DELETE FROM %s WHERE %s = $1", q.TableName, idColumn)
 	}

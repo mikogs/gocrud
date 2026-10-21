@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mikogs/gocrud/pkg/filters"
@@ -470,6 +471,33 @@ func TestSQLiteAliasedColumnQueries(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if gotWant[0] != gotWant[1] {
 				t.Fatalf("\nwant %v\ngot  %v", gotWant[1], gotWant[0])
+			}
+		})
+	}
+}
+
+type TestStructWithCustomDeleteByID struct {
+	ID   uint64
+	Name string
+}
+
+func (s *TestStructWithCustomDeleteByID) BuildDeleteByIDQuery(tableNamePrefix string) (string, error) {
+	return `UPDATE "` + tableNamePrefix + `test_struct_with_custom_delete_by_id" SET "name"='deleted' WHERE "id" = $1`, nil
+}
+
+func TestSQLCustomDeleteByIDQuery(t *testing.T) {
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		t.Run(dialect, func(t *testing.T) {
+			h := New(&TestStructWithCustomDeleteByID{}, Options{Dialect: dialect})
+
+			want := `UPDATE "test_struct_with_custom_delete_by_id" SET "name"='deleted' WHERE "id" = $1;`
+			if got := h.DeleteByID(); got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			}
+
+			wantPrefix := `CREATE TABLE IF NOT EXISTS "test_struct_with_custom_delete_by_id"`
+			if got := h.CreateTable(); !strings.HasPrefix(got, wantPrefix) {
+				t.Fatalf("CreateTable returned %v, want a query starting with %v", got, wantPrefix)
 			}
 		})
 	}

@@ -199,5 +199,21 @@ objs, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc",
     map[string]string{"UserID": "eq"},
     nil, // rowFunc
     nil, // constructor (use registered default)
+    nil, // passFieldsToVerify
 )
 ```
+
+## Transactions
+
+`RunInTx`, `RunInTxWithOptions`, `WithTx` and `Tx` run several service calls in one database transaction:
+
+```go
+err := svc.RunInTx(ctx, func(tx *svccrud.CRUD) error {
+    if err := tx.Save(ctx, task, now, userID); err != nil {
+        return err
+    }
+    return tx.Save(ctx, activity, now, userID)
+})
+```
+
+See [Transactions](../crud/transactions.md#service-layer) for the details and a complete HTTP handler example.

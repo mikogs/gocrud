@@ -34,7 +34,7 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 			continue
 		}
 
-		_, err = c.db.ExecContext(ctx, stmt)
+		_, err = c.conn.ExecContext(ctx, stmt)
 		if err != nil {
 			return getDBFuncCRUDError("exec", err)
 		}
@@ -61,7 +61,7 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 		query = builder.DropTable()
 	}
 
-	_, err = c.db.ExecContext(ctx, query)
+	_, err = c.conn.ExecContext(ctx, query)
 	if err != nil {
 		return getDBFuncCRUDError("exec", err)
 	}

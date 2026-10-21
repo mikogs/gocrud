@@ -71,7 +71,7 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 		}
 	}
 
-	row := c.db.QueryRowContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
+	row := c.conn.QueryRowContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
 	var cnt uint64
 	err = row.Scan(&cnt)
 	if err != nil {

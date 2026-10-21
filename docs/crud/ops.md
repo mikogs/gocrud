@@ -294,3 +294,7 @@ type UpdateMultipleOptions struct {
   * When enabled, string values in fieldsToUpdate are automatically converted to the correct Go data types before being written to the database.
   * Useful when values come from external sources (e.g., HTTP form data, URL parameters).
 
+
+## Transactions
+
+All the operations above can run in a database transaction, so that several changes are saved together or not at all. See [Transactions](transactions.md).

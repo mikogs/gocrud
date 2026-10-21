@@ -29,7 +29,7 @@ func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOption
 		query = builder.DeleteByID()
 	}
 
-	_, err = c.db.ExecContext(ctx, query, ObjIDInterface(obj))
+	_, err = c.conn.ExecContext(ctx, query, ObjIDInterface(obj))
 	if err != nil {
 		return getDBFuncCRUDError("exec", err)
 	}

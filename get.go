@@ -91,7 +91,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		}
 	}
 
-	rows, err := c.db.QueryContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
+	rows, err := c.conn.QueryContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
 	if err != nil {
 		return nil, nil, getDBFuncCRUDError("query", err)
 	}

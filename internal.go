@@ -9,9 +9,9 @@ import (
 func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {
 	objType := reflect.TypeOf(obj)
 
-	c.buildersMu.RLock()
-	builder, ok := c.builders[objType]
-	c.buildersMu.RUnlock()
+	c.builders.mu.RLock()
+	builder, ok := c.builders.builders[objType]
+	c.builders.mu.RUnlock()
 	if ok {
 		return builder, nil
 	}
@@ -25,9 +25,9 @@ func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {
 		return nil, err
 	}
 
-	c.buildersMu.Lock()
-	c.builders[objType] = builder
-	c.buildersMu.Unlock()
+	c.builders.mu.Lock()
+	c.builders.builders[objType] = builder
+	c.builders.mu.Unlock()
 
 	return builder, nil
 }

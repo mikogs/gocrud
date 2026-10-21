@@ -9,13 +9,22 @@ import (
 )
 
 type CRUD struct {
-	db              *sql.DB
-	buildersMu      sync.RWMutex
-	builders        map[reflect.Type]*sqlbuilder.Builder
+	db *sql.DB
+	// tx is set when the CRUD runs its queries in a transaction, see WithTx and RunInTx.
+	tx *sql.Tx
+	// conn is the tx when it is set, or the db otherwise.
+	conn            DBTX
+	builders        *builderCache
 	tagName         string
 	tableNamePrefix string
 	dialect         string
 	flags           uint64
+}
+
+// builderCache is shared between a CRUD and its copies running in transactions.
+type builderCache struct {
+	mu       sync.RWMutex
+	builders map[reflect.Type]*sqlbuilder.Builder
 }
 
 func New(db *sql.DB, options Options) *CRUD {
@@ -24,8 +33,11 @@ func New(db *sql.DB, options Options) *CRUD {
 	}
 
 	crud := &CRUD{
-		db:       db,
-		builders: make(map[reflect.Type]*sqlbuilder.Builder),
+		db:   db,
+		conn: db,
+		builders: &builderCache{
+			builders: make(map[reflect.Type]*sqlbuilder.Builder),
+		},
 	}
 
 	crud.tagName = "crud"

@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	sqlbuilder "github.com/mikolajgasior/gocrud/pkg/sql/builder"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 )
 
 func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {

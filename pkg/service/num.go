@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/mikolajgasior/gocrud"
-	"github.com/mikolajgasior/gocrud/pkg/logger"
+	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 func (c *CRUD) Num(ctx context.Context, key string, filterVals, filterOps map[string]string) (uint64, error) {

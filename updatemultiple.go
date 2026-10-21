@@ -3,9 +3,8 @@ package gocrud
 import (
 	"context"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikolajgasior/gocrud/pkg/sql/builder"
-	validator "github.com/mikolajgasior/struct-validator"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 )
 
 type UpdateMultipleOptions struct {
@@ -32,17 +31,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 			fieldsToUpdate[name] = valueAsFieldType
 		}
 	}
-	restrictFields := make(map[string]bool, len(fieldsToUpdate))
-	for name := range fieldsToUpdate {
-		restrictFields[name] = true
-	}
-
-	ok, violations, err := validator.Validate(obj, &validator.ValidateOptions{
-		RestrictFields:  restrictFields,
-		OverwriteValues: fieldsToUpdate,
-		TagName:         c.tagName,
-	})
-
+	ok, violations, err := ValidateValues(obj, fieldsToUpdate, c.tagName)
 	if err != nil {
 		return getValidateObjCRUDError(err)
 	}

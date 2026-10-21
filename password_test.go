@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"testing"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 )
 
 // PasswordStruct is a minimal struct with a field tagged crud:"pass".
 // It maps to the table "password_struct".
 type PasswordStruct struct {
 	ID       uint64
-	Name     string `crud:"req len:1,100"`
+	Name     string `validate:"required,min=1,max=100"`
 	Password string `crud:"pass"`
 }
 

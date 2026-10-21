@@ -3,9 +3,8 @@ package gocrud
 import (
 	"context"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikolajgasior/gocrud/pkg/sql/builder"
-	validator "github.com/mikolajgasior/struct-validator"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 )
 
 type GetCountOptions struct {
@@ -32,15 +31,15 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 
 			valueAsString, ok := filterOpVal.Val.(string)
 			if !ok {
-				return 0, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
+				return 0, getObjInvalidCRUDError(map[string]string{
+					filterName: ViolationType,
 				})
 			}
 
 			ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)
 			if !ok {
-				return 0, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
+				return 0, getObjInvalidCRUDError(map[string]string{
+					filterName: ViolationType,
 				})
 			}
 

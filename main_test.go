@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
-	"github.com/mikolajgasior/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/test"
 	"github.com/ory/dockertest/v3"
 	_ "modernc.org/sqlite"
 )

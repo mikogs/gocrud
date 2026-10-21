@@ -20,23 +20,23 @@ import (
 	// "database/sql"
 	// _ "your-db-driver"
 	
-	"github.com/mikolajgasior/gocrud"
+	"github.com/mikogs/gocrud"
 	// Import the filters package for advanced querying
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 )
 
 // User represents the data model to be stored in the database.
 type User struct {
 	ID         uint64 `json:"id"`
-	Username   string `json:"username" crud:"req len:3,30 crud_regexp:\"^[a-z0-9_-]+$\""`
-	Email      string `json:"email" crud:"req email"`
-	FirstName  string `json:"first_name" crud:"req len:2,50"`
-	LastName   string `json:"last_name" crud:"req len:2,50"`
-	Phone      string `json:"phone" crud:"len:7,20"`
-	Department string `json:"department" crud:"len:0,100"`
-	Role       string `json:"role" crud:"req len:3,30"`
+	Username   string `json:"username" validate:"required,min=3,max=30" crud_regexp:"^[a-z0-9_-]+$"`
+	Email      string `json:"email" validate:"required,email"`
+	FirstName  string `json:"first_name" validate:"required,min=2,max=50"`
+	LastName   string `json:"last_name" validate:"required,min=2,max=50"`
+	Phone      string `json:"phone" validate:"omitempty,min=7,max=20"`
+	Department string `json:"department" validate:"max=100"`
+	Role       string `json:"role" validate:"required,min=3,max=30"`
 	IsActive   bool   `json:"is_active"`
-	LastLogin  int64  `json:"last_login" crud:"val:0"`
+	LastLogin  int64  `json:"last_login" validate:"min=0"`
 	CreatedAt  int64  `json:"created_at"`
 	CreatedBy  uint64 `json:"created_by"`
 	ModifiedAt int64  `json:"modified_at"`
@@ -77,7 +77,7 @@ A few important conventions:
 
 * Every struct must include an `ID` field of type `uint64`. This maps to a BIGINT primary key in the database.
 * Fields tracking creation and modification (`CreatedAt`, `CreatedBy`, `ModifiedAt`, `ModifiedBy`) are recognized automatically. When present, gocrud populates their values on insert and update. 
-* Validation rules are expressed via the `crud` tag (and `crud_regexp` for regex patterns). `gocrud` leverages the [`struct-validator` library](https://github.com/mikolajgasior/struct-validator) under the hood—refer to its documentation for the full list of supported validators. 
+* Validation rules are expressed via the `validate` tag (and `crud_regexp` for regex patterns). `gocrud` leverages the [`go-playground/validator` library](https://github.com/go-playground/validator) under the hood—refer to its documentation for the full list of supported validators. 
 * At present, `gocrud` is optimized for rapid prototyping and supports only `int`, `uint`, `float`, `string`, and `bool` field types.
 
 
@@ -222,7 +222,7 @@ Use the `Get` method to retrieve multiple records with pagination, sorting, and 
 |RowObjTransformFunc	|Transform each row into any type (e.g., string, HTML, CSV)|
 |ConvertFiltersFromString	|Auto-convert string filter values to target types|
 
-**Note**: To use filters, import: `sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"`
+**Note**: To use filters, import: `sqlfilters "github.com/mikogs/gocrud/pkg/filters"`
 
 ```go
 func listUsers(ctx context.Context, c *gocrud.Controller) {

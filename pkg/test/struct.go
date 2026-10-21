@@ -9,16 +9,16 @@ import (
 type TestStruct struct {
 	ID             uint64
 	Flags          uint64
-	PrimaryEmail   string `crud:"req"`
-	EmailSecondary string `crud:"req email"`
-	FirstName      string `crud:"req len:2,30"`
-	LastName       string `crud:"req len:0,255"`
-	Age            int    `crud:"val:1,120"`
-	Price          int    `crud:"val:0,999"`
-	PostCode       string `crud:"req len:6 regexp:^[0-9]{2}\\-[0-9]{3}$"`
-	PostCode2      string `crud:"len:6" 2db_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
+	PrimaryEmail   string `validate:"required"`
+	EmailSecondary string `validate:"required,email"`
+	FirstName      string `validate:"required,min=2,max=30"`
+	LastName       string `validate:"required,max=255"`
+	Age            int    `validate:"min=1,max=120"`
+	Price          int    `validate:"min=0,max=999"`
+	PostCode       string `validate:"required,min=6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
+	PostCode2      string `validate:"min=6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
 	Password       string `json:"password"`
-	Key            string `crud:"req uniq len:30,255"`
+	Key            string `crud:"uniq" validate:"required,min=30,max=255"`
 	CreatedAt      int64
 	CreatedBy      uint64
 	ModifiedAt     int64

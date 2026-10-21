@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mikolajgasior/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 func FieldToColumn(s string) string {

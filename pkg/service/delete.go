@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/mikolajgasior/gocrud"
-	"github.com/mikolajgasior/gocrud/pkg/logger"
+	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 func (c *CRUD) Delete(ctx context.Context, key string, id uint64) error {

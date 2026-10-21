@@ -8,10 +8,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/mikolajgasior/gocrud"
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	"github.com/mikolajgasior/gocrud/pkg/logger"
-	validator "github.com/mikolajgasior/struct-validator"
+	"github.com/mikogs/gocrud"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 var (
@@ -99,7 +98,7 @@ func (c *CRUD) Registry() []string {
 // into a sqlfilters.Filters value ready for the CRUD layer.
 func buildFilters(filterVals, filterOps map[string]string, logAttr slog.Attr) (*sqlfilters.Filters, error) {
 	filters := sqlfilters.Filters{}
-	violations := map[string]uint64{}
+	violations := map[string]string{}
 
 	for name, value := range filterVals {
 		op := sqlfilters.OpEqual
@@ -108,7 +107,7 @@ func buildFilters(filterVals, filterOps map[string]string, logAttr slog.Attr) (*
 			op, err = Op(filterOp)
 			if err != nil {
 				slog.Error("invalid filter op", logAttr, slog.String("op", filterOp))
-				violations[name] = validator.FailType
+				violations[name] = gocrud.ViolationType
 			}
 		}
 		filters[name] = sqlfilters.OpVal{Op: op, Val: value}

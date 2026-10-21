@@ -14,7 +14,7 @@ var InvalidFilterOpError = errors.New("invalid filter op")
 
 type ModelValidationError struct {
 	Err        error
-	Violations map[string]uint64
+	Violations map[string]string
 }
 
 func (e *ModelValidationError) Error() string {
@@ -23,7 +23,7 @@ func (e *ModelValidationError) Error() string {
 
 type FilterValidationError struct {
 	Err        error
-	Violations map[string]uint64
+	Violations map[string]string
 }
 
 func (e *FilterValidationError) Error() string {

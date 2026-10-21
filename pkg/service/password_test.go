@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mikolajgasior/gocrud"
+	"github.com/mikogs/gocrud"
 )
 
 // PasswordStruct is a minimal struct with a field tagged crud:"pass",
 // registered in testService under the "passwordstruct" key.
 type PasswordStruct struct {
 	ID       uint64
-	Name     string `crud:"req len:1,100"`
+	Name     string `validate:"required,min=1,max=100"`
 	Password string `crud:"pass"`
 }
 
@@ -21,7 +21,7 @@ type PasswordStruct struct {
 // that map onto a table another struct already owns.
 type PasswordStruct_Touch struct {
 	ID   uint64
-	Name string `crud:"req len:1,100"`
+	Name string `validate:"required,min=1,max=100"`
 }
 
 // TestList_VerifyPasswordFields verifies that List passes passFieldsToVerify

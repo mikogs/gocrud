@@ -3,9 +3,8 @@ package gocrud
 import (
 	"context"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikolajgasior/gocrud/pkg/sql/builder"
-	validator "github.com/mikolajgasior/struct-validator"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -48,15 +47,15 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 			valueAsString, ok := filterOpVal.Val.(string)
 			if !ok {
-				return nil, nil, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
+				return nil, nil, getObjInvalidCRUDError(map[string]string{
+					filterName: ViolationType,
 				})
 			}
 
 			ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)
 			if !ok {
-				return nil, nil, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
+				return nil, nil, getObjInvalidCRUDError(map[string]string{
+					filterName: ViolationType,
 				})
 			}
 

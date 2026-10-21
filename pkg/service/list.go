@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/mikolajgasior/gocrud"
-	"github.com/mikolajgasior/gocrud/pkg/logger"
+	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 // List returns a paginated, filtered list of records. When constructor is nil

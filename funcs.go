@@ -3,7 +3,7 @@ package gocrud
 import (
 	"reflect"
 
-	structInfo "github.com/mikolajgasior/gocrud/pkg/structinfo"
+	structInfo "github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 // ObjFieldInterfaces returns a list of interfaces to object's fields

@@ -1,5 +1,5 @@
 site_name: gocrud
-site_url: https://github.com/mikolajgasior/gocrud
+site_url: https://github.com/mikogs/gocrud
 theme:
   icon:
     repo: fontawesome/solid/code
@@ -23,6 +23,6 @@ nav:
 extra:
   social:
     - icon: fontawesome/solid/code
-      link: https://github.com/mikolajgasior/gocrud
+      link: https://github.com/mikogs/gocrud
 
 copyright: Copyright &copy; 2024-2026 Mikołaj Gąsior

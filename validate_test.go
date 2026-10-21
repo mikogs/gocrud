@@ -9,17 +9,17 @@ import (
 type ValidationTestStruct struct {
 	ID             uint64
 	Flags          uint64
-	PrimaryEmail   string `crud:"req email"`
-	EmailSecondary string `crud:"req email"`
-	FirstName      string `crud:"req len:2,30"`
-	LastName       string `crud:"req len:0,255"`
-	Age            int    `crud:"val:1,120"`
-	Price          int    `crud:"val:0,999"`
-	PostCode       string `crud:"req len:6 regexp:^[0-9]{2}\\-[0-9]{3}$"`
-	PostCode2      string `crud:"len:6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
+	PrimaryEmail   string `validate:"required,email"`
+	EmailSecondary string `validate:"required,email"`
+	FirstName      string `validate:"required,min=2,max=30"`
+	LastName       string `validate:"required,max=255"`
+	Age            int    `validate:"min=1,max=120"`
+	Price          int    `validate:"min=0,max=999"`
+	PostCode       string `validate:"required,min=6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
+	PostCode2      string `validate:"min=6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
 	Password       string
 	CreatedBy      uint64
-	Key            string `crud:"req uniq len:30,255"`
+	Key            string `crud:"uniq" validate:"required,min=30,max=255"`
 }
 
 func validationTestStructWithData() *ValidationTestStruct {
@@ -97,8 +97,60 @@ func TestValidate_WithInvalidStruct(t *testing.T) {
 		t.Fatal("Validate failed to return false for struct with invalid field values")
 	}
 	for _, f := range []string{"PrimaryEmail", "EmailSecondary", "FirstName", "LastName", "Age", "Price", "PostCode", "PostCode2", "Key"} {
-		if violations[f] == 0 {
+		if violations[f] == "" {
 			t.Fatalf("Validate failed to return field %s in failed fields", f)
 		}
+	}
+}
+
+// TestValidate_ViolationTags tests if Validate returns names of the failed tags
+func TestValidate_ViolationTags(t *testing.T) {
+	ts := validationTestStructWithData()
+	ts.PrimaryEmail = ""
+	ts.EmailSecondary = "invalidemail"
+	ts.FirstName = "x"
+	ts.Price = 1000
+	ts.PostCode2 = "abcdef"
+	_, violations, err := Validate(ts, nil, "crud")
+	if err != nil {
+		t.Fatalf("Validate failed with an err: %s", err.Error())
+	}
+
+	want := map[string]string{
+		"PrimaryEmail":   "required",
+		"EmailSecondary": "email",
+		"FirstName":      "min",
+		"Price":          "max",
+		"PostCode2":      ViolationRegExp,
+	}
+	if len(violations) != len(want) {
+		t.Fatalf("Validate returned %v, want %v", violations, want)
+	}
+	for f, tag := range want {
+		if violations[f] != tag {
+			t.Fatalf("Validate returned %q for field %s, want %q", violations[f], f, tag)
+		}
+	}
+}
+
+// TestValidateValues tests if ValidateValues validates values without modifying the object
+func TestValidateValues(t *testing.T) {
+	ts := validationTestStructWithData()
+	ok, violations, err := ValidateValues(ts, map[string]interface{}{
+		"FirstName": "x",
+		"Age":       "notanint",
+		"Price":     500,
+	}, "crud")
+	if err != nil {
+		t.Fatalf("ValidateValues failed with an err: %s", err.Error())
+	}
+	if ok {
+		t.Fatal("ValidateValues failed to return false for invalid values")
+	}
+	if len(violations) != 2 || violations["FirstName"] != "min" || violations["Age"] != ViolationType {
+		t.Fatalf("ValidateValues returned unexpected violations: %v", violations)
+	}
+	if ts.FirstName != "John" || ts.Price != 444 {
+		t.Fatal("ValidateValues modified the object")
 	}
 }

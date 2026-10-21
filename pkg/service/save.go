@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/mikolajgasior/gocrud"
-	"github.com/mikolajgasior/gocrud/pkg/logger"
+	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 func (c *CRUD) Save(ctx context.Context, obj interface{}, now int64, userID uint64) error {

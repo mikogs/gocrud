@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/mikolajgasior/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 type Filters map[string]OpVal

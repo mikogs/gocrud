@@ -6,8 +6,8 @@ The `pkg/service` package provides a higher-level wrapper around the core CRUD o
 
 ```go
 import (
-    "github.com/mikolajgasior/gocrud"
-    svccrud    "github.com/mikolajgasior/gocrud/pkg/service"
+    "github.com/mikogs/gocrud"
+    svccrud    "github.com/mikogs/gocrud/pkg/service"
 )
 
 svc := svccrud.New(
@@ -183,7 +183,7 @@ id   := svc.ID(obj)        // returns obj.ID as uint64
 | `NotFoundError` | `errors.Is(err, NotFoundError)` | `Read` / `Delete`: no record with the given ID |
 | `InvalidKeyError` | `errors.Is(err, InvalidKeyError)` | Any method: key not found in the registry |
 
-Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]uint64` field containing the per-field failure codes from the [struct-validator](https://github.com/mikolajgasior/struct-validator) library.
+Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]string` field mapping each failed field to the name of the failed validation rule, e.g. `"required"` or `"min"` from the [go-playground/validator](https://github.com/go-playground/validator) library, `"regexp"` (`gocrud.ViolationRegExp`) for a failed `crud_regexp` pattern, or `"type"` (`gocrud.ViolationType`) for a value of a wrong type or an invalid filter operator.
 
 ## Example
 

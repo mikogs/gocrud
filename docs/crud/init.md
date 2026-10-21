@@ -28,7 +28,7 @@ type Options struct {
 ```
 
 * **TableNamePrefix (string)**: Allows you to define a prefix for all database table names managed by this instance. This is useful for organizing tables in shared databases or separating environments (e.g., dev_, prod_). If left empty, the library uses the default table name derived from the struct.
-* **TagName (string)**: Specifies the name of the struct tag used for validation and mapping rules. Default: `crud`. If you set this to `mytag`, the library will look for tags like `mytag:"unique"` instead of the default `crud:"unique"`.
+* **TagName (string)**: Specifies the name of the struct tag used for database mapping rules. Default: `crud`. If you set this to `mytag`, the library will look for tags like `mytag:"uniq"` instead of the default `crud:"uniq"`, and for regular expressions in `mytag_regexp` instead of `crud_regexp`. Validation rules are always read from the `validate` tag.
 * **Dialect (string)** *(required)*: Selects the SQL dialect used to generate queries. Passing an empty or unrecognised value causes a panic at startup. Two constants are provided:
     * `gocrud.DialectPostgres` — PostgreSQL.
     * `gocrud.DialectSQLite` — SQLite. Use this when connecting via `modernc.org/sqlite`. Column types are mapped to SQLite affinities (`INTEGER`, `TEXT`, `REAL`) and `?` placeholders are used instead of `$1`, `$2`, …
@@ -40,7 +40,7 @@ type Options struct {
 
 ```go
 import (
-    "github.com/mikolajgasior/gocrud"
+    "github.com/mikogs/gocrud"
     _ "github.com/lib/pq"
 )
 
@@ -58,7 +58,7 @@ crudInstance := gocrud.New(db, gocrud.Options{
 
 ```go
 import (
-    "github.com/mikolajgasior/gocrud"
+    "github.com/mikogs/gocrud"
     _ "modernc.org/sqlite"
 )
 

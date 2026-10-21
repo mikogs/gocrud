@@ -1,7 +1,7 @@
 package gocrud
 
 import (
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 )
 
 type deleteByIDQueryBuilder interface {

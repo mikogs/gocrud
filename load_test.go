@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mikolajgasior/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/test"
 )
 
 // TestLoad tests if Load properly gets row from the database table and populate object fields with its value

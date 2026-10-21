@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	pkgfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	sqliteQueryContainer "github.com/mikolajgasior/gocrud/pkg/sql/builder/querycontainer/sqlite"
+	pkgfilters "github.com/mikogs/gocrud/pkg/filters"
+	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
 )
 
 func (b *QueryBuilder) queryOrder(order []string) (string, error) {

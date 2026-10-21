@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	"github.com/mikolajgasior/gocrud/pkg/test"
+	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/test"
 )
 
 // ---------- Save ----------

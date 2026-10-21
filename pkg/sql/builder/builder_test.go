@@ -3,7 +3,7 @@ package builder
 import (
 	"testing"
 
-	"github.com/mikolajgasior/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/filters"
 )
 
 type TestStruct struct {

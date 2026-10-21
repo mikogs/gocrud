@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	structInfo "github.com/mikolajgasior/gocrud/pkg/structinfo"
+	structInfo "github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 const IDField = "ID"

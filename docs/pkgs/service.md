@@ -39,24 +39,12 @@ Iterates over all registered keys and calls `CREATE TABLE IF NOT EXISTS` for eac
 ### Save
 
 ```go
-err := svc.Save(ctx, obj, now, userID)
+err := svc.Save(ctx, obj, userID)
 ```
 
-Saves `obj` to the database. If `obj.ID == 0` an `INSERT` is performed; otherwise an upsert. `now` (Unix timestamp) and `userID` are written to the audit fields (`CreatedAt`, `CreatedBy`, `ModifiedAt`, `ModifiedBy`) when those fields are present on the struct.
+Saves `obj` to the database. If `obj.ID == 0` an `INSERT` is performed; otherwise an upsert. `userID` is written to the `CreatedBy` and `ModifiedBy` fields, and the current time to `CreatedAt` and `ModifiedAt`, when the struct has them. The creation fields are never changed by an update, see [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
 
 **Returns** `*ModelValidationError` when struct validation fails, otherwise a generic error.
-
----
-
-### SaveFromForm
-
-```go
-err := svc.SaveFromForm(ctx, obj, urlValues, "prefix_", now, userID)
-```
-
-Populates `obj` from `url.Values` (e.g. an HTTP form submission) before saving. Each form key has `namePrefix` stripped from the front, and the remaining string is matched against struct field names. Type conversion from string to the field's native type is applied automatically.
-
-**Returns** `*ModelValidationError` if any value cannot be converted to the target field type, or if struct validation fails after population.
 
 ---
 
@@ -187,7 +175,7 @@ id   := svc.ID(obj)        // returns obj.ID as uint64
 
 | Type | Sentinel / constructor | When returned |
 |---|---|---|
-| `*ModelValidationError` | — | `Save` / `SaveFromForm`: struct field validation failed |
+| `*ModelValidationError` | — | `Save`: struct field validation failed |
 | `*FilterValidationError` | — | `List` / `Num`: unknown filter operator or filter validation failed |
 | `NotFoundError` | `errors.Is(err, NotFoundError)` | `Read` / `Delete`: no record with the given ID |
 | `InvalidKeyError` | `errors.Is(err, InvalidKeyError)` | Any method: key not found in the registry |
@@ -218,10 +206,10 @@ objs, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc",
 
 ```go
 err := svc.RunInTx(ctx, func(tx *svccrud.CRUD) error {
-    if err := tx.Save(ctx, task, now, userID); err != nil {
+    if err := tx.Save(ctx, task, userID); err != nil {
         return err
     }
-    return tx.Save(ctx, activity, now, userID)
+    return tx.Save(ctx, activity, userID)
 })
 ```
 

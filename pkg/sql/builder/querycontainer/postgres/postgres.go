@@ -14,6 +14,9 @@ type QueryContainer struct {
 	ColumnFieldName   map[string]string
 	ColumnDefinitions []string
 	ColumnNames       []string
+	// UpdateColumnNames contains the quoted names of the columns that are written when an object is updated,
+	// see structinfo.StructInfo.UpdateFieldNames.
+	UpdateColumnNames []string
 	ColumnNotString   map[string]bool
 
 	FieldColumnName map[string]string
@@ -103,6 +106,10 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		queryContainer.ColumnNames = append(queryContainer.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}
 
+	for _, fieldName := range structInfo.UpdateFieldNames {
+		queryContainer.UpdateColumnNames = append(queryContainer.UpdateColumnNames, QuoteColumn(ColumnWithoutAlias(queryContainer.FieldColumnName[fieldName])))
+	}
+
 	queryContainer.IndexStatements = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
@@ -115,32 +122,18 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 }
 
 func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (err error) {
-	var (
-		columnNames                string
-		columnNamesWithoutID       string
-		valuesWithoutID            string
-		values                     string
-		columnNamesWithValues      string
-		columnNamesWithValuesAgain string
-		numColumn                  int
-	)
+	numColumn := len(q.ColumnNames)
+	numUpdateColumn := len(q.UpdateColumnNames)
 
-	numColumn = len(q.ColumnNames)
+	columnNames := strings.Join(q.ColumnNames, ",")
+	columnNamesWithoutID := strings.Join(q.ColumnNames[1:], ",")
+	valuesWithoutID := placeholders(1, numColumn-1)
+	values := placeholders(1, numColumn)
 
-	columnNamesWithoutID = strings.Join(q.ColumnNames[1:], ",")
-	columnNames = strings.Join(q.ColumnNames, ",")
-	valuesWithoutID = "?" + strings.Repeat(",?", numColumn-2)
-
-	columnNamesWithValues = strings.Join(q.ColumnNames[1:], "=?,") + "=?"
-	columnNamesWithValuesAgain = columnNamesWithValues
-	for i := 1; i <= numColumn*2; i++ {
-		columnNamesWithValues = strings.Replace(columnNamesWithValues, "?", fmt.Sprintf("$%d", i), 1)
-		valuesWithoutID = strings.Replace(valuesWithoutID, "?", fmt.Sprintf("$%d", i), 1)
-		if i > numColumn {
-			columnNamesWithValuesAgain = strings.Replace(columnNamesWithValuesAgain, "?", fmt.Sprintf("$%d", i), 1)
-		}
-	}
-	values = valuesWithoutID + fmt.Sprintf(",$%d", numColumn)
+	// UPDATE BY ID takes the values of the updated columns followed by the ID, and INSERT ON CONFLICT UPDATE
+	// takes the values of all the columns followed by the values of the updated columns
+	updateSet := setClause(q.UpdateColumnNames, 1)
+	onConflictUpdateSet := setClause(q.UpdateColumnNames, numColumn+1)
 
 	idColumn := `"id"`
 
@@ -192,7 +185,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		}
 		q.UpdateByID = query
 	} else {
-		q.UpdateByID = fmt.Sprintf("UPDATE %s SET %s WHERE %s = $%d", q.TableName, columnNamesWithValues, idColumn, numColumn)
+		q.UpdateByID = fmt.Sprintf("UPDATE %s SET %s WHERE %s = $%d", q.TableName, updateSet, idColumn, numUpdateColumn+1)
 	}
 
 	if updatePrefixBuilderImpl, ok := obj.(querycontainer.UpdatePrefixBuilder); ok {
@@ -222,7 +215,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		}
 		q.InsertOnConflictUpdate = query
 	} else {
-		q.InsertOnConflictUpdate = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING %s", q.TableName, columnNames, values, idColumn, columnNamesWithValuesAgain, idColumn)
+		q.InsertOnConflictUpdate = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING %s", q.TableName, columnNames, values, idColumn, onConflictUpdateSet, idColumn)
 	}
 
 	if selectByIDBuilderImpl, ok := obj.(querycontainer.SelectByIDBuilder); ok {

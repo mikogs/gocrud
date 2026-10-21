@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/mikogs/gocrud/pkg/test"
 )
@@ -12,11 +11,10 @@ import (
 func TestRunInTx(t *testing.T) {
 	recreateTestStructTable()
 	ctx := context.Background()
-	now := time.Now().UTC().Unix()
 
 	err := testService.RunInTx(ctx, func(tx *CRUD) error {
 		for i := 0; i < 2; i++ {
-			if err := tx.Save(ctx, test.TestStructWithData(), now, 311); err != nil {
+			if err := tx.Save(ctx, test.TestStructWithData(), 311); err != nil {
 				return err
 			}
 		}
@@ -28,7 +26,7 @@ func TestRunInTx(t *testing.T) {
 
 	errAbort := errors.New("abort")
 	err = testService.RunInTx(ctx, func(tx *CRUD) error {
-		if err := tx.Save(ctx, test.TestStructWithData(), now, 311); err != nil {
+		if err := tx.Save(ctx, test.TestStructWithData(), 311); err != nil {
 			return err
 		}
 
@@ -64,7 +62,7 @@ func TestWithTx(t *testing.T) {
 	if txService.Tx() != tx || testService.Tx() != nil {
 		t.Fatal("WithTx did not return a service running in the transaction only")
 	}
-	if err := txService.Save(ctx, test.TestStructWithData(), time.Now().UTC().Unix(), 311); err != nil {
+	if err := txService.Save(ctx, test.TestStructWithData(), 311); err != nil {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 	if err := tx.Rollback(); err != nil {

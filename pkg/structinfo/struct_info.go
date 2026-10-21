@@ -23,7 +23,8 @@ var (
 type StructInfo struct {
 	// Name of the struct.
 	Name string
-	// ModificationFields indicates whether the struct has the following fields: CreatedAt, CreatedBy, ModifiedAt, ModifiedBy.
+	// ModificationFields indicates whether the struct has the following fields: CreatedAt and ModifiedAt of type time.Time,
+	// CreatedBy and ModifiedBy of type uint64.
 	ModificationFields bool
 	// TableName is the name of the table in the database.
 	TableName string
@@ -35,6 +36,9 @@ type StructInfo struct {
 	FieldNames []string
 	// ColumnFieldNames contains an ordered list of names of the fields that are stored in the database (not ignored).
 	ColumnFieldNames []string
+	// UpdateFieldNames contains an ordered list of names of the fields that are written when an object is updated:
+	// all ColumnFieldNames except ID, and CreatedAt and CreatedBy when the struct has the modification fields.
+	UpdateFieldNames []string
 	// UniqueFields contains a list of field names that are marked with a tag 'uniq'.
 	UniqueFields []string
 	// PasswordFields contains a list of field names that are marked with a tag 'pass'.
@@ -68,7 +72,6 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 
 	for j := 0; j < objType.NumField(); j++ {
 		field := objType.Field(j)
-		fieldTypeKind := field.Type.Kind()
 
 		// Only exported fields of basic golang types are included as columns for the database table.
 		// Check the function below for the details.
@@ -90,7 +93,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 			structInfo.Fields[field.Name].Default = valTagValue
 		}
 
-		if IsFieldModification(field.Name, fieldTypeKind) {
+		if IsFieldModification(field.Name, field.Type) {
 			modificationFields++
 		}
 	}
@@ -133,6 +136,13 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 	}
 
 	s.ColumnFieldNames = columns
+
+	for _, column := range columns[1:] {
+		if s.ModificationFields && (column == "CreatedAt" || column == "CreatedBy") {
+			continue
+		}
+		s.UpdateFieldNames = append(s.UpdateFieldNames, column)
+	}
 
 	for _, column := range columns {
 		field, _ := objType.FieldByName(column)

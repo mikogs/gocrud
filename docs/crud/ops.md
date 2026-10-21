@@ -25,13 +25,13 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 
 ```go
 type SaveOptions struct {
-    NoInsert   bool    // If true, skips the INSERT attempt and performs only UPDATE.
-    ModifiedBy uint64  // Optional ID of the user performing the modification.
-    ModifiedAt int64   // Optional timestamp of the modification.
+    NoInsert   bool      // If true, skips the INSERT attempt and performs only UPDATE.
+    ModifiedBy uint64    // Optional ID of the user performing the modification.
+    ModifiedAt time.Time // Optional time of the modification, the current time when zero.
 }
 ```
 
-The `ModifiedBy` and `ModifiedAt` fields are optional. If provided, the system will automatically populate the corresponding columns in the database table with the user ID and timestamp, respectively. If omitted, these columns remain unaffected or rely on database defaults.
+When the struct has the `CreatedAt`, `CreatedBy`, `ModifiedAt` and `ModifiedBy` fields, `Save` fills them in. The creation fields are set only when the object is inserted, and are never changed by an update. See [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
 
 ## Delete
 

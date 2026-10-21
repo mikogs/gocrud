@@ -625,3 +625,39 @@ func TestSQLTimeColumns(t *testing.T) {
 		})
 	}
 }
+
+type TestStructWithModificationFields struct {
+	ID         uint64
+	Name       string
+	CreatedAt  time.Time
+	CreatedBy  uint64
+	ModifiedAt time.Time
+	ModifiedBy uint64
+}
+
+func TestSQLModificationFieldsNotUpdated(t *testing.T) {
+	tests := map[string][2]string{
+		DialectPostgres: {
+			`UPDATE "test_struct_with_modification_fields" SET "name"=$1,"modified_at"=$2,"modified_by"=$3 WHERE "id" = $4;`,
+			`INSERT INTO "test_struct_with_modification_fields"("id","name","created_at","created_by","modified_at","modified_by") ` +
+				`VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("id") DO UPDATE SET "name"=$7,"modified_at"=$8,"modified_by"=$9 RETURNING "id";`,
+		},
+		DialectSQLite: {
+			`UPDATE "test_struct_with_modification_fields" SET "name"=?,"modified_at"=?,"modified_by"=? WHERE "id" = ?;`,
+			`INSERT INTO "test_struct_with_modification_fields"("id","name","created_at","created_by","modified_at","modified_by") ` +
+				`VALUES (?,?,?,?,?,?) ON CONFLICT ("id") DO UPDATE SET "name"=?,"modified_at"=?,"modified_by"=? RETURNING "id";`,
+		},
+	}
+
+	for dialect, want := range tests {
+		t.Run(dialect, func(t *testing.T) {
+			h := mustNew(t, &TestStructWithModificationFields{}, Options{Dialect: dialect})
+			if got := h.UpdateByID(); got != want[0] {
+				t.Fatalf("\nwant %v\ngot  %v", want[0], got)
+			}
+			if got := h.InsertOnConflictUpdate(); got != want[1] {
+				t.Fatalf("\nwant %v\ngot  %v", want[1], got)
+			}
+		})
+	}
+}

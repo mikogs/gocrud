@@ -30,7 +30,7 @@ func TestList_TimeFilters(t *testing.T) {
 		{Name: "Today", StartsAt: time.Date(2024, 5, 1, 9, 0, 0, 0, time.UTC)},
 		{Name: "Future", StartsAt: time.Date(2024, 5, 2, 9, 0, 0, 0, time.UTC)},
 	} {
-		if err := svc.Save(ctx, event, 0, 0); err != nil {
+		if err := svc.Save(ctx, event, 0); err != nil {
 			t.Fatalf("Save failed: %s", err.Error())
 		}
 	}

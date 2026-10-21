@@ -34,6 +34,15 @@ func IsTimeType(t reflect.Type) bool {
 	return t == timeType
 }
 
-func IsFieldModification(name string, typeKind reflect.Kind) bool {
-	return ((name == "CreatedBy" || name == "ModifiedBy") && typeKind == reflect.Uint64) || ((name == "CreatedAt" || name == "ModifiedAt") && typeKind == reflect.Int64)
+// IsFieldModification checks if a field is one of the fields that track the creation and the modification of an object:
+// CreatedAt and ModifiedAt of type time.Time, or CreatedBy and ModifiedBy of type uint64.
+func IsFieldModification(name string, t reflect.Type) bool {
+	switch name {
+	case "CreatedAt", "ModifiedAt":
+		return IsTimeType(t)
+	case "CreatedBy", "ModifiedBy":
+		return t.Kind() == reflect.Uint64
+	default:
+		return false
+	}
 }

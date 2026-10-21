@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -11,9 +12,12 @@ import (
 )
 
 type SaveOptions struct {
-	NoInsert   bool
+	NoInsert bool
+	// ModifiedBy is the ID of the user who saves the object. It is stored in the ModifiedBy field, and in the
+	// CreatedBy field when the object is created.
 	ModifiedBy uint64
-	ModifiedAt int64
+	// ModifiedAt is the time of the change, stored like ModifiedBy. When it is zero, the current time is used.
+	ModifiedAt time.Time
 }
 
 // Save takes an object, validates its field values, and saves it in the database.
@@ -36,13 +40,20 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 
 	objID := ObjIDValue(obj)
 
-	// populate created and modified columns
-	hasModificationFields := builder.HasModificationFields()
+	if builder.HasModificationFields() {
+		modifiedAt := options.ModifiedAt
+		if modifiedAt.IsZero() {
+			// databases store times with a precision of up to microseconds
+			modifiedAt = time.Now().Truncate(time.Microsecond)
+		}
+		modifiedAt = modifiedAt.UTC()
 
-	if options.ModifiedAt != 0 && options.ModifiedBy != 0 && hasModificationFields {
-		SetObjModified(obj, options.ModifiedAt, options.ModifiedBy)
-		if objID == 0 {
-			SetObjCreated(obj, options.ModifiedAt, options.ModifiedBy)
+		SetObjModified(obj, modifiedAt, options.ModifiedBy)
+
+		// Creation fields are never updated in the database. They are set when the object is inserted, and when
+		// they are empty, as "upsert" inserts the object when it does not exist in the database.
+		if objID == 0 || ObjFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
+			SetObjCreated(obj, modifiedAt, options.ModifiedBy)
 		}
 	}
 
@@ -94,6 +105,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 
 	objIDInterface := ObjIDInterface(obj)
 	columnFieldNames := builder.ColumnFieldNames()
+	updateFieldNames := builder.UpdateFieldNames()
 
 	// update
 	if objID != 0 {
@@ -111,7 +123,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			} else {
 				query = builder.UpdateByID()
 			}
-			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, columnFieldNames, false), objIDInterface))...)
+			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), objIDInterface))...)
 		} else {
 			// try to insert - if ID already exists then try to update it
 
@@ -126,7 +138,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			} else {
 				query = builder.InsertOnConflictUpdate()
 			}
-			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, columnFieldNames, true), objColumnInterfaces(obj, columnFieldNames, false)...))...)
+			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, columnFieldNames, true), objColumnInterfaces(obj, updateFieldNames, false)...))...)
 		}
 
 		if err != nil {

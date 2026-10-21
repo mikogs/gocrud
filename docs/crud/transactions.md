@@ -279,7 +279,6 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
     taskID, _ := strconv.ParseUint(r.PathValue("id"), 10, 64)
     projectID, _ := strconv.ParseUint(r.FormValue("project_id"), 10, 64)
     userID := currentUserID(r)
-    now := time.Now().Unix()
 
     err := h.svc.RunInTx(ctx, func(tx *svccrud.CRUD) error {
         obj, _, err := tx.Read(ctx, "tasks", taskID, nil, nil)
@@ -290,7 +289,7 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
         task := obj.(*Task)
         fromProjectID := task.ProjectID
         task.ProjectID = projectID
-        if err := tx.Save(ctx, task, now, userID); err != nil {
+        if err := tx.Save(ctx, task, userID); err != nil {
             return err
         }
 
@@ -298,7 +297,7 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
             TaskID:  task.ID,
             Message: fmt.Sprintf("moved from project %d to project %d", fromProjectID, projectID),
         }
-        return tx.Save(ctx, entry, now, userID)
+        return tx.Save(ctx, entry, userID)
     })
 
     var validationErr *svccrud.ModelValidationError

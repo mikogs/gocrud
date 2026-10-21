@@ -123,6 +123,10 @@ func (b *Builder) HasAliasedColumnNames() bool { return b.structInfo.AliasedColu
 // It is the order of columns in the generated queries.
 func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldNames }
 
+// UpdateFieldNames returns an ordered list of names of the fields that are written when an object is updated.
+// It is the order of columns in the SET clause of the generated UPDATE BY ID and INSERT ON CONFLICT UPDATE queries.
+func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldNames }
+
 // TimeFields returns a list with names of the time.Time fields that are stored in the database.
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
 

@@ -23,9 +23,9 @@ type tagsTestStruct struct {
 	Status          int    `crud_val:"1"`
 	Tags            []string
 	internal        string
-	CreatedAt       int64
+	CreatedAt       time.Time
 	CreatedBy       uint64
-	ModifiedAt      int64
+	ModifiedAt      time.Time
 	ModifiedBy      uint64
 }
 
@@ -78,6 +78,15 @@ func TestNew_StructInfo(t *testing.T) {
 	if !reflect.DeepEqual(info.ColumnFieldNames, wantColumnFieldNames) {
 		t.Fatalf("New returned column field names %v, want %v", info.ColumnFieldNames, wantColumnFieldNames)
 	}
+
+	wantUpdateFieldNames := []string{"Email", "Password", "FirstName", "LastName", "Code", "Slug", "Bio", "Title",
+		"Renamed", "InvalidSettings", "Status", "ModifiedAt", "ModifiedBy"}
+	if !reflect.DeepEqual(info.UpdateFieldNames, wantUpdateFieldNames) {
+		t.Fatalf("New returned update field names %v, want %v", info.UpdateFieldNames, wantUpdateFieldNames)
+	}
+	if !reflect.DeepEqual(info.TimeFields, []string{"CreatedAt", "ModifiedAt"}) {
+		t.Fatalf("New returned time fields %v, want %v", info.TimeFields, []string{"CreatedAt", "ModifiedAt"})
+	}
 	if !reflect.DeepEqual(info.UniqueFields, []string{"Email"}) {
 		t.Fatalf("New returned unique fields %v, want %v", info.UniqueFields, []string{"Email"})
 	}
@@ -120,7 +129,7 @@ func TestNew_CustomTagName(t *testing.T) {
 func TestNew_WithoutModificationFields(t *testing.T) {
 	type partialModificationStruct struct {
 		ID        uint64
-		CreatedAt int64
+		CreatedAt time.Time
 		CreatedBy uint64
 		// wrong type, so it does not count as a modification field
 		ModifiedAt string
@@ -245,5 +254,20 @@ func TestIsFieldTypeSupported(t *testing.T) {
 		if got := IsFieldTypeSupported(typ); got != want {
 			t.Fatalf("IsFieldTypeSupported(%v) returned %v, want %v", typ, got, want)
 		}
+	}
+}
+
+func TestNew_UpdateFieldNamesWithoutModificationFields(t *testing.T) {
+	type withoutModificationFields struct {
+		ID        uint64
+		Name      string
+		CreatedAt int64
+		CreatedBy uint64
+	}
+
+	info := mustNew(t, &withoutModificationFields{}, "crud")
+	want := []string{"Name", "CreatedAt", "CreatedBy"}
+	if info.ModificationFields || !reflect.DeepEqual(info.UpdateFieldNames, want) {
+		t.Fatalf("New returned update field names %v, want %v", info.UpdateFieldNames, want)
 	}
 }

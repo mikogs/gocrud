@@ -14,6 +14,9 @@ type QueryContainer struct {
 	ColumnFieldName   map[string]string
 	ColumnDefinitions []string
 	ColumnNames       []string
+	// UpdateColumnNames contains the quoted names of the columns that are written when an object is updated,
+	// see structinfo.StructInfo.UpdateFieldNames.
+	UpdateColumnNames []string
 	ColumnNotString   map[string]bool
 
 	FieldColumnName map[string]string
@@ -94,6 +97,10 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		qc.ColumnNames = append(qc.ColumnNames, QuoteColumn(ColumnWithoutAlias(columnName)))
 	}
 
+	for _, fieldName := range structInfo.UpdateFieldNames {
+		qc.UpdateColumnNames = append(qc.UpdateColumnNames, QuoteColumn(ColumnWithoutAlias(qc.FieldColumnName[fieldName])))
+	}
+
 	qc.IndexStatements = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
@@ -122,9 +129,9 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) err
 	valuesWithoutID := placeholders(numColumn - 1)
 	values := placeholders(numColumn)
 
-	// SET clause: "col1"=?,"col2"=? (all columns except ID)
-	setCols := make([]string, len(q.ColumnNames)-1)
-	for i, col := range q.ColumnNames[1:] {
+	// SET clause: "col1"=?,"col2"=? (updated columns)
+	setCols := make([]string, len(q.UpdateColumnNames))
+	for i, col := range q.UpdateColumnNames {
 		setCols[i] = col + "=?"
 	}
 	setClause := strings.Join(setCols, ",")

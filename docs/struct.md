@@ -85,7 +85,28 @@ _, err := tx.Tx().ExecContext(ctx,
     tx.TimeValue(endsAt), meetingID)
 ```
 
-The `CreatedAt` and `ModifiedAt` fields, filled in by `Save`, stay Unix timestamps of type `int64`.
+### 4. Creation and modification fields
+
+A struct that has all of the following fields gets them filled in by `Save`:
+
+```go
+type Note struct {
+    ID         uint64    `json:"id"`
+    Text       string    `json:"text" validate:"required"`
+    CreatedAt  time.Time `json:"created_at"`
+    CreatedBy  uint64    `json:"created_by"`
+    ModifiedAt time.Time `json:"modified_at"`
+    ModifiedBy uint64    `json:"modified_by"`
+}
+```
+
+* `ModifiedAt` and `ModifiedBy` are set on every save, to the time of the save and to the user from `SaveOptions.ModifiedBy`. The time is the current time unless `SaveOptions.ModifiedAt` is set, e.g. when importing data. Without a user, e.g. in a background job, `ModifiedBy` is `0`.
+* `CreatedAt` and `CreatedBy` are set when the object is inserted, to the same values. Values set on the object are ignored, so a client cannot choose them, e.g. by sending `created_at` in JSON.
+* `CreatedAt` and `CreatedBy` are **never changed by an update**. An object decoded from an HTTP request usually does not have them, and saving it does not erase them from the database.
+
+After an update, the `CreatedAt` and `CreatedBy` fields of the object are not read from the database. When they were empty, `Save` sets them to the time and user of the update. Use `Load` to get the stored values.
+
+If any of the four fields is missing or has a different type, all of them are ordinary fields.
 
 ## Tagging
 
@@ -213,9 +234,9 @@ type User struct {
 	LastLogin  int64  `json:"last_login" validate:"min=0"`
 
 	// Timestamps and Audit Fields
-	CreatedAt  int64  `json:"created_at"`
-	CreatedBy  uint64 `json:"created_by"`
-	ModifiedAt int64  `json:"modified_at"`
-	ModifiedBy uint64 `json:"modified_by"`
+	CreatedAt  time.Time `json:"created_at"`
+	CreatedBy  uint64    `json:"created_by"`
+	ModifiedAt time.Time `json:"modified_at"`
+	ModifiedBy uint64    `json:"modified_by"`
 }
 ```

@@ -155,13 +155,13 @@ func ZeroObjFields(obj interface{}) {
 	}
 }
 
-func SetObjCreated(obj interface{}, at int64, by uint64) {
-	reflect.ValueOf(obj).Elem().FieldByName("CreatedAt").SetInt(at)
+func SetObjCreated(obj interface{}, at time.Time, by uint64) {
+	reflect.ValueOf(obj).Elem().FieldByName("CreatedAt").Set(reflect.ValueOf(at))
 	reflect.ValueOf(obj).Elem().FieldByName("CreatedBy").SetUint(by)
 }
 
-func SetObjModified(obj interface{}, at int64, by uint64) {
-	reflect.ValueOf(obj).Elem().FieldByName("ModifiedAt").SetInt(at)
+func SetObjModified(obj interface{}, at time.Time, by uint64) {
+	reflect.ValueOf(obj).Elem().FieldByName("ModifiedAt").Set(reflect.ValueOf(at))
 	reflect.ValueOf(obj).Elem().FieldByName("ModifiedBy").SetUint(by)
 }
 

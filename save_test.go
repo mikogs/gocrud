@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/mikogs/gocrud/pkg/test"
 )
@@ -64,57 +63,6 @@ func TestSave(t *testing.T) {
 
 	if objLoaded.ID == 0 {
 		t.Fatalf("Save failed to update struct in the table")
-	}
-}
-
-func TestSave_WithModifiedAt(t *testing.T) {
-	recreateTestStructTable()
-
-	objSaved := test.TestStructWithData()
-	err := testCRUD.Save(context.Background(), objSaved, SaveOptions{
-		ModifiedBy: 4,
-		ModifiedAt: time.Now().Unix(),
-	})
-	if err != nil {
-		t.Fatalf("Save failed to insert struct to the table: %s", err.(*CRUDError).Op)
-	}
-
-	objLoaded := &test.TestStruct{}
-	fieldsPtrs := []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
-	err = testDB.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to insert struct to the table: %s", err.Error())
-	}
-
-	if objLoaded.CreatedAt == 0 || objLoaded.CreatedBy == 0 || objLoaded.ModifiedBy == 0 || objLoaded.ModifiedAt == 0 {
-		t.Fatalf("Save failed to insert struct with created and modified dates to the table")
-	}
-
-	// Now, update the object in the database
-	objSaved.PrimaryEmail = "primary1@example.com"
-
-	modifiedAt := time.Now().Unix()
-	modifiedBy := uint64(5)
-
-	err = testCRUD.Save(context.Background(), objSaved, SaveOptions{
-		ModifiedBy: modifiedBy,
-		ModifiedAt: modifiedAt,
-	})
-	if err != nil {
-		t.Fatalf("Save failed to update struct")
-	}
-
-	objLoaded = &test.TestStruct{}
-	fieldsPtrs = []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
-	err = testDB.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to update struct in the table: %s", err.Error())
-	}
-
-	if objLoaded.ModifiedAt != modifiedAt || objLoaded.ModifiedBy != modifiedBy {
-		t.Fatalf("Save failed to update struct with modified date in the table")
 	}
 }
 

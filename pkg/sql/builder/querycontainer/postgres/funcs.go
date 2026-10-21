@@ -102,3 +102,23 @@ func indexStatements(rawTableName string, quotedTableName string, indexes []*str
 
 	return statements
 }
+
+// placeholders returns num comma-separated placeholders, starting with $first.
+func placeholders(first int, num int) string {
+	values := make([]string, num)
+	for i := range values {
+		values[i] = fmt.Sprintf("$%d", first+i)
+	}
+
+	return strings.Join(values, ",")
+}
+
+// setClause returns a SET clause for the quoted columns, with placeholders starting with $first.
+func setClause(columns []string, first int) string {
+	values := make([]string, len(columns))
+	for i, column := range columns {
+		values[i] = fmt.Sprintf("%s=$%d", column, first+i)
+	}
+
+	return strings.Join(values, ",")
+}

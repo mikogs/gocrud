@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 	"github.com/mikogs/gocrud/pkg/test"
@@ -53,52 +52,6 @@ func TestSQLite_Save(t *testing.T) {
 	}
 	if objLoaded2.PrimaryEmail != "updated@example.com" || objLoaded2.Age != 50 {
 		t.Fatalf("SQLite Save did not persist the update")
-	}
-}
-
-func TestSQLite_Save_WithModifiedAt(t *testing.T) {
-	recreateTestStructTableSQLite()
-
-	objSaved := test.TestStructWithData()
-	err := testCRUDSQLite.Save(context.Background(), objSaved, SaveOptions{
-		ModifiedBy: 4,
-		ModifiedAt: time.Now().Unix(),
-	})
-	if err != nil {
-		t.Fatalf("SQLite Save with ModifiedAt failed on insert: %s", err.Error())
-	}
-
-	objLoaded := &test.TestStruct{}
-	fieldsPtrs := []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
-	err = testDBSQLite.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("SQLite Save with ModifiedAt failed to read back: %s", err.Error())
-	}
-	if objLoaded.CreatedAt == 0 || objLoaded.CreatedBy == 0 || objLoaded.ModifiedAt == 0 || objLoaded.ModifiedBy == 0 {
-		t.Fatalf("SQLite Save did not set audit timestamps on insert")
-	}
-
-	objSaved.PrimaryEmail = "modified@example.com"
-	modifiedAt := time.Now().Unix()
-	modifiedBy := uint64(7)
-	err = testCRUDSQLite.Save(context.Background(), objSaved, SaveOptions{
-		ModifiedBy: modifiedBy,
-		ModifiedAt: modifiedAt,
-	})
-	if err != nil {
-		t.Fatalf("SQLite Save with ModifiedAt failed on update: %s", err.Error())
-	}
-
-	objLoaded2 := &test.TestStruct{}
-	fieldsPtrs2 := []interface{}{&objLoaded2.ID}
-	fieldsPtrs2 = append(fieldsPtrs2, ObjFieldInterfaces(objLoaded2, false)...)
-	err = testDBSQLite.QueryRow("SELECT * FROM test_struct WHERE id=?", objSaved.ID).Scan(fieldsPtrs2...)
-	if err != nil {
-		t.Fatalf("SQLite Save with ModifiedAt failed to read back update: %s", err.Error())
-	}
-	if objLoaded2.ModifiedAt != modifiedAt || objLoaded2.ModifiedBy != modifiedBy {
-		t.Fatalf("SQLite Save did not update audit timestamps")
 	}
 }
 

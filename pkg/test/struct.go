@@ -19,9 +19,9 @@ type TestStruct struct {
 	PostCode2      string `validate:"min=6" crud_regexp:"^[0-9]{2}\\-[0-9]{3}$"`
 	Password       string `json:"password"`
 	Key            string `crud:"uniq" validate:"required,min=30,max=255"`
-	CreatedAt      int64
+	CreatedAt      time.Time
 	CreatedBy      uint64
-	ModifiedAt     int64
+	ModifiedAt     time.Time
 	ModifiedBy     uint64
 }
 

@@ -100,6 +100,7 @@ The existing customers have `NULL` emails and `0` points. The longer code has to
 | A column of a different type | The existing values may not fit the new type, e.g. text in a number column, or a longer text in a shorter column. |
 | A `NOT NULL` column of a pointer field | Usually safe, but it changes what other code reading the table can expect. |
 | A nullable column of a field that is not a pointer | Existing `NULL` values have to be replaced first. |
+| An existing column of a field tagged with `uniq` that is not unique | The column may already have duplicate values, which have to be resolved first. |
 | An index that is no longer declared with `idx` or `uidx` | Other code or reports may still rely on it, and dropping a unique index removes a check of the data. |
 
 They are listed in `Migration.Differences`, so that you can log them, or fail a check in CI. Make these changes with SQL, or with a migration tool such as [goose](https://github.com/pressly/goose) or [Atlas](https://atlasgo.io).
@@ -116,6 +117,9 @@ ALTER TABLE customer ALTER COLUMN code TYPE VARCHAR(50);
 -- a pointer field: allow NULL and remove the default
 ALTER TABLE customer ALTER COLUMN nickname DROP NOT NULL, ALTER COLUMN nickname DROP DEFAULT;
 
+-- a field tagged with uniq, after removing the duplicate values
+ALTER TABLE customer ADD CONSTRAINT customer_code_key UNIQUE (code);
+
 -- CreatedAt changed from a Unix timestamp to time.Time
 ALTER TABLE customer
     ALTER COLUMN created_at TYPE TIMESTAMPTZ USING to_timestamp(created_at),
@@ -126,11 +130,17 @@ Rename the column before running `Migrate`, otherwise it adds a new, empty colum
 
 SQLite can rename and drop columns with `ALTER TABLE`, but it cannot change the type or the nullability of a column. For these changes, the table has to be created again with the new definition, and the rows copied into it. See [Making other kinds of table schema changes](https://www.sqlite.org/lang_altertable.html#otheralter) in the SQLite documentation.
 
+SQLite cannot add a `UNIQUE` constraint to an existing column either. To make a column unique, create a unique index named the way `Migrate` names it, so that it is reported when the field is no longer unique:
+
+```sql
+CREATE UNIQUE INDEX uniq_customer_code ON customer (code);
+```
+
 ## Things to keep in mind
 
 * **Structs with column aliases** read from several tables, see [Column Aliases](../struct.md#column-aliases). `Migrate` returns an error that matches `gocrud.AliasedColumnsMigrateError` for them, as it would add the columns of the other tables to the table of the struct.
 * **Projections**, e.g. `User_Summary` that uses the table of `User` with fewer fields, should not be migrated: all the other columns would be reported as not being fields of the struct. Migrate the full struct instead.
-* **Indexes** that are reported when they are no longer declared are the ones that gocrud creates: `idx_<table>_<name>` for `idx` and `uidx`, and `uniq_<table>_<column>` described below. Indexes that you created yourself, and the ones of primary keys and `UNIQUE` constraints, are not checked. Drop an index that is no longer needed with `DROP INDEX "idx_customer_points"`.
+* **Indexes** that are reported when they are no longer declared are the ones that gocrud creates: `idx_<table>_<name>` for `idx` and `uidx`, and `uniq_<table>_<column>` described below. Indexes that you created yourself, and the ones of primary keys and `UNIQUE` constraints, are not checked for being no longer declared. A column counts as unique when it has a unique index or constraint of its own: a unique index on several columns, or with a `WHERE` condition, does not make the column unique. Drop an index that is no longer needed with `DROP INDEX "idx_customer_points"`.
 * **A unique field** added in SQLite gets a unique index named `uniq_<table>_<column>` instead of a `UNIQUE` constraint, because SQLite cannot add a column with a constraint. Both reject duplicates in the same way.
 * **Custom queries.** When the struct builds its own `CREATE TABLE` with `CreateTableQuery`, `Migrate` uses it to create a missing table, but compares and adds columns based on the struct fields.
 

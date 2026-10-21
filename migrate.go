@@ -33,7 +33,8 @@ type Migration struct {
 	CreatedIndexes []string
 	// Differences describes the differences between the struct and the table that Migrate does not change,
 	// because changing them could lose data: columns that are not fields of the struct, columns of a different
-	// type or nullability, and indexes created by gocrud that are no longer declared in the struct.
+	// type or nullability, existing columns of uniq fields that are not unique, and indexes created by gocrud
+	// that are no longer declared in the struct.
 	Differences []string
 }
 
@@ -125,6 +126,17 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 
 		migration.Differences = append(migration.Differences, c.undeclaredIndexes(migration.Table, builder.Columns(), existingIndexes, declaredIndexes)...)
 
+		// columns added above are created unique, so only the existing ones are checked
+		uniqueColumns, err := tx.databaseUniqueColumns(ctx, migration.Table)
+		if err != nil {
+			return err
+		}
+		for _, column := range builder.Columns() {
+			if column.Unique && existingColumns[column.Name].name != "" && !uniqueColumns[column.Name] {
+				migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not unique, the field is tagged with uniq`, column.Name))
+			}
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -192,6 +204,40 @@ func (c *CRUD) databaseColumns(ctx context.Context, table string) (map[string]da
 	}
 	if err := rows.Err(); err != nil {
 		return nil, getDBFuncCRUDError("query table columns", err)
+	}
+
+	return columns, nil
+}
+
+// databaseUniqueColumns returns the names of the columns that are unique on their own: they have a unique index
+// on the column only, which is also how UNIQUE constraints are implemented. Partial indexes are not included.
+func (c *CRUD) databaseUniqueColumns(ctx context.Context, table string) (map[string]bool, error) {
+	query := `SELECT a.attname FROM pg_index i ` +
+		`JOIN pg_class t ON t.oid = i.indrelid ` +
+		`JOIN pg_namespace n ON n.oid = t.relnamespace ` +
+		`JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = i.indkey[0] ` +
+		`WHERE i.indisunique AND i.indnatts = 1 AND i.indpred IS NULL AND n.nspname = current_schema() AND t.relname = $1`
+	if c.dialect == DialectSQLite {
+		query = `SELECT ii.name FROM pragma_index_list(?) AS il, pragma_index_info(il.name) AS ii ` +
+			`WHERE il."unique" = 1 AND il.partial = 0 AND (SELECT COUNT(*) FROM pragma_index_info(il.name)) = 1`
+	}
+
+	rows, err := c.conn.QueryContext(ctx, query, table)
+	if err != nil {
+		return nil, getDBFuncCRUDError("query unique columns", err)
+	}
+	defer rows.Close()
+
+	columns := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, getDBFuncCRUDError("scan unique columns", err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, getDBFuncCRUDError("query unique columns", err)
 	}
 
 	return columns, nil

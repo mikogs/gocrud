@@ -261,3 +261,54 @@ func TestSQLite_Migrate_UndeclaredIndexes(t *testing.T) {
 
 func TestMigrate_LongIndexName(t *testing.T)        { testMigrateLongIndexName(t, testCRUD) }
 func TestSQLite_Migrate_LongIndexName(t *testing.T) { testMigrateLongIndexName(t, testCRUDSQLite) }
+
+type MigCustomer_V5 struct {
+	ID     uint64
+	Name   string
+	Code   string `crud:"type:varchar(20) uniq"`
+	Legacy int64
+}
+
+func fatalIfUniqueDifferences(t *testing.T, migration *Migration, want []string) {
+	t.Helper()
+
+	var got []string
+	for _, difference := range migration.Differences {
+		if strings.Contains(difference, "unique") || strings.HasPrefix(difference, "index ") {
+			got = append(got, difference)
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Migrate returned differences %v, want %v", got, want)
+	}
+}
+
+func testMigrateUniqueField(t *testing.T, crud *CRUD) {
+	ctx := context.Background()
+	_ = DropTable[MigCustomer](ctx, crud)
+	mustMigrate(t, crud, &MigCustomer{})
+
+	for _, statement := range []string{
+		`CREATE UNIQUE INDEX composite_code_name ON mig_customer (code, name)`,
+		`CREATE UNIQUE INDEX partial_code ON mig_customer (code) WHERE legacy > 0`,
+	} {
+		if _, err := crud.conn.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("creating an index failed: %s", err.Error())
+		}
+	}
+
+	notUnique := []string{`column "code" is not unique, the field is tagged with uniq`}
+	fatalIfUniqueDifferences(t, mustMigrate(t, crud, &MigCustomer_V5{}), notUnique)
+
+	addUnique := map[string]string{
+		DialectPostgres: `ALTER TABLE mig_customer ADD CONSTRAINT mig_customer_code_key UNIQUE (code)`,
+		DialectSQLite:   `CREATE UNIQUE INDEX uniq_mig_customer_code ON mig_customer (code)`,
+	}[crud.dialect]
+	if _, err := crud.conn.ExecContext(ctx, addUnique); err != nil {
+		t.Fatalf("making the column unique failed: %s", err.Error())
+	}
+	fatalIfUniqueDifferences(t, mustMigrate(t, crud, &MigCustomer_V5{}), nil)
+}
+
+func TestMigrate_UniqueField(t *testing.T)        { testMigrateUniqueField(t, testCRUD) }
+func TestSQLite_Migrate_UniqueField(t *testing.T) { testMigrateUniqueField(t, testCRUDSQLite) }

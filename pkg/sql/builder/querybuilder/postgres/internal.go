@@ -15,6 +15,10 @@ func (b *QueryBuilder) queryOrder(order []string, withAlias bool) (string, error
 		return "", nil
 	}
 
+	if len(order)%2 != 0 {
+		return "", getOrderBuilderError()
+	}
+
 	qOrder := ""
 	for i := 0; i < len(order); i = i + 2 {
 		field := order[i]
@@ -148,11 +152,15 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 
 	// _raw
 	rawQueryArr, ok := (*filters)[pkgfilters.Raw]
-	if !ok || len(rawQueryArr.Val.([]interface{})) == 0 {
+	if !ok {
 		return queryWhere, nil
 	}
 
-	rawQuery := rawQueryArr.Val.([]interface{})[0].(string)
+	rawQuery, rawValues, err := rawQueryAndValues(rawQueryArr)
+	if err != nil {
+		return "", err
+	}
+
 	if rawQuery == "" {
 		return queryWhere, nil
 	}
@@ -188,17 +196,16 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 		alreadyReplaced[fieldInRaw] = true
 	}
 
-	numRaw := len((*filters)[pkgfilters.Raw].Val.([]interface{}))
-	for j := 1; j < numRaw; j++ {
-		rawType := reflect.TypeOf((*filters)[pkgfilters.Raw].Val.([]interface{})[j])
-		if rawType.Kind() != reflect.Slice && rawType.Kind() != reflect.Array {
+	for j := 1; j < len(rawValues); j++ {
+		rawValue := reflect.ValueOf(rawValues[j])
+		if rawValue.Kind() != reflect.Slice && rawValue.Kind() != reflect.Array {
 			// Value is a single value so just replace ? with $x, eg $2
 			rawQuery = strings.Replace(rawQuery, "?", fmt.Sprintf("$%d", valueNum), 1)
 			valueNum++
 			continue
 		}
 
-		rawNumValue := reflect.ValueOf((*filters)[pkgfilters.Raw].Val.([]interface{})[j]).Len()
+		rawNumValue := rawValue.Len()
 
 		queryVal := ""
 		for k := 0; k < rawNumValue; k++ {
@@ -225,4 +232,24 @@ func quoteColumn(columnName string, withAlias bool) string {
 	}
 
 	return postgresQueryContainer.QuoteColumn(columnName)
+}
+
+// rawQueryAndValues returns the query and the values of the raw filter, which must be
+// an []interface{} starting with the query string.
+func rawQueryAndValues(rawFilter pkgfilters.OpVal) (string, []interface{}, error) {
+	rawValues, ok := rawFilter.Val.([]interface{})
+	if !ok {
+		return "", nil, getRawFilterBuilderError()
+	}
+
+	if len(rawValues) == 0 {
+		return "", nil, nil
+	}
+
+	rawQuery, ok := rawValues[0].(string)
+	if !ok {
+		return "", nil, getRawFilterBuilderError()
+	}
+
+	return rawQuery, rawValues, nil
 }

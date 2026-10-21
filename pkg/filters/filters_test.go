@@ -115,3 +115,24 @@ func TestSetObjFields_IntIntoString(t *testing.T) {
 		t.Fatalf("SetObjFields did not return an err, set field to %q", obj.Name)
 	}
 }
+
+func TestFiltersInterfaces_InvalidRaw(t *testing.T) {
+	for _, rawValue := range []interface{}{nil, ".Age > ?", []string{".Age > ?", "1"}, []interface{}{}} {
+		f := &Filters{
+			"Name": {Op: OpEqual, Val: "John"},
+			Raw:    {Op: OpAND, Val: rawValue},
+		}
+		if got := FiltersInterfaces(f); !reflect.DeepEqual(got, []interface{}{"John"}) {
+			t.Fatalf("FiltersInterfaces returned %v for raw filter %#v, want [John]", got, rawValue)
+		}
+	}
+}
+
+func TestFiltersInterfaces_RawNilValue(t *testing.T) {
+	f := &Filters{Raw: {Op: OpAND, Val: []interface{}{".Age = ? OR .Name = ?", nil, "John"}}}
+
+	want := []interface{}{nil, "John"}
+	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {
+		t.Fatalf("FiltersInterfaces returned %v, want %v", got, want)
+	}
+}

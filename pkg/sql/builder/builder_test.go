@@ -1,10 +1,12 @@
 package builder
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 type TestStruct struct {
@@ -55,7 +57,7 @@ var testStructWithIgnoredFieldsObj = &TestStructWithIgnoredFields{}
 var testStructWithIndexesObj = &TestStructWithIndexes{}
 
 func TestSQLQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got := h.DropTable()
 	want := `DROP TABLE IF EXISTS "test_struct";`
@@ -76,7 +78,7 @@ func TestSQLQueries(t *testing.T) {
 }
 
 func TestSQLInsertQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got := h.Insert()
 	want := `INSERT INTO "test_struct"("flags","primary_email","email_secondary","first_name","last_name",` +
@@ -88,7 +90,7 @@ func TestSQLInsertQueries(t *testing.T) {
 }
 
 func TestSQLUpdateByIDQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got := h.UpdateByID()
 	want := `UPDATE "test_struct" SET "flags"=$1,"primary_email"=$2,"email_secondary"=$3,"first_name"=$4,"last_name"=$5,` +
@@ -99,7 +101,7 @@ func TestSQLUpdateByIDQueries(t *testing.T) {
 }
 
 func TestSQLInsertOnConflictUpdateQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got := h.InsertOnConflictUpdate()
 	want := `INSERT INTO "test_struct"("id","flags","primary_email","email_secondary","first_name","last_name",` +
@@ -115,7 +117,7 @@ func TestSQLInsertOnConflictUpdateQueries(t *testing.T) {
 }
 
 func TestSQLDeleteQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got := h.DeleteByID()
 	want := `DELETE FROM "test_struct" WHERE "id" = $1;`
@@ -125,7 +127,7 @@ func TestSQLDeleteQueries(t *testing.T) {
 }
 
 func TestSQLSelectQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	selectPrefix := `SELECT "id","flags","primary_email","email_secondary","first_name","last_name",` +
 		`"age","price","post_code","post_code2","password","created_by","key" FROM "test_struct"`
@@ -203,7 +205,7 @@ func TestSQLSelectQueries(t *testing.T) {
 }
 
 func TestSQLSelectCountQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got, err := h.SelectCount(&filters.Filters{
 		"Price": {Op: filters.OpEqual, Val: 4444},
@@ -218,7 +220,7 @@ func TestSQLSelectCountQueries(t *testing.T) {
 }
 
 func TestSQLDeleteWithFiltersQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got, err := h.Delete(&filters.Filters{
 		"Price": {Op: filters.OpEqual, Val: 4444},
@@ -293,7 +295,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 }
 
 func TestSQLUpdateQueries(t *testing.T) {
-	h := New(testStructObj, Options{})
+	h := mustNew(t, testStructObj, Options{})
 
 	got, err := h.Update(
 		map[string]interface{}{"Price": 1234, "PostCode2": "12-345"},
@@ -325,7 +327,7 @@ func TestSQLUpdateQueries(t *testing.T) {
 }
 
 func TestSQLCustomSelectQueries(t *testing.T) {
-	h := New(testStructWithCustomSelectObj, Options{})
+	h := mustNew(t, testStructWithCustomSelectObj, Options{})
 
 	selectPrefix := `SELECT id, name, price FROM "test_struct_with_custom_select" t1 ` +
 		`INNER JOIN prices t2 ON t1.id=t2.test_struct_with_custom_select_id`
@@ -341,7 +343,7 @@ func TestSQLCustomSelectQueries(t *testing.T) {
 }
 
 func TestSQLIgnoredFields(t *testing.T) {
-	h := New(testStructWithIgnoredFieldsObj, Options{})
+	h := mustNew(t, testStructWithIgnoredFieldsObj, Options{})
 
 	got := h.CreateTable()
 	want := `CREATE TABLE IF NOT EXISTS "test_struct_with_ignored_fields" ("id" SERIAL PRIMARY KEY,"name" VARCHAR(255) NOT NULL DEFAULT '',` +
@@ -352,7 +354,7 @@ func TestSQLIgnoredFields(t *testing.T) {
 }
 
 func TestSQLIndexes(t *testing.T) {
-	h := New(testStructWithIndexesObj, Options{})
+	h := mustNew(t, testStructWithIndexesObj, Options{})
 
 	got := h.CreateTable()
 	want := `CREATE TABLE IF NOT EXISTS "test_struct_with_indexes" ("id" SERIAL PRIMARY KEY,"email" VARCHAR(255) NOT NULL DEFAULT '',` +
@@ -394,7 +396,7 @@ var aliasesTestFilters = &filters.Filters{
 }
 
 func TestSQLAliasedColumnQueries(t *testing.T) {
-	h := New(&TestStructWithAliases{}, Options{})
+	h := mustNew(t, &TestStructWithAliases{}, Options{})
 
 	if !h.HasAliasedColumnNames() {
 		t.Fatal("HasAliasedColumnNames returned false for a struct with aliased column names")
@@ -432,7 +434,7 @@ func TestSQLAliasedColumnQueries(t *testing.T) {
 }
 
 func TestSQLAliasedColumnQueries_WithoutCustomSelect(t *testing.T) {
-	h := New(&TestStructWithAliasesWithoutCustomSelect{}, Options{})
+	h := mustNew(t, &TestStructWithAliasesWithoutCustomSelect{}, Options{})
 
 	got, err := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
 	want := `SELECT "id","name","price" FROM "test_struct_with_aliases_without_custom_select" ` +
@@ -446,7 +448,7 @@ func TestSQLAliasedColumnQueries_WithoutCustomSelect(t *testing.T) {
 }
 
 func TestSQLiteAliasedColumnQueries(t *testing.T) {
-	h := New(&TestStructWithAliases{}, Options{Dialect: DialectSQLite})
+	h := mustNew(t, &TestStructWithAliases{}, Options{Dialect: DialectSQLite})
 
 	join := `FROM "test_struct_with_aliases" t1 INNER JOIN prices t2 ON t1.id=t2.test_struct_with_aliases_id`
 	where := `WHERE (t1."name" LIKE ? AND t2."price">?) AND (t2."price" < ?)`
@@ -488,7 +490,7 @@ func (s *TestStructWithCustomDeleteByID) BuildDeleteByIDQuery(tableNamePrefix st
 func TestSQLCustomDeleteByIDQuery(t *testing.T) {
 	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
 		t.Run(dialect, func(t *testing.T) {
-			h := New(&TestStructWithCustomDeleteByID{}, Options{Dialect: dialect})
+			h := mustNew(t, &TestStructWithCustomDeleteByID{}, Options{Dialect: dialect})
 
 			want := `UPDATE "test_struct_with_custom_delete_by_id" SET "name"='deleted' WHERE "id" = $1;`
 			if got := h.DeleteByID(); got != want {
@@ -498,6 +500,101 @@ func TestSQLCustomDeleteByIDQuery(t *testing.T) {
 			wantPrefix := `CREATE TABLE IF NOT EXISTS "test_struct_with_custom_delete_by_id"`
 			if got := h.CreateTable(); !strings.HasPrefix(got, wantPrefix) {
 				t.Fatalf("CreateTable returned %v, want a query starting with %v", got, wantPrefix)
+			}
+		})
+	}
+}
+
+func mustNew(t *testing.T, obj interface{}, options Options) *Builder {
+	t.Helper()
+
+	b, err := New(obj, options)
+	if err != nil {
+		t.Fatalf("New failed: %s", err.Error())
+	}
+
+	return b
+}
+
+func TestNew_InvalidStruct(t *testing.T) {
+	type withoutID struct {
+		Name string
+	}
+
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		t.Run(dialect, func(t *testing.T) {
+			b, err := New(&withoutID{}, Options{Dialect: dialect})
+			if !errors.Is(err, structinfo.IDFieldError) || b != nil {
+				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.IDFieldError)
+			}
+
+			b, err = New(nil, Options{Dialect: dialect})
+			if !errors.Is(err, structinfo.NotStructPointerError) || b != nil {
+				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.NotStructPointerError)
+			}
+		})
+	}
+}
+
+func TestSQLInvalidRawFilters(t *testing.T) {
+	tests := map[string]interface{}{
+		"not a slice":                 ".Price > ?",
+		"slice of strings":            []string{".Price > ?"},
+		"query is not a string":       []interface{}{1, 2},
+		"query is nil":                []interface{}{nil},
+		"slice of strings with value": []string{".Price > ?", "1"},
+	}
+
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		h := mustNew(t, testStructObj, Options{Dialect: dialect})
+
+		for name, rawValue := range tests {
+			t.Run(dialect+"/"+name, func(t *testing.T) {
+				f := &filters.Filters{filters.Raw: {Op: filters.OpAND, Val: rawValue}}
+
+				if _, err := h.Select(nil, 0, 0, f); err == nil {
+					t.Fatal("Select did not return an err for an invalid raw filter")
+				}
+				if _, err := h.SelectCount(f); err == nil {
+					t.Fatal("SelectCount did not return an err for an invalid raw filter")
+				}
+				if _, err := h.DeleteReturningID(f); err == nil {
+					t.Fatal("DeleteReturningID did not return an err for an invalid raw filter")
+				}
+				if _, err := h.Update(map[string]interface{}{"Price": 1}, f); err == nil {
+					t.Fatal("Update did not return an err for an invalid raw filter")
+				}
+			})
+		}
+	}
+}
+
+func TestSQLRawFilterWithNilValue(t *testing.T) {
+	f := &filters.Filters{filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Price = ? OR .Age = ?", nil, 5}}}
+
+	wants := map[string]string{
+		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE ("price" = $1 OR "age" = $2);`,
+		DialectSQLite:   `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE ("price" = ? OR "age" = ?);`,
+	}
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			got, err := mustNew(t, testStructObj, Options{Dialect: dialect}).SelectCount(f)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			}
+		})
+	}
+}
+
+func TestSQLOddOrder(t *testing.T) {
+	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
+		t.Run(dialect, func(t *testing.T) {
+			_, err := mustNew(t, testStructObj, Options{Dialect: dialect}).Select([]string{"Age", "asc", "Price"}, 0, 0, nil)
+			if err == nil {
+				t.Fatal("Select did not return an err for an order slice with an odd number of elements")
 			}
 		})
 	}

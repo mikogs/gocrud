@@ -46,123 +46,120 @@ func FiltersInterfaces(filters *Filters) []interface{} {
 		return interfaces
 	}
 
-	rawFilterType := reflect.TypeOf(rawFilters.Val)
-	if rawFilterType.Kind() != reflect.Slice && rawFilterType.Kind() != reflect.Array {
-		return interfaces
-	}
-	if reflect.ValueOf(rawFilters.Val).Len() < 2 {
+	// The first raw item in the array is a query. Invalid raw filters are rejected when the query is built.
+	rawValues, ok := rawFilters.Val.([]interface{})
+	if !ok || len(rawValues) < 2 {
 		return interfaces
 	}
 
-	// The first raw item in the array is a query
-	for i := 1; i < reflect.ValueOf(rawFilters.Val).Len(); i++ {
-		placeholderValue := reflect.TypeOf(rawFilters.Val.([]interface{})[i])
+	for i := 1; i < len(rawValues); i++ {
+		placeholderValue := reflect.ValueOf(rawValues[i])
 
 		if placeholderValue.Kind() != reflect.Slice && placeholderValue.Kind() != reflect.Array {
-			interfaces = append(interfaces, rawFilters.Val.([]interface{})[i])
+			interfaces = append(interfaces, rawValues[i])
 
 			continue
 		}
 
-		valInterfaces, ok := rawFilters.Val.([]interface{})[i].([]interface{})
+		valInterfaces, ok := rawValues[i].([]interface{})
 		if ok {
 			for j := 0; j < len(valInterfaces); j++ {
 				interfaces = append(interfaces, valInterfaces[j])
 			}
 			continue
 		}
-		valInt8s, ok := rawFilters.Val.([]interface{})[i].([]int8)
+		valInt8s, ok := rawValues[i].([]int8)
 		if ok {
 			for j := 0; j < len(valInt8s); j++ {
 				interfaces = append(interfaces, valInt8s[j])
 			}
 			continue
 		}
-		valInt16s, ok := rawFilters.Val.([]interface{})[i].([]int16)
+		valInt16s, ok := rawValues[i].([]int16)
 		if ok {
 			for j := 0; j < len(valInt16s); j++ {
 				interfaces = append(interfaces, valInt16s[j])
 			}
 			continue
 		}
-		valInt32s, ok := rawFilters.Val.([]interface{})[i].([]int32)
+		valInt32s, ok := rawValues[i].([]int32)
 		if ok {
 			for j := 0; j < len(valInt32s); j++ {
 				interfaces = append(interfaces, valInt32s[j])
 			}
 			continue
 		}
-		valInt64s, ok := rawFilters.Val.([]interface{})[i].([]int64)
+		valInt64s, ok := rawValues[i].([]int64)
 		if ok {
 			for j := 0; j < len(valInt64s); j++ {
 				interfaces = append(interfaces, valInt64s[j])
 			}
 			continue
 		}
-		valInts, ok := rawFilters.Val.([]interface{})[i].([]int)
+		valInts, ok := rawValues[i].([]int)
 		if ok {
 			for j := 0; j < len(valInts); j++ {
 				interfaces = append(interfaces, valInts[j])
 			}
 			continue
 		}
-		valUint8s, ok := rawFilters.Val.([]interface{})[i].([]uint8)
+		valUint8s, ok := rawValues[i].([]uint8)
 		if ok {
 			for j := 0; j < len(valUint8s); j++ {
 				interfaces = append(interfaces, valUint8s[j])
 			}
 			continue
 		}
-		valUint16s, ok := rawFilters.Val.([]interface{})[i].([]uint16)
+		valUint16s, ok := rawValues[i].([]uint16)
 		if ok {
 			for j := 0; j < len(valUint16s); j++ {
 				interfaces = append(interfaces, valUint16s[j])
 			}
 			continue
 		}
-		valUint32s, ok := rawFilters.Val.([]interface{})[i].([]uint32)
+		valUint32s, ok := rawValues[i].([]uint32)
 		if ok {
 			for j := 0; j < len(valUint32s); j++ {
 				interfaces = append(interfaces, valUint32s[j])
 			}
 			continue
 		}
-		valUint64s, ok := rawFilters.Val.([]interface{})[i].([]uint64)
+		valUint64s, ok := rawValues[i].([]uint64)
 		if ok {
 			for j := 0; j < len(valUint64s); j++ {
 				interfaces = append(interfaces, valUint64s[j])
 			}
 			continue
 		}
-		valUints, ok := rawFilters.Val.([]interface{})[i].([]uint)
+		valUints, ok := rawValues[i].([]uint)
 		if ok {
 			for j := 0; j < len(valUints); j++ {
 				interfaces = append(interfaces, valUints[j])
 			}
 			continue
 		}
-		valFloat32s, ok := rawFilters.Val.([]interface{})[i].([]float32)
+		valFloat32s, ok := rawValues[i].([]float32)
 		if ok {
 			for j := 0; j < len(valFloat32s); j++ {
 				interfaces = append(interfaces, valFloat32s[j])
 			}
 			continue
 		}
-		valFloat64s, ok := rawFilters.Val.([]interface{})[i].([]float64)
+		valFloat64s, ok := rawValues[i].([]float64)
 		if ok {
 			for j := 0; j < len(valFloat64s); j++ {
 				interfaces = append(interfaces, valFloat64s[j])
 			}
 			continue
 		}
-		valBools, ok := rawFilters.Val.([]interface{})[i].([]bool)
+		valBools, ok := rawValues[i].([]bool)
 		if ok {
 			for j := 0; j < len(valBools); j++ {
 				interfaces = append(interfaces, valBools[j])
 			}
 			continue
 		}
-		valStrings, ok := rawFilters.Val.([]interface{})[i].([]string)
+		valStrings, ok := rawValues[i].([]string)
 		if ok {
 			for j := 0; j < len(valStrings); j++ {
 				interfaces = append(interfaces, valStrings[j])

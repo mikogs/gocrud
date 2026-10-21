@@ -93,6 +93,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 	}
 
 	objIDInterface := ObjIDInterface(obj)
+	columnFieldNames := builder.ColumnFieldNames()
 
 	// update
 	if objID != 0 {
@@ -110,7 +111,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			} else {
 				query = builder.UpdateByID()
 			}
-			_, err = c.db.ExecContext(ctx, query, append(ObjFieldInterfaces(obj, false), objIDInterface)...)
+			_, err = c.db.ExecContext(ctx, query, append(objColumnInterfaces(obj, columnFieldNames, false), objIDInterface)...)
 		} else {
 			// try to insert - if ID already exists then try to update it
 
@@ -125,7 +126,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			} else {
 				query = builder.InsertOnConflictUpdate()
 			}
-			_, err = c.db.ExecContext(ctx, query, append(ObjFieldInterfaces(obj, true), ObjFieldInterfaces(obj, false)...)...)
+			_, err = c.db.ExecContext(ctx, query, append(objColumnInterfaces(obj, columnFieldNames, true), objColumnInterfaces(obj, columnFieldNames, false)...)...)
 		}
 
 		if err != nil {
@@ -150,7 +151,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		query = builder.Insert()
 	}
 
-	err = c.db.QueryRowContext(ctx, query, ObjFieldInterfaces(obj, false)...).Scan(objIDInterface)
+	err = c.db.QueryRowContext(ctx, query, objColumnInterfaces(obj, columnFieldNames, false)...).Scan(objIDInterface)
 	if err != nil {
 		if uniqErr := checkUniqueErr(err); uniqErr != nil {
 			return uniqErr

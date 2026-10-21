@@ -15,6 +15,10 @@ func (e *CRUDError) Error() string {
 	return e.Op + ": " + e.Err.Error()
 }
 
+func (e *CRUDError) Unwrap() error {
+	return e.Err
+}
+
 type ValidationError struct {
 	Violations map[string]string
 }

@@ -1,9 +1,17 @@
 package structinfo
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
+)
+
+var (
+	NotStructPointerError = errors.New("obj must be a non-nil pointer to a struct")
+	IDFieldError          = errors.New(`first field must be "ID" of type uint64`)
+	NoColumnsError        = errors.New(`struct must have at least one field other than "ID"`)
 )
 
 var (
@@ -25,6 +33,8 @@ type StructInfo struct {
 	Fields map[string]*FieldInfo
 	// FieldNames contains an ordered list of field names.
 	FieldNames []string
+	// ColumnFieldNames contains an ordered list of names of the fields that are stored in the database (not ignored).
+	ColumnFieldNames []string
 	// UniqueFields contains a list of field names that are marked with a tag 'uniq'.
 	UniqueFields []string
 	// PasswordFields contains a list of field names that are marked with a tag 'pass'.
@@ -33,12 +43,17 @@ type StructInfo struct {
 	Indexes []*IndexInfo
 }
 
-func New(obj interface{}, tagName string) *StructInfo {
+// New returns information on the obj struct fields, read from their tagName tags.
+// The first field that is stored in the database must be "ID" of type uint64.
+func New(obj interface{}, tagName string) (*StructInfo, error) {
 	structInfo := &StructInfo{}
 
 	objValue := reflect.ValueOf(obj)
-	objIndirectValue := reflect.Indirect(objValue)
-	objType := objIndirectValue.Type()
+	if objValue.Kind() != reflect.Pointer || objValue.IsNil() || objValue.Elem().Kind() != reflect.Struct {
+		return nil, fmt.Errorf("%w, got %T", NotStructPointerError, obj)
+	}
+
+	objType := objValue.Elem().Type()
 
 	numField := objType.NumField()
 
@@ -53,9 +68,9 @@ func New(obj interface{}, tagName string) *StructInfo {
 		field := objType.Field(j)
 		fieldTypeKind := field.Type.Kind()
 
-		// Only basic golang types are included as columns for the database table.
+		// Only exported fields of basic golang types are included as columns for the database table.
 		// Check the function below for the details.
-		if !IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !IsFieldKindSupported(fieldTypeKind) {
 			continue
 		}
 
@@ -82,9 +97,42 @@ func New(obj interface{}, tagName string) *StructInfo {
 		structInfo.ModificationFields = true
 	}
 
+	err := structInfo.checkColumns(objType)
+	if err != nil {
+		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
+	}
+
 	structInfo.buildIndexes()
 
-	return structInfo
+	return structInfo, nil
+}
+
+// checkColumns checks if the fields stored in the database start with "ID" of type uint64 and are
+// followed by at least one other field, as the generated queries rely on it.
+func (s *StructInfo) checkColumns(objType reflect.Type) error {
+	columns := make([]string, 0, len(s.FieldNames))
+	for _, fieldName := range s.FieldNames {
+		if !s.Fields[fieldName].Ignored {
+			columns = append(columns, fieldName)
+		}
+	}
+
+	if len(columns) == 0 || columns[0] != "ID" {
+		return IDFieldError
+	}
+
+	idField, _ := objType.FieldByName("ID")
+	if idField.Type.Kind() != reflect.Uint64 {
+		return IDFieldError
+	}
+
+	if len(columns) == 1 {
+		return NoColumnsError
+	}
+
+	s.ColumnFieldNames = columns
+
+	return nil
 }
 
 func (s *StructInfo) setFieldFromTag(tag string, fieldName string) {

@@ -15,7 +15,7 @@ func (b *QueryBuilder) queryOrder(order []string, withAlias bool) (string, error
 		return "", nil
 	}
 	if len(order)%2 != 0 {
-		return "", fmt.Errorf("order slice must have an even number of elements (field, direction pairs)")
+		return "", getOrderBuilderError()
 	}
 
 	parts := make([]string, 0, len(order)/2)
@@ -134,11 +134,15 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 
 	// _raw
 	rawQueryArr, ok := (*filters)[pkgfilters.Raw]
-	if !ok || len(rawQueryArr.Val.([]interface{})) == 0 {
+	if !ok {
 		return queryWhere, nil
 	}
 
-	rawQuery := rawQueryArr.Val.([]interface{})[0].(string)
+	rawQuery, rawValues, err := rawQueryAndValues(rawQueryArr)
+	if err != nil {
+		return "", err
+	}
+
 	if rawQuery == "" {
 		return queryWhere, nil
 	}
@@ -174,13 +178,13 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 	// Each value in rawQueryArr.Val[1:] corresponds to exactly one ? in the
 	// raw query; slices expand that single ? into ?,?,? while scalar values
 	// keep it as ?.
-	numRaw := reflect.ValueOf(rawQueryArr.Val).Len()
+	numRaw := len(rawValues)
 	if numRaw > 1 {
 		qParts := strings.Split(rawQuery, "?")
 		var rebuilt strings.Builder
 		rebuilt.WriteString(qParts[0])
 		for j := 1; j < numRaw; j++ {
-			elem := rawQueryArr.Val.([]interface{})[j]
+			elem := rawValues[j]
 			elemVal := reflect.ValueOf(elem)
 			if elemVal.Kind() == reflect.Slice || elemVal.Kind() == reflect.Array {
 				n := elemVal.Len()
@@ -211,4 +215,24 @@ func quoteColumn(columnName string, withAlias bool) string {
 	}
 
 	return sqliteQueryContainer.QuoteColumn(columnName)
+}
+
+// rawQueryAndValues returns the query and the values of the raw filter, which must be
+// an []interface{} starting with the query string.
+func rawQueryAndValues(rawFilter pkgfilters.OpVal) (string, []interface{}, error) {
+	rawValues, ok := rawFilter.Val.([]interface{})
+	if !ok {
+		return "", nil, getRawFilterBuilderError()
+	}
+
+	if len(rawValues) == 0 {
+		return "", nil, nil
+	}
+
+	rawQuery, ok := rawValues[0].(string)
+	if !ok {
+		return "", nil, getRawFilterBuilderError()
+	}
+
+	return rawQuery, rawValues, nil
 }

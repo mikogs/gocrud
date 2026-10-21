@@ -83,7 +83,7 @@ func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
 func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, error) {
 	idFieldColumnName, ok := b.queryContainer.FieldColumnName["ID"]
 	if !ok {
-		panic(idFieldNotFoundInQueryContainerError)
+		return "", getClauseBuilderError("returning", "id field", idFieldNotFoundInQueryContainerError)
 	}
 
 	query := b.queryContainer.DeletePrefix

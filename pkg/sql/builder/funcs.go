@@ -23,7 +23,7 @@ func IsStructField(u interface{}, field string) bool {
 		f := s.Field(j)
 		k := f.Type.Kind()
 
-		if !structinfo.IsFieldKindSupported(k) {
+		if !f.IsExported() || !structinfo.IsFieldKindSupported(k) {
 			continue
 		}
 

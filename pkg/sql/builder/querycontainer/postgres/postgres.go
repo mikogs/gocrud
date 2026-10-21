@@ -43,16 +43,10 @@ type QueryContainer struct {
 	UpdatePrefix      string
 }
 
-func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix string) *QueryContainer {
+func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix string) (*QueryContainer, error) {
 	queryContainer := &QueryContainer{}
 
-	objValue := reflect.ValueOf(obj)
-	objIndirectValue := reflect.Indirect(objValue)
-	objType := objIndirectValue.Type()
-
-	if objType.String() == "reflect.Value" {
-		objType = reflect.ValueOf(obj.(reflect.Value).Interface()).Type().Elem().Elem()
-	}
+	objType := reflect.TypeOf(obj).Elem()
 
 	objTypeName := objType.Name()
 	// if a struct is User_Register, then take User as base for table name.
@@ -77,7 +71,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		// Only basic golang types are included as columns for the database table.
 		// Check the function below for the details.
-		if !structinfo.IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !structinfo.IsFieldKindSupported(fieldTypeKind) {
 			continue
 		}
 
@@ -111,13 +105,13 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 	queryContainer.IndexStatements = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
-	// Assuming that primary field is named ID and that it is always first -> TODO: add check
+	// structinfo.New ensures that ID is the first column
 	err := queryContainer.setQueries(obj, tableNamePrefix)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return queryContainer
+	return queryContainer, nil
 }
 
 func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (err error) {
@@ -131,7 +125,6 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		numColumn                  int
 	)
 
-	// Assuming that struct has at least 2 fields -> TODO: add check
 	numColumn = len(q.ColumnNames)
 
 	columnNamesWithoutID = strings.Join(q.ColumnNames[1:], ",")

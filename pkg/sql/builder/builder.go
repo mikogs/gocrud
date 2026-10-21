@@ -37,8 +37,9 @@ type Builder struct {
 	queryBuilder dynamicQueryBuilder
 }
 
-// New takes a struct and returns a Builder instance.
-func New(obj interface{}, options Options) *Builder {
+// New takes a pointer to a struct and returns a Builder instance.
+// It returns an error when the struct cannot be mapped to a database table.
+func New(obj interface{}, options Options) (*Builder, error) {
 	b := &Builder{}
 
 	b.tagName = DefaultTagName
@@ -46,11 +47,18 @@ func New(obj interface{}, options Options) *Builder {
 		b.tagName = options.TagName
 	}
 
-	b.structInfo = structinfo.New(obj, b.tagName)
+	var err error
+	b.structInfo, err = structinfo.New(obj, b.tagName)
+	if err != nil {
+		return nil, err
+	}
 
 	switch options.Dialect {
 	case DialectSQLite:
-		container := sqliteQueryContainer.New(obj, b.structInfo, options.TableNamePrefix)
+		container, err := sqliteQueryContainer.New(obj, b.structInfo, options.TableNamePrefix)
+		if err != nil {
+			return nil, err
+		}
 		b.columnFieldName = container.ColumnFieldName
 		b.dropTable = container.DropTable
 		b.createTable = container.CreateTable
@@ -61,7 +69,10 @@ func New(obj interface{}, options Options) *Builder {
 		b.deleteByID = container.DeleteByID
 		b.queryBuilder = sqliteQueryBuilder.New(b.structInfo, container)
 	default: // postgres
-		container := postgresQueryContainer.New(obj, b.structInfo, options.TableNamePrefix)
+		container, err := postgresQueryContainer.New(obj, b.structInfo, options.TableNamePrefix)
+		if err != nil {
+			return nil, err
+		}
 		b.columnFieldName = container.ColumnFieldName
 		b.dropTable = container.DropTable
 		b.createTable = container.CreateTable
@@ -73,7 +84,7 @@ func New(obj interface{}, options Options) *Builder {
 		b.queryBuilder = postgresQueryBuilder.New(b.structInfo, container)
 	}
 
-	return b
+	return b, nil
 }
 
 // DropTable returns an SQL query for dropping the table.
@@ -107,6 +118,10 @@ func (b *Builder) HasModificationFields() bool { return b.structInfo.Modificatio
 
 // HasAliasedColumnNames returns true if any of the fields have column names in the format of "alias.column_name".
 func (b *Builder) HasAliasedColumnNames() bool { return b.structInfo.AliasedColumnNames }
+
+// ColumnFieldNames returns an ordered list of names of the fields that are stored in the database.
+// It is the order of columns in the generated queries.
+func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldNames }
 
 // UniqueFields returns a list with field names that are unique.
 func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }

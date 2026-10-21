@@ -43,16 +43,10 @@ type QueryContainer struct {
 	UpdatePrefix      string
 }
 
-func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix string) *QueryContainer {
+func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix string) (*QueryContainer, error) {
 	qc := &QueryContainer{}
 
-	objValue := reflect.ValueOf(obj)
-	objIndirectValue := reflect.Indirect(objValue)
-	objType := objIndirectValue.Type()
-
-	if objType.String() == "reflect.Value" {
-		objType = reflect.ValueOf(obj.(reflect.Value).Interface()).Type().Elem().Elem()
-	}
+	objType := reflect.TypeOf(obj).Elem()
 
 	objTypeName := objType.Name()
 	if strings.Contains(objTypeName, "_") {
@@ -73,7 +67,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		field := objType.Field(j)
 		fieldTypeKind := field.Type.Kind()
 
-		if !structinfo.IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !structinfo.IsFieldKindSupported(fieldTypeKind) {
 			continue
 		}
 
@@ -102,12 +96,13 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 	qc.IndexStatements = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
 
+	// structinfo.New ensures that ID is the first column
 	err := qc.setQueries(obj, tableNamePrefix)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return qc
+	return qc, nil
 }
 
 func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) error {

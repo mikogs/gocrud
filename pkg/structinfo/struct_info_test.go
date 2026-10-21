@@ -1,6 +1,7 @@
 package structinfo
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -20,6 +21,7 @@ type tagsTestStruct struct {
 	Skipped         string `crud:"-"`
 	Status          int    `crud_val:"1"`
 	Tags            []string
+	internal        string
 	CreatedAt       int64
 	CreatedBy       uint64
 	ModifiedAt      int64
@@ -27,7 +29,7 @@ type tagsTestStruct struct {
 }
 
 func TestNew_FieldsFromTags(t *testing.T) {
-	info := New(&tagsTestStruct{}, "crud")
+	info := mustNew(t, &tagsTestStruct{}, "crud")
 
 	tests := map[string]FieldInfo{
 		"ID":              {},
@@ -59,7 +61,7 @@ func TestNew_FieldsFromTags(t *testing.T) {
 }
 
 func TestNew_StructInfo(t *testing.T) {
-	info := New(&tagsTestStruct{}, "crud")
+	info := mustNew(t, &tagsTestStruct{}, "crud")
 
 	if _, ok := info.Fields["Tags"]; ok {
 		t.Fatal("New returned a field of an unsupported kind")
@@ -69,6 +71,11 @@ func TestNew_StructInfo(t *testing.T) {
 		"Renamed", "InvalidSettings", "Skipped", "Status", "CreatedAt", "CreatedBy", "ModifiedAt", "ModifiedBy"}
 	if !reflect.DeepEqual(info.FieldNames, wantFieldNames) {
 		t.Fatalf("New returned field names %v, want %v", info.FieldNames, wantFieldNames)
+	}
+	wantColumnFieldNames := []string{"ID", "Email", "Password", "FirstName", "LastName", "Code", "Slug", "Bio", "Title",
+		"Renamed", "InvalidSettings", "Status", "CreatedAt", "CreatedBy", "ModifiedAt", "ModifiedBy"}
+	if !reflect.DeepEqual(info.ColumnFieldNames, wantColumnFieldNames) {
+		t.Fatalf("New returned column field names %v, want %v", info.ColumnFieldNames, wantColumnFieldNames)
 	}
 	if !reflect.DeepEqual(info.UniqueFields, []string{"Email"}) {
 		t.Fatalf("New returned unique fields %v, want %v", info.UniqueFields, []string{"Email"})
@@ -99,7 +106,7 @@ func TestNew_CustomTagName(t *testing.T) {
 		Name  string `db_val:"anonymous"`
 	}
 
-	info := New(&customTagStruct{}, "db")
+	info := mustNew(t, &customTagStruct{}, "db")
 
 	if *info.Fields["Email"] != (FieldInfo{Unique: true}) {
 		t.Fatalf("New returned %+v for field Email, want only Unique set", *info.Fields["Email"])
@@ -119,7 +126,7 @@ func TestNew_WithoutModificationFields(t *testing.T) {
 		ModifiedBy uint64
 	}
 
-	if New(&partialModificationStruct{}, "crud").ModificationFields {
+	if mustNew(t, &partialModificationStruct{}, "crud").ModificationFields {
 		t.Fatal("New detected modification fields in a struct that does not have all of them")
 	}
 }
@@ -132,7 +139,7 @@ func TestNew_AliasedColumnNames(t *testing.T) {
 		Invalid2 string `crud:"name:.invalid"`
 	}
 
-	info := New(&aliasedStruct{}, "crud")
+	info := mustNew(t, &aliasedStruct{}, "crud")
 
 	if !info.AliasedColumnNames {
 		t.Fatal("New did not detect aliased column names")
@@ -150,7 +157,67 @@ func TestNew_AliasedColumnNames(t *testing.T) {
 		}
 	}
 
-	if New(&tagsTestStruct{}, "crud").AliasedColumnNames {
+	if mustNew(t, &tagsTestStruct{}, "crud").AliasedColumnNames {
 		t.Fatal("New detected aliased column names in a struct without them")
+	}
+}
+
+func mustNew(t *testing.T, obj interface{}, tagName string) *StructInfo {
+	t.Helper()
+
+	info, err := New(obj, tagName)
+	if err != nil {
+		t.Fatalf("New failed: %s", err.Error())
+	}
+
+	return info
+}
+
+func TestNew_InvalidStruct(t *testing.T) {
+	type idOnly struct {
+		ID uint64
+	}
+	type idNotFirst struct {
+		Name string
+		ID   uint64
+	}
+	type idOfWrongType struct {
+		ID   int64
+		Name string
+	}
+	type withoutID struct {
+		Name string
+	}
+	type onlyIgnoredFields struct {
+		ID   uint64
+		Name string `crud:"-"`
+	}
+	var nilPointer *idOnly
+
+	tests := map[string]struct {
+		obj  interface{}
+		want error
+	}{
+		"nil":                 {nil, NotStructPointerError},
+		"nil pointer":         {nilPointer, NotStructPointerError},
+		"struct value":        {idOnly{}, NotStructPointerError},
+		"pointer to a string": {new(string), NotStructPointerError},
+		"ID not first":        {&idNotFirst{}, IDFieldError},
+		"ID of wrong type":    {&idOfWrongType{}, IDFieldError},
+		"without ID":          {&withoutID{}, IDFieldError},
+		"ID only":             {&idOnly{}, NoColumnsError},
+		"only ignored fields": {&onlyIgnoredFields{}, NoColumnsError},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			info, err := New(test.obj, "crud")
+			if !errors.Is(err, test.want) {
+				t.Fatalf("New returned err %v, want %v", err, test.want)
+			}
+			if info != nil {
+				t.Fatal("New returned struct info along with an err")
+			}
+		})
 	}
 }

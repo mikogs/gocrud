@@ -101,7 +101,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	for rows.Next() {
 		newObj := newObjFunc()
-		err = rows.Scan(ObjFieldInterfaces(newObj, true)...)
+		err = rows.Scan(objColumnInterfaces(newObj, builder.ColumnFieldNames(), true)...)
 		if err != nil {
 			return nil, nil, getDBFuncCRUDError("rows scan", err)
 		}

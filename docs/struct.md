@@ -6,7 +6,9 @@ To utilize the library's automatic CRUD capabilities, your Go structs must adher
 
 ### 1. The ID Field
 
-Every struct intended for CRUD operations must include an ID field which must be uint64. This serves as the primary key for database operations.
+Every struct intended for CRUD operations must have an `ID` field of type `uint64` as its first field, followed by at least one other field. This serves as the primary key for database operations. Structs are always passed as pointers, e.g. `&User{}`.
+
+If a struct does not meet these requirements, every operation returns an error that can be checked with `errors.Is`, e.g. `errors.Is(err, structinfo.IDFieldError)`.
 
 ### 2. Supported Data Types
 
@@ -18,7 +20,7 @@ At this stage, the library supports the following basic data types for struct fi
 * Strings: string
 * Booleans: bool
 
-Complex types (such as slices, maps, or nested structs) are not currently supported for direct mapping in this context.
+Complex types (such as slices, maps, or nested structs) are not currently supported for direct mapping in this context. Fields of such types, as well as unexported fields, are not stored in the database.
 
 ## Tagging
 
@@ -66,6 +68,7 @@ The `crud` tag defines how the field is stored in the database. Multiple options
 * `uniq`: Adds a `UNIQUE` constraint to the field's column when the table is created.
 * `idx`: Creates a database index on the field. Use `idx:<name>` to give the index an explicit name; fields sharing the same `<name>` are combined into a single composite index, in the order they're declared in the struct. A bare `idx` (no name) creates its own single-column index.
 * `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
+* `-`: The field is not stored in the database.
 * `name:<column>`: Overrides the column name generated from the field name. Only lowercase letters, digits and `_` are allowed.
 
 ### Column Aliases

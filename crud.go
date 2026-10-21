@@ -2,6 +2,7 @@ package gocrud
 
 import (
 	"database/sql"
+	"reflect"
 	"sync"
 
 	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
@@ -10,7 +11,7 @@ import (
 type CRUD struct {
 	db              *sql.DB
 	buildersMu      sync.RWMutex
-	builders        map[string]*sqlbuilder.Builder
+	builders        map[reflect.Type]*sqlbuilder.Builder
 	tagName         string
 	tableNamePrefix string
 	dialect         string
@@ -24,7 +25,7 @@ func New(db *sql.DB, options Options) *CRUD {
 
 	crud := &CRUD{
 		db:       db,
-		builders: make(map[string]*sqlbuilder.Builder),
+		builders: make(map[reflect.Type]*sqlbuilder.Builder),
 	}
 
 	crud.tagName = "crud"

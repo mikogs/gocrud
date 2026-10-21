@@ -7,7 +7,8 @@ import (
 )
 
 // ObjFieldInterfaces returns a list of interfaces to object's fields
-// Argument includeID tells it to include or omit the ID field
+// Argument includeID tells it to include or omit the ID field.
+// Fields ignored with a "-" tag are included, as the tags are not read.
 func ObjFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 	objValue := reflect.ValueOf(obj).Elem()
 
@@ -20,11 +21,28 @@ func ObjFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 		}
 
 		// builder is used to generate SQL queries, so here the same kinds must be supported
-		if !structInfo.IsFieldKindSupported(valueField.Kind()) {
+		if !objValue.Type().Field(i).IsExported() || !structInfo.IsFieldKindSupported(valueField.Kind()) {
 			continue
 		}
 
 		fieldInterfaces = append(fieldInterfaces, valueField.Addr().Interface())
+	}
+
+	return fieldInterfaces
+}
+
+// objColumnInterfaces returns a list of interfaces to object's fields named in fieldNames, in the same order.
+// Argument includeID tells it to include or omit the ID field.
+func objColumnInterfaces(obj interface{}, fieldNames []string, includeID bool) []interface{} {
+	objValue := reflect.ValueOf(obj).Elem()
+
+	fieldInterfaces := make([]interface{}, 0, len(fieldNames))
+	for _, fieldName := range fieldNames {
+		if fieldName == IDField && !includeID {
+			continue
+		}
+
+		fieldInterfaces = append(fieldInterfaces, objValue.FieldByName(fieldName).Addr().Interface())
 	}
 
 	return fieldInterfaces
@@ -112,6 +130,10 @@ func ZeroObjFields(obj interface{}) {
 	val := reflect.ValueOf(obj).Elem()
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+
 		kind := field.Kind()
 
 		if kind == reflect.Ptr {

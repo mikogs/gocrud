@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mikogs/gocrud/pkg/filters"
 	"github.com/mikogs/gocrud/pkg/structinfo"
@@ -595,6 +596,31 @@ func TestSQLOddOrder(t *testing.T) {
 			_, err := mustNew(t, testStructObj, Options{Dialect: dialect}).Select([]string{"Age", "asc", "Price"}, 0, 0, nil)
 			if err == nil {
 				t.Fatal("Select did not return an err for an order slice with an odd number of elements")
+			}
+		})
+	}
+}
+
+type TestStructWithTimes struct {
+	ID       uint64
+	Name     string
+	StartsAt time.Time `sql:"idx"`
+}
+
+func TestSQLTimeColumns(t *testing.T) {
+	wants := map[string]string{
+		DialectPostgres: `CREATE TABLE IF NOT EXISTS "test_struct_with_times" ("id" SERIAL PRIMARY KEY,"name" VARCHAR(255) NOT NULL DEFAULT '',` +
+			`"starts_at" TIMESTAMPTZ NOT NULL DEFAULT '0001-01-01 00:00:00+00'); ` +
+			`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_times_starts_at" ON "test_struct_with_times" ("starts_at");`,
+		DialectSQLite: `CREATE TABLE IF NOT EXISTS "test_struct_with_times" ("id" INTEGER PRIMARY KEY,"name" TEXT NOT NULL DEFAULT '',` +
+			`"starts_at" DATETIME NOT NULL DEFAULT '0001-01-01 00:00:00.000000000+00:00'); ` +
+			`CREATE INDEX IF NOT EXISTS "idx_test_struct_with_times_starts_at" ON "test_struct_with_times" ("starts_at");`,
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			if got := mustNew(t, &TestStructWithTimes{}, Options{Dialect: dialect}).CreateTable(); got != want {
+				t.Fatalf("\nwant %v\ngot  %v", want, got)
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package filters
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 type setObjFieldsTestStruct struct {
@@ -134,5 +135,20 @@ func TestFiltersInterfaces_RawNilValue(t *testing.T) {
 	want := []interface{}{nil, "John"}
 	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, want)
+	}
+}
+
+func TestSetObjFields_Time(t *testing.T) {
+	obj := &struct {
+		StartsAt time.Time
+	}{}
+
+	startsAt := time.Date(2024, 5, 1, 10, 30, 0, 0, time.UTC)
+	if err := SetObjFields(obj, &Filters{"StartsAt": {Val: startsAt}}); err != nil || !obj.StartsAt.Equal(startsAt) {
+		t.Fatalf("SetObjFields returned %v and set %v, want %v", err, obj.StartsAt, startsAt)
+	}
+
+	if err := SetObjFields(obj, &Filters{"StartsAt": {Val: "2024-05-01"}}); err == nil {
+		t.Fatal("SetObjFields did not return an err for a string value")
 	}
 }

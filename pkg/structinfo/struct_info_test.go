@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type tagsTestStruct struct {
@@ -219,5 +220,30 @@ func TestNew_InvalidStruct(t *testing.T) {
 				t.Fatal("New returned struct info along with an err")
 			}
 		})
+	}
+}
+
+func TestIsFieldTypeSupported(t *testing.T) {
+	type status string
+	type nested struct{ Name string }
+
+	tests := map[reflect.Type]bool{
+		reflect.TypeOf(""):             true,
+		reflect.TypeOf(int8(0)):        true,
+		reflect.TypeOf(uint64(0)):      true,
+		reflect.TypeOf(0.5):            true,
+		reflect.TypeOf(true):           true,
+		reflect.TypeOf(status("")):     true,
+		reflect.TypeOf(time.Time{}):    true,
+		reflect.TypeOf(&time.Time{}):   false,
+		reflect.TypeOf(time.Second):    true,
+		reflect.TypeOf(nested{}):       false,
+		reflect.TypeOf([]string{}):     false,
+		reflect.TypeOf(map[int]bool{}): false,
+	}
+	for typ, want := range tests {
+		if got := IsFieldTypeSupported(typ); got != want {
+			t.Fatalf("IsFieldTypeSupported(%v) returned %v, want %v", typ, got, want)
+		}
 	}
 }

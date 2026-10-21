@@ -19,8 +19,73 @@ At this stage, the library supports the following basic data types for struct fi
 * Floats: float32, float64
 * Strings: string
 * Booleans: bool
+* Times: `time.Time`, see [Times](#3-times)
 
 Complex types (such as slices, maps, or nested structs) are not currently supported for direct mapping in this context. Fields of such types, as well as unexported fields, are not stored in the database.
+
+### 3. Times
+
+`time.Time` fields are stored in the following columns:
+
+| Database | Column type | Precision |
+|---|---|---|
+| PostgreSQL | `TIMESTAMPTZ` | microseconds, nanoseconds are rounded |
+| SQLite | `DATETIME` | nanoseconds |
+
+SQLite has no date and time type, so times are stored as text in UTC, in a format with a fixed length: `2024-05-01 10:30:00.000000000+00:00`. This way, sorting and comparing the text gives the same result as sorting and comparing the times.
+
+**Time zones.** A time is saved as a point in time, so `10:00` in Warsaw and `08:00` in UTC are the same value, and filters and sorting work across time zones. When loaded, times are always in UTC. Convert them to the user's time zone for display:
+
+```go
+local := meeting.StartsAt.In(userLocation)
+```
+
+**Times that are not set.** The column default is the zero value of `time.Time`, so a time that was never set is loaded as the zero value. Check it with `IsZero()`, and use the `required` validation rule when a time must be set.
+
+```go
+type Meeting struct {
+    ID       uint64    `json:"id"`
+    Title    string    `json:"title" validate:"required,max=200"`
+    StartsAt time.Time `json:"starts_at" validate:"required" crud:"idx"`
+    EndsAt   time.Time `json:"ends_at" validate:"omitempty,gtfield=StartsAt"` // optional, but after StartsAt
+}
+```
+
+**Filters.** Use `time.Time` values with any operator. A filter map holds one condition per field, so a range of times needs a raw filter:
+
+```go
+// the meetings that start within the next 7 days, soonest first
+now := time.Now()
+meetings, _, err := crud.Get(ctx, func() interface{} { return &Meeting{} }, gocrud.GetOptions{
+    Order: []string{"StartsAt", "asc"},
+    Filters: &sqlfilters.Filters{
+        sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{
+            ".StartsAt >= ? AND .StartsAt < ?", now, now.AddDate(0, 0, 7),
+        }},
+    },
+})
+```
+
+When filter values are strings, e.g. with `ConvertFiltersFromString` or in the service layer, a time can be written as:
+
+| Format | Example | Source |
+|---|---|---|
+| RFC 3339 | `2024-05-01T10:30:00+02:00`, `2024-05-01T08:30:00Z` | JSON, APIs |
+| date and time | `2024-05-01T10:30:00`, `2024-05-01 10:30:00` | |
+| date and time without seconds | `2024-05-01T10:30` | HTML `<input type="datetime-local">` |
+| date | `2024-05-01` | HTML `<input type="date">` |
+
+A time without a time zone is in UTC. Any other string is a validation error with the `type` violation.
+
+**Your own SQL.** gocrud converts times for the database itself. When you pass a time to your own query, e.g. with `tx.Tx().ExecContext` in a [transaction](crud/transactions.md), use `TimeValue`, which returns the time in the form the database expects:
+
+```go
+_, err := tx.Tx().ExecContext(ctx,
+    `UPDATE meeting SET ends_at = $1 WHERE id = $2`,
+    tx.TimeValue(endsAt), meetingID)
+```
+
+The `CreatedAt` and `ModifiedAt` fields, filled in by `Save`, stay Unix timestamps of type `int64`.
 
 ## Tagging
 

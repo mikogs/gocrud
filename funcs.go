@@ -2,6 +2,7 @@ package gocrud
 
 import (
 	"reflect"
+	"time"
 
 	structInfo "github.com/mikogs/gocrud/pkg/structinfo"
 )
@@ -21,7 +22,7 @@ func ObjFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 		}
 
 		// builder is used to generate SQL queries, so here the same kinds must be supported
-		if !objValue.Type().Field(i).IsExported() || !structInfo.IsFieldKindSupported(valueField.Kind()) {
+		if !objValue.Type().Field(i).IsExported() || !structInfo.IsFieldTypeSupported(valueField.Type()) {
 			continue
 		}
 
@@ -46,6 +47,16 @@ func objColumnInterfaces(obj interface{}, fieldNames []string, includeID bool) [
 	}
 
 	return fieldInterfaces
+}
+
+// timeFieldsToUTC converts the values of obj time fields named in fieldNames to UTC. Databases return times
+// in different time zones, such as the time zone of the database session.
+func timeFieldsToUTC(obj interface{}, fieldNames []string) {
+	objValue := reflect.ValueOf(obj).Elem()
+	for _, fieldName := range fieldNames {
+		field := objValue.FieldByName(fieldName)
+		field.Set(reflect.ValueOf(field.Interface().(time.Time).UTC()))
+	}
 }
 
 func ObjIDInterface(obj interface{}) interface{} {
@@ -118,41 +129,28 @@ func ObjFieldValue(obj interface{}, fieldName string) interface{} {
 		return field.Uint()
 	case reflect.Bool:
 		return field.Bool()
+	case reflect.Float32, reflect.Float64:
+		return field.Float()
 	case reflect.String:
 		return field.String()
+	case reflect.Struct:
+		if structInfo.IsTimeType(field.Type()) {
+			return field.Interface()
+		}
+		return nil
 	default:
 		// Unsupported type – caller gets nil.
 		return nil
 	}
 }
 
+// ZeroObjFields sets all the exported fields of obj to their zero values.
 func ZeroObjFields(obj interface{}) {
 	val := reflect.ValueOf(obj).Elem()
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
-		if !field.CanSet() {
-			continue
-		}
-
-		kind := field.Kind()
-
-		if kind == reflect.Ptr {
+		if field.CanSet() {
 			field.Set(reflect.Zero(field.Type()))
-		}
-		if kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64 {
-			field.SetInt(0)
-		}
-		if kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 {
-			field.SetUint(0)
-		}
-		if kind == reflect.Float32 || kind == reflect.Float64 {
-			field.SetFloat(0.0)
-		}
-		if kind == reflect.String {
-			field.SetString("")
-		}
-		if kind == reflect.Bool {
-			field.SetBool(false)
 		}
 	}
 }

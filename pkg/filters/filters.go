@@ -198,7 +198,7 @@ func SetObjFields(obj interface{}, values *Filters) error {
 			continue
 		}
 
-		if !structinfo.IsFieldKindSupported(field.Type.Kind()) {
+		if !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
 		}
 

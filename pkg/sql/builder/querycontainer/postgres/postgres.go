@@ -71,7 +71,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		// Only basic golang types are included as columns for the database table.
 		// Check the function below for the details.
-		if !field.IsExported() || !structinfo.IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
 		}
 

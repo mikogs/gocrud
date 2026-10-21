@@ -123,6 +123,9 @@ func (b *Builder) HasAliasedColumnNames() bool { return b.structInfo.AliasedColu
 // It is the order of columns in the generated queries.
 func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldNames }
 
+// TimeFields returns a list with names of the time.Time fields that are stored in the database.
+func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
+
 // UniqueFields returns a list with field names that are unique.
 func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }
 

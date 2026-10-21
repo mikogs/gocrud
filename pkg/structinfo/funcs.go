@@ -1,8 +1,14 @@
 package structinfo
 
-import "reflect"
+import (
+	"reflect"
+	"time"
+)
+
+var timeType = reflect.TypeOf(time.Time{})
 
 // IsFieldKindSupported checks if a specific reflect kind of the field is supported by the Builder.
+// It does not include time.Time, which is a struct. Use IsFieldTypeSupported to check a field type.
 func IsFieldKindSupported(k reflect.Kind) bool {
 	switch k {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -16,6 +22,16 @@ func IsFieldKindSupported(k reflect.Kind) bool {
 	default:
 		return false
 	}
+}
+
+// IsFieldTypeSupported checks if a field of a specific type can be stored in the database.
+func IsFieldTypeSupported(t reflect.Type) bool {
+	return IsTimeType(t) || IsFieldKindSupported(t.Kind())
+}
+
+// IsTimeType checks if t is time.Time.
+func IsTimeType(t reflect.Type) bool {
+	return t == timeType
 }
 
 func IsFieldModification(name string, typeKind reflect.Kind) bool {

@@ -39,6 +39,8 @@ type StructInfo struct {
 	UniqueFields []string
 	// PasswordFields contains a list of field names that are marked with a tag 'pass'.
 	PasswordFields []string
+	// TimeFields contains a list of names of the time.Time fields that are stored in the database.
+	TimeFields []string
 	// Indexes contains the database indexes built from fields marked with 'idx' or 'uidx' tags.
 	Indexes []*IndexInfo
 }
@@ -70,7 +72,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 
 		// Only exported fields of basic golang types are included as columns for the database table.
 		// Check the function below for the details.
-		if !field.IsExported() || !IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !IsFieldTypeSupported(field.Type) {
 			continue
 		}
 
@@ -131,6 +133,13 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 	}
 
 	s.ColumnFieldNames = columns
+
+	for _, column := range columns {
+		field, _ := objType.FieldByName(column)
+		if IsTimeType(field.Type) {
+			s.TimeFields = append(s.TimeFields, column)
+		}
+	}
 
 	return nil
 }

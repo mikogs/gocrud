@@ -6,11 +6,22 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 var intRegex = regexp.MustCompile(`^-?\d+$`)
+
+// timeFormats are the formats that TimeFromString accepts. The ones without a time zone are used by
+// HTML date and datetime-local inputs.
+var timeFormats = []string{
+	time.RFC3339Nano,
+	"2006-01-02T15:04:05",
+	"2006-01-02 15:04:05",
+	"2006-01-02T15:04",
+	"2006-01-02",
+}
 var floatRegex = regexp.MustCompile(`^-?\d*\.\d+$`)
 
 // IsStructField checks if a field exists in a struct.
@@ -21,9 +32,7 @@ func IsStructField(u interface{}, field string) bool {
 
 	for j := 0; j < s.NumField(); j++ {
 		f := s.Field(j)
-		k := f.Type.Kind()
-
-		if !f.IsExported() || !structinfo.IsFieldKindSupported(k) {
+		if !f.IsExported() || !structinfo.IsFieldTypeSupported(f.Type) {
 			continue
 		}
 
@@ -43,6 +52,20 @@ func StructFieldValueFromString(obj interface{}, name string, value string) (boo
 // SetStructFieldValueFromString sets a field from value that is string (converts it if necessary).
 func SetStructFieldValueFromString(obj interface{}, name string, value string) (bool, interface{}) {
 	return valueFromString(obj, name, value, true)
+}
+
+// TimeFromString converts a string in RFC 3339 format, such as "2024-05-01T10:30:00+02:00", or in one of the
+// formats used by HTML date and datetime-local inputs ("2024-05-01", "2024-05-01T10:30") to time.Time.
+// A time without a time zone is in UTC.
+func TimeFromString(value string) (time.Time, bool) {
+	for _, format := range timeFormats {
+		t, err := time.Parse(format, value)
+		if err == nil {
+			return t, true
+		}
+	}
+
+	return time.Time{}, false
 }
 
 // PrettifyCreateTable prettifies SQL query to make it more human-readable.
@@ -84,11 +107,22 @@ func valueFromString(obj interface{}, name string, value string, set bool) (bool
 		field := objType.Field(j)
 		kind := field.Type.Kind()
 
-		if !structinfo.IsFieldKindSupported(kind) {
+		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
 		}
 
 		if field.Name == name {
+			if structinfo.IsTimeType(field.Type) {
+				v, ok := TimeFromString(value)
+				if !ok {
+					return false, nil
+				}
+				if set {
+					objIndirect.Field(j).Set(reflect.ValueOf(v))
+				}
+				return true, v
+			}
+
 			switch kind {
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				if intRegex.MatchString(value) {

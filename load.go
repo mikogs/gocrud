@@ -67,6 +67,8 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options Loa
 		return output
 
 	default:
+		timeFieldsToUTC(obj, builder.TimeFields())
+
 		passwordFields := builder.PasswordFields()
 
 		for _, fieldName := range passwordFields {

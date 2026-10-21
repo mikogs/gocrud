@@ -23,7 +23,7 @@ func ObjFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 		}
 
 		// builder is used to generate SQL queries, so here the same kinds must be supported
-		if !objValue.Type().Field(i).IsExported() || !structInfo.IsFieldKindSupported(valueField.Kind()) {
+		if !objValue.Type().Field(i).IsExported() || !structInfo.IsFieldTypeSupported(valueField.Type()) {
 			continue
 		}
 

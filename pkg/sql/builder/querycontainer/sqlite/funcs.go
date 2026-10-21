@@ -3,6 +3,7 @@ package sqlite
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/mikogs/gocrud/pkg/structinfo"
@@ -92,4 +93,13 @@ func indexStatements(rawTableName string, quotedTableName string, indexes []*str
 	}
 
 	return statements
+}
+
+// TimeFormat is the format that time values are stored in. All values are stored in UTC and have the same length,
+// so that comparing them as strings gives the same result as comparing the times.
+const TimeFormat = "2006-01-02 15:04:05.000000000-07:00"
+
+// TimeValue returns t as a string in TimeFormat.
+func TimeValue(t time.Time) string {
+	return t.UTC().Format(TimeFormat)
 }

@@ -150,6 +150,15 @@ Returns a paginated, filtered, ordered list of objects for the given key. All fi
 | `match` | `~` (regex, PostgreSQL only) |
 | `bit` | bitwise AND `> 0` |
 
+Values of `time.Time` fields can be written as RFC 3339 (`2024-05-01T10:30:00Z`) or as values of HTML date inputs (`2024-05-01`, `2024-05-01T10:30`), see [Times](../struct.md#3-times). For example, listing the meetings from a date picked by the user, for a request like `/meetings?from=2024-05-01`:
+
+```go
+objs, _, err := svc.List(ctx, "meetings", 50, 0, "StartsAt", "asc",
+    map[string]string{"StartsAt": r.URL.Query().Get("from")},
+    map[string]string{"StartsAt": "ge"},
+    nil, nil, nil)
+```
+
 **Returns** `*FilterValidationError` on an unknown operator or a filter field that fails struct validation.
 
 ---

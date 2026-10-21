@@ -45,6 +45,9 @@ func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool
 		definition = "SMALLINT NOT NULL DEFAULT 0"
 	case "uint":
 		definition = "BIGINT NOT NULL DEFAULT 0"
+	case "time.Time":
+		// the default is the zero value of time.Time
+		definition = "TIMESTAMPTZ NOT NULL DEFAULT '0001-01-01 00:00:00+00'"
 	// TODO: Consider something different
 	default:
 		definition = "VARCHAR(255) NOT NULL DEFAULT ''"

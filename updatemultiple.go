@@ -59,7 +59,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 		}
 	}
 
-	_, err = c.conn.ExecContext(ctx, query, append(sqlbuilder.MapInterfaces(fieldsToUpdate), sqlfilters.FiltersInterfaces(options.Filters)...)...)
+	_, err = c.conn.ExecContext(ctx, query, c.args(append(sqlbuilder.MapInterfaces(fieldsToUpdate), sqlfilters.FiltersInterfaces(options.Filters)...))...)
 	if err != nil {
 		return getDBFuncCRUDError("exec", err)
 	}

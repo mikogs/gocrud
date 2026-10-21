@@ -67,7 +67,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		field := objType.Field(j)
 		fieldTypeKind := field.Type.Kind()
 
-		if !field.IsExported() || !structinfo.IsFieldKindSupported(fieldTypeKind) {
+		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
 		}
 

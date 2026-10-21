@@ -166,7 +166,7 @@ type GetOptions struct {
   * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`).
   * *Raw SQL (`sqlfilters.Raw`)**: Allows injecting raw SQL fragments for complex logic. Warning: Use with caution as it bypasses automatic escaping.
 
-* **Type Conversion (ConvertFiltersFromString)**: Automatically casts string inputs (e.g., from HTTP query parameters) to the correct Go data types required by the database columns.
+* **Type Conversion (ConvertFiltersFromString)**: Automatically casts string inputs (e.g., from HTTP query parameters) to the correct Go data types required by the database columns. Times can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).
 
 * **Row Transformation (RowObjTransformFunc)**: Instead of returning raw structs, you can transform each row into a different format (e.g., a map for JSON, a string for CSV, or HTML snippets).
 

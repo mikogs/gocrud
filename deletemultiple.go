@@ -36,7 +36,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 		}
 	}
 
-	rows, err := c.conn.QueryContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
+	rows, err := c.conn.QueryContext(ctx, query, c.args(sqlfilters.FiltersInterfaces(options.Filters))...)
 	if err != nil {
 		return getDBFuncCRUDError("query", err)
 	}

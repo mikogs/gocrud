@@ -23,6 +23,7 @@ type Migration struct {
     CreatedTable   bool     // the table did not exist and was created
     AddedColumns   []string // the names of the columns that were added
     CreatedIndexes []string // the names of the indexes that were created
+    Statements     []string // the SQL statements that made the changes, in their order
     Differences    []string // the differences that were not changed
 }
 ```
@@ -54,6 +55,81 @@ func migrate(ctx context.Context, crud *gocrud.CRUD) error {
 ```
 
 If several instances of the application start at the same time, run the migration from one place only, e.g. a separate command run before the deployment. Two instances adding the same column at the same time make one of them fail.
+
+## Planning a migration
+
+`PlanMigration` returns the same `Migration` as `Migrate`, without changing anything, so that the changes can be checked first, or written to the file of a migration tool:
+
+```go
+func (c *CRUD) PlanMigration(ctx context.Context, obj interface{}) (*Migration, error)
+func PlanMigration[T any](ctx context.Context, c *CRUD) (*Migration, error)
+```
+
+```go
+plan, err := gocrud.PlanMigration[Customer](ctx, crud)
+if err != nil {
+    return err
+}
+for _, statement := range plan.Statements {
+    fmt.Println(statement + ";")
+}
+// in PostgreSQL, for the new fields Email *string `crud:"uniq"` and Points int64 `crud:"idx"`:
+// ALTER TABLE "customer" ADD COLUMN "email" VARCHAR(255) UNIQUE;
+// ALTER TABLE "customer" ADD COLUMN "points" BIGINT NOT NULL DEFAULT 0;
+// CREATE INDEX IF NOT EXISTS "idx_customer_points" ON "customer" ("points");
+```
+
+`MigrationSQL` formats migrations as an SQL script, e.g. for the file of a migration tool. The differences, which have to be resolved by hand, are added as `-- TODO:` comments, and migrations without changes are left out:
+
+```go
+plans, err := svc.PlanMigrations(ctx)
+if err != nil {
+    return err
+}
+fmt.Print(gocrud.MigrationSQL(plans...))
+// -- table "customer"
+// ALTER TABLE "customer" ADD COLUMN "points" BIGINT NOT NULL DEFAULT 0;
+// -- TODO: column "legacy" is not a field of the struct
+```
+
+See [Versioned migrations](versioned-migrations.md) for a complete workflow with a migration tool.
+
+`Migrate` runs exactly the planned statements. The statements are planned for the database as it is at the time, so run them in their order, and before the database changes in another way. They are also specific to the database, so plan with the same kind of database, PostgreSQL or SQLite, as the one where they are run.
+
+## Checking the schema
+
+`CheckSchema` checks that the tables match the structs: that `Migrate` would not change them, and would not report any differences.
+
+```go
+func (c *CRUD) CheckSchema(ctx context.Context, objs ...interface{}) error
+```
+
+When a table does not match, it returns a `*gocrud.SchemaError`, which matches `gocrud.ErrSchemaDiffers`. Its `Migrations` are the plans of the tables that do not match, and its message lists their statements and differences, e.g.:
+
+```
+database schema differs from the structs: table "customer": ALTER TABLE "customer" ADD COLUMN "points" BIGINT NOT NULL DEFAULT 0; table "customer": column "legacy" is not a field of the struct
+```
+
+It is meant for applications whose tables are changed by a migration tool instead of `Migrate`. A test can check that the migration files are complete, i.e. that a field was not added to a struct without a migration:
+
+```go
+func TestSchema(t *testing.T) {
+    // the database of the test, with the migration files applied
+    if err := crud.CheckSchema(context.Background(), &User{}, &Order{}, &OrderItem{}); err != nil {
+        t.Fatal(err)
+    }
+}
+```
+
+At the start of an application, it stops a version that does not match the database from running:
+
+```go
+if err := crud.CheckSchema(ctx, &User{}, &Order{}, &OrderItem{}); err != nil {
+    log.Fatalf("run the migrations first: %v", err)
+}
+```
+
+The differences include the ones that are not about a table, e.g. that SQLite does not enforce foreign keys, and the ones that are fine for you, e.g. a column that is used only by another application. Such a table does not pass the check, so `CheckSchema` fits structs that describe their tables completely.
 
 ## Example
 
@@ -104,7 +180,7 @@ The existing customers have `NULL` emails and `0` points. The longer code has to
 | An existing column of a field tagged with `uniq` that is not unique | The column may already have duplicate values, which have to be resolved first. |
 | An index that is no longer declared with `idx` or `uidx` | Other code or reports may still rely on it, and dropping a unique index removes a check of the data. |
 
-They are listed in `Migration.Differences`, so that you can log them, or fail a check in CI. Make these changes with SQL, or with a migration tool such as [goose](https://github.com/pressly/goose) or [Atlas](https://atlasgo.io).
+They are listed in `Migration.Differences`, so that you can log them, or fail a check in CI with [`CheckSchema`](#checking-the-schema). Make these changes with SQL, or with a migration tool, see [Versioned migrations](versioned-migrations.md).
 
 For example, in PostgreSQL:
 
@@ -151,4 +227,12 @@ The [service](../pkgs/service.md) has a `Migrate` method that migrates the table
 
 ```go
 migrations, err := svc.Migrate(ctx)
+```
+
+`PlanMigrations` returns the migrations that `Migrate` would make, in the same order, without changing anything, and `CheckSchema` checks the tables of all the structs:
+
+```go
+plans, err := svc.PlanMigrations(ctx)
+
+err = svc.CheckSchema(ctx)
 ```

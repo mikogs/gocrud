@@ -18,6 +18,7 @@ nav:
     - Typed functions: crud/generics.md
     - Transactions: crud/transactions.md
     - Migrations: crud/migrations.md
+    - Versioned migrations: crud/versioned-migrations.md
     - Relations: crud/relations.md
     - Custom queries: crud/custom-queries.md
   - Additional packages:

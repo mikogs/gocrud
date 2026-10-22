@@ -3,6 +3,8 @@ package gocrud
 import (
 	"context"
 	"strings"
+
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
 )
 
 // CreateTable creates a database table for the specified object, along with any
@@ -13,34 +15,43 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 		return getBuilderObjectCRUDError(err)
 	}
 
-	var query string
-
-	// if the object has a CreateTable method, use it.
-	if createTableerImpl, ok := obj.(createTableQueryBuilder); ok {
-		query, err = createTableerImpl.CreateTableQuery()
-		if err != nil {
-			return getObjFuncCRUDError("create table", err)
-		}
-	} else {
-		query = builder.CreateTable()
+	statements, err := createTableStatements(obj, builder)
+	if err != nil {
+		return err
 	}
 
-	// The query may consist of multiple ';'-separated statements (the table itself
-	// plus any indexes), so each is executed separately rather than relying on
-	// driver support for multi-statement Exec calls.
-	for _, stmt := range strings.Split(query, ";") {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-
-		_, err = c.conn.ExecContext(ctx, stmt)
-		if err != nil {
+	for _, statement := range statements {
+		if _, err := c.conn.ExecContext(ctx, statement); err != nil {
 			return getDBFuncCRUDError("exec", err)
 		}
 	}
 
 	return nil
+}
+
+// createTableStatements returns the statements that create the table of obj and its indexes. The query may consist
+// of multiple ';'-separated statements, so they are returned separately rather than relying on driver support for
+// multi-statement Exec calls.
+func createTableStatements(obj interface{}, builder *sqlbuilder.Builder) ([]string, error) {
+	query := builder.CreateTable()
+
+	// if the object has a CreateTable method, use it.
+	if createTableerImpl, ok := obj.(createTableQueryBuilder); ok {
+		var err error
+		query, err = createTableerImpl.CreateTableQuery()
+		if err != nil {
+			return nil, getObjFuncCRUDError("create table", err)
+		}
+	}
+
+	var statements []string
+	for _, statement := range strings.Split(query, ";") {
+		if statement = strings.TrimSpace(statement); statement != "" {
+			statements = append(statements, statement)
+		}
+	}
+
+	return statements, nil
 }
 
 // DropTable drops the database table for the specified object.

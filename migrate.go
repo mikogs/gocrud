@@ -16,21 +16,107 @@ import (
 // several tables.
 var ErrAliasedColumnsMigrate = errors.New("struct with aliased column names cannot be migrated")
 
+// ErrSchemaDiffers is matched by the error of CheckSchema when the tables do not match the structs.
+var ErrSchemaDiffers = errors.New("database schema differs from the structs")
+
+// SchemaError is returned by CheckSchema. It describes the tables that do not match the structs, with the changes
+// that Migrate would make, and the differences that it would report.
+type SchemaError struct {
+	Migrations []*Migration
+}
+
+func (e *SchemaError) Error() string {
+	var details []string
+	for _, migration := range e.Migrations {
+		for _, statement := range migration.Statements {
+			details = append(details, fmt.Sprintf(`table "%s": %s`, migration.Table, statement))
+		}
+		for _, difference := range migration.Differences {
+			details = append(details, fmt.Sprintf(`table "%s": %s`, migration.Table, difference))
+		}
+	}
+
+	return ErrSchemaDiffers.Error() + ": " + strings.Join(details, "; ")
+}
+
+func (e *SchemaError) Unwrap() error {
+	return ErrSchemaDiffers
+}
+
+// MigrationSQL returns the statements of the migrations as an SQL script, e.g. for the file of a migration tool. The
+// differences, which have to be resolved by hand, are added as comments. Migrations without statements and
+// differences are left out, so an empty string means that the tables match the structs.
+func MigrationSQL(migrations ...*Migration) string {
+	var b strings.Builder
+	for _, migration := range migrations {
+		if len(migration.Statements) == 0 && len(migration.Differences) == 0 {
+			continue
+		}
+
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "-- table \"%s\"\n", migration.Table)
+		for _, statement := range migration.Statements {
+			b.WriteString(statement + ";\n")
+		}
+		for _, difference := range migration.Differences {
+			b.WriteString("-- TODO: " + difference + "\n")
+		}
+	}
+
+	return b.String()
+}
+
+// newSchemaError returns a *SchemaError for the migrations that have statements or differences, or nil when there
+// are none.
+func newSchemaError(migrations []*Migration) error {
+	var differing []*Migration
+	for _, migration := range migrations {
+		if len(migration.Statements) > 0 || len(migration.Differences) > 0 {
+			differing = append(differing, migration)
+		}
+	}
+
+	if len(differing) == 0 {
+		return nil
+	}
+	return &SchemaError{Migrations: differing}
+}
+
+// CheckSchema checks that the tables of objs match the structs: that Migrate would not change them, and would not
+// report differences. Otherwise, it returns a *SchemaError, which matches ErrSchemaDiffers. Use it in a test, or at
+// the start of an application, when the tables are changed by a migration tool instead of Migrate.
+func (c *CRUD) CheckSchema(ctx context.Context, objs ...interface{}) error {
+	migrations := make([]*Migration, 0, len(objs))
+	for _, obj := range objs {
+		migration, err := c.PlanMigration(ctx, obj)
+		if err != nil {
+			return err
+		}
+		migrations = append(migrations, migration)
+	}
+
+	return newSchemaError(migrations)
+}
+
 // postgresMaxIdentifierLength is the maximum length of a name in PostgreSQL, longer names are truncated.
 const postgresMaxIdentifierLength = 63
 
 var regexpPostgresCharType = regexp.MustCompile(`^(VARCHAR|CHARACTER VARYING|BPCHAR|CHAR|CHARACTER)\(([0-9]+)\)$`)
 
-// Migration describes the changes made by Migrate.
+// Migration describes the changes that Migrate makes to a table, or that PlanMigration plans.
 type Migration struct {
 	// Table is the name of the table.
 	Table string
-	// CreatedTable is set to true when the table did not exist and was created.
+	// CreatedTable is set to true when the table does not exist, and is created.
 	CreatedTable bool
-	// AddedColumns contains the names of the columns added to the table.
+	// AddedColumns contains the names of the columns that are added to the table.
 	AddedColumns []string
-	// CreatedIndexes contains the names of the indexes created on the table.
+	// CreatedIndexes contains the names of the indexes that are created on the table.
 	CreatedIndexes []string
+	// Statements contains the SQL statements that make the changes, in the order in which they are run.
+	Statements []string
 	// Differences describes the differences between the struct and the table that Migrate does not change,
 	// because changing them could lose data: columns that are not fields of the struct, columns of a different
 	// type or nullability, existing columns of uniq fields that are not unique, and indexes created by gocrud
@@ -50,6 +136,32 @@ type databaseColumn struct {
 // when it does not exist, adds the columns of new fields, and creates new indexes. Other differences are
 // returned in Migration.Differences. All the changes are made in a transaction.
 func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error) {
+	var migration *Migration
+	err := c.RunInTx(ctx, func(tx *CRUD) error {
+		var err error
+		migration, err = tx.PlanMigration(ctx, obj)
+		if err != nil {
+			return err
+		}
+
+		for _, statement := range migration.Statements {
+			if _, err := tx.conn.ExecContext(ctx, statement); err != nil {
+				return getDBFuncCRUDError("migrate "+migration.Table, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return migration, nil
+}
+
+// PlanMigration returns the changes that Migrate would make to the table of obj, without making them, e.g. to write
+// them to a file of a migration tool. The statements are planned for the database as it is, so they have to be run
+// in their order, and before the database changes in another way.
+func (c *CRUD) PlanMigration(ctx context.Context, obj interface{}) (*Migration, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
@@ -61,108 +173,99 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 
 	migration := &Migration{Table: builder.TableName()}
 
-	err = c.RunInTx(ctx, func(tx *CRUD) error {
-		if hasForeignKeys(builder.Columns()) && c.dialect == DialectSQLite {
-			var enabled bool
-			if err := tx.conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&enabled); err != nil {
-				return getDBFuncCRUDError("query foreign_keys pragma", err)
-			}
-			if !enabled {
-				migration.Differences = append(migration.Differences, "foreign keys are not enforced, open the database with the _pragma=foreign_keys(1) parameter")
-			}
+	if hasForeignKeys(builder.Columns()) && c.dialect == DialectSQLite {
+		var enabled bool
+		if err := c.conn.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&enabled); err != nil {
+			return nil, getDBFuncCRUDError("query foreign_keys pragma", err)
 		}
-
-		existingColumns, err := tx.databaseColumns(ctx, migration.Table)
-		if err != nil {
-			return err
+		if !enabled {
+			migration.Differences = append(migration.Differences, "foreign keys are not enforced, open the database with the _pragma=foreign_keys(1) parameter")
 		}
+	}
 
-		if len(existingColumns) == 0 {
-			migration.CreatedTable = true
-			return tx.CreateTable(ctx, obj)
-		}
-
-		existingIndexes, err := tx.databaseIndexes(ctx, migration.Table)
-		if err != nil {
-			return err
-		}
-
-		structColumns := map[string]bool{}
-		for _, column := range builder.Columns() {
-			structColumns[column.Name] = true
-
-			existing, ok := existingColumns[column.Name]
-			if ok {
-				if column.IsID {
-					migration.Differences = append(migration.Differences, c.idColumnDifferences(builder.HasUUID(), existing)...)
-				} else {
-					migration.Differences = append(migration.Differences, c.columnDifferences(column, existing)...)
-				}
-				continue
-			}
-
-			if column.IsID {
-				migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" of the ID field does not exist`, column.Name))
-				continue
-			}
-
-			for _, statement := range column.AddStatements {
-				if _, err := tx.conn.ExecContext(ctx, statement); err != nil {
-					return getDBFuncCRUDError("add column "+column.Name, err)
-				}
-			}
-			migration.AddedColumns = append(migration.AddedColumns, column.Name)
-		}
-
-		for _, existing := range existingColumns {
-			if !structColumns[existing.name] {
-				migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not a field of the struct`, existing.name))
-			}
-		}
-
-		declaredIndexes := map[string]bool{}
-		for i, statement := range builder.IndexStatements() {
-			name := c.storedIndexName(builder.IndexNames()[i])
-			declaredIndexes[name] = true
-
-			if existingIndexes[name] {
-				continue
-			}
-
-			if _, err := tx.conn.ExecContext(ctx, statement); err != nil {
-				return getDBFuncCRUDError("create index "+builder.IndexNames()[i], err)
-			}
-			migration.CreatedIndexes = append(migration.CreatedIndexes, builder.IndexNames()[i])
-		}
-
-		migration.Differences = append(migration.Differences, c.undeclaredIndexes(migration.Table, builder.Columns(), existingIndexes, declaredIndexes)...)
-
-		// columns added above are created unique, so only the existing ones are checked
-		uniqueColumns, err := tx.databaseUniqueColumns(ctx, migration.Table)
-		if err != nil {
-			return err
-		}
-		for _, column := range builder.Columns() {
-			if column.Unique && existingColumns[column.Name].name != "" && !uniqueColumns[column.Name] {
-				migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not unique, the field is tagged with uniq`, column.Name))
-			}
-		}
-
-		// columns added above are created with their foreign keys, so only the existing ones are checked
-		foreignKeys, err := tx.databaseForeignKeys(ctx, migration.Table)
-		if err != nil {
-			return err
-		}
-		for _, column := range builder.Columns() {
-			if column.ForeignKey != nil && existingColumns[column.Name].name != "" {
-				migration.Differences = append(migration.Differences, foreignKeyDifferences(column, foreignKeys[column.Name])...)
-			}
-		}
-
-		return nil
-	})
+	existingColumns, err := c.databaseColumns(ctx, migration.Table)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(existingColumns) == 0 {
+		migration.CreatedTable = true
+		migration.Statements, err = createTableStatements(obj, builder)
+		if err != nil {
+			return nil, err
+		}
+		return migration, nil
+	}
+
+	existingIndexes, err := c.databaseIndexes(ctx, migration.Table)
+	if err != nil {
+		return nil, err
+	}
+
+	structColumns := map[string]bool{}
+	for _, column := range builder.Columns() {
+		structColumns[column.Name] = true
+
+		existing, ok := existingColumns[column.Name]
+		if ok {
+			if column.IsID {
+				migration.Differences = append(migration.Differences, c.idColumnDifferences(builder.HasUUID(), existing)...)
+			} else {
+				migration.Differences = append(migration.Differences, c.columnDifferences(column, existing)...)
+			}
+			continue
+		}
+
+		if column.IsID {
+			migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" of the ID field does not exist`, column.Name))
+			continue
+		}
+
+		migration.Statements = append(migration.Statements, column.AddStatements...)
+		migration.AddedColumns = append(migration.AddedColumns, column.Name)
+	}
+
+	for _, existing := range existingColumns {
+		if !structColumns[existing.name] {
+			migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not a field of the struct`, existing.name))
+		}
+	}
+
+	declaredIndexes := map[string]bool{}
+	for i, statement := range builder.IndexStatements() {
+		name := c.storedIndexName(builder.IndexNames()[i])
+		declaredIndexes[name] = true
+
+		if existingIndexes[name] {
+			continue
+		}
+
+		migration.Statements = append(migration.Statements, statement)
+		migration.CreatedIndexes = append(migration.CreatedIndexes, builder.IndexNames()[i])
+	}
+
+	migration.Differences = append(migration.Differences, c.undeclaredIndexes(migration.Table, builder.Columns(), existingIndexes, declaredIndexes)...)
+
+	// added columns are created unique, so only the existing ones are checked
+	uniqueColumns, err := c.databaseUniqueColumns(ctx, migration.Table)
+	if err != nil {
+		return nil, err
+	}
+	for _, column := range builder.Columns() {
+		if column.Unique && existingColumns[column.Name].name != "" && !uniqueColumns[column.Name] {
+			migration.Differences = append(migration.Differences, fmt.Sprintf(`column "%s" is not unique, the field is tagged with uniq`, column.Name))
+		}
+	}
+
+	// added columns are created with their foreign keys, so only the existing ones are checked
+	foreignKeys, err := c.databaseForeignKeys(ctx, migration.Table)
+	if err != nil {
+		return nil, err
+	}
+	for _, column := range builder.Columns() {
+		if column.ForeignKey != nil && existingColumns[column.Name].name != "" {
+			migration.Differences = append(migration.Differences, foreignKeyDifferences(column, foreignKeys[column.Name])...)
+		}
 	}
 
 	return migration, nil
@@ -446,4 +549,10 @@ func typeWithLength(dataType string, length int) string {
 // Migrate makes the table of objects of type T match the struct, see CRUD.Migrate.
 func Migrate[T any](ctx context.Context, c *CRUD) (*Migration, error) {
 	return c.Migrate(ctx, new(T))
+}
+
+// PlanMigration returns the changes that Migrate would make to the table of objects of type T, see
+// CRUD.PlanMigration.
+func PlanMigration[T any](ctx context.Context, c *CRUD) (*Migration, error) {
+	return c.PlanMigration(ctx, new(T))
 }

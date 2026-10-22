@@ -434,6 +434,7 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `gocrud.ErrInvalidID` | an ID, or the ID of a user in `SaveOptions.ModifiedBy`, is of the wrong type, e.g. a number for a struct with a UUID, or a string that is not a UUID |
 | `gocrud.ErrUnsupportedOption` | an option is not supported by a [typed function](generics.md) |
 | `gocrud.ErrQueryMethod` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
+| `*gocrud.SchemaError`, `gocrud.ErrSchemaDiffers` | `CheckSchema` found tables that do not match the structs, see [Migrations](migrations.md#checking-the-schema) |
 | `gocrud.ErrAliasedColumnsMigrate` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
 | `structinfo.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
 

@@ -102,6 +102,59 @@ func TestMigrate_ForeignKeyOrder(t *testing.T) {
 	}
 }
 
+func TestPlanMigrations(t *testing.T) {
+	dropOrderedTables()
+	ctx := context.Background()
+	svc := newOrderedService()
+
+	plans, err := svc.PlanMigrations(ctx)
+	if err != nil {
+		t.Fatalf("PlanMigrations failed: %s", err.Error())
+	}
+	if again, _ := svc.PlanMigrations(ctx); !reflect.DeepEqual(again, plans) {
+		t.Fatalf("PlanMigrations returned %+v after a plan, want the same plans, as nothing is changed", again)
+	}
+
+	migrations, err := svc.Migrate(ctx)
+	if err != nil || !reflect.DeepEqual(migrations, plans) {
+		t.Fatalf("Migrate returned %+v, %v, want the plans %+v", migrations, err, plans)
+	}
+
+	after, err := svc.PlanMigrations(ctx)
+	if err != nil {
+		t.Fatalf("PlanMigrations failed: %s", err.Error())
+	}
+	for _, migration := range after {
+		if len(migration.Statements) != 0 {
+			t.Fatalf("PlanMigrations after Migrate returned statements %v for %s, want none", migration.Statements, migration.Table)
+		}
+	}
+}
+
+func TestCheckSchema(t *testing.T) {
+	dropOrderedTables()
+	ctx := context.Background()
+	svc := newOrderedService()
+
+	err := svc.CheckSchema(ctx)
+	var schemaErr *gocrud.SchemaError
+	if !errors.As(err, &schemaErr) || !errors.Is(err, gocrud.ErrSchemaDiffers) || len(schemaErr.Migrations) != 4 {
+		t.Fatalf("CheckSchema before Migrate returned %v, want a *gocrud.SchemaError for 4 tables", err)
+	}
+
+	if _, err := svc.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate failed: %s", err.Error())
+	}
+	if err := svc.CheckSchema(ctx); err != nil {
+		t.Fatalf("CheckSchema after Migrate returned %v, want nil", err)
+	}
+
+	_ = testCRUD.DropTable(ctx, &SvcCategory{})
+	if err := svc.CheckSchema(ctx); !errors.As(err, &schemaErr) || len(schemaErr.Migrations) != 1 || schemaErr.Migrations[0].Table != "svc_category" {
+		t.Fatalf("CheckSchema without a table returned %v, want a *gocrud.SchemaError for svc_category", err)
+	}
+}
+
 func TestCreateTables_ForeignKeyCycle(t *testing.T) {
 	svc := New(map[string]func() interface{}{
 		"a": func() interface{} { return &SvcCycleA{} },
@@ -113,5 +166,11 @@ func TestCreateTables_ForeignKeyCycle(t *testing.T) {
 	}
 	if _, err := svc.Migrate(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
 		t.Fatalf("Migrate returned err %v, want %v", err, ErrForeignKeyCycle)
+	}
+	if _, err := svc.PlanMigrations(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
+		t.Fatalf("PlanMigrations returned err %v, want %v", err, ErrForeignKeyCycle)
+	}
+	if err := svc.CheckSchema(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
+		t.Fatalf("CheckSchema returned err %v, want %v", err, ErrForeignKeyCycle)
 	}
 }

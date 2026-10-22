@@ -42,6 +42,18 @@ migrations, err := svc.Migrate(ctx)
 
 Updates the tables of all the registered structs to match them, in a single transaction: creates the missing tables, adds the columns of new fields, and creates new indexes. Differences that could lose data, such as columns that are not fields of a struct, are not changed but logged as warnings and returned. See [Migrations](../crud/migrations.md).
 
+```go
+plans, err := svc.PlanMigrations(ctx)
+```
+
+Returns the same migrations, with the SQL statements in `Statements`, without changing anything. See [Planning a migration](../crud/migrations.md#planning-a-migration).
+
+```go
+err := svc.CheckSchema(ctx)
+```
+
+Returns a `*gocrud.SchemaError`, which matches `gocrud.ErrSchemaDiffers`, when the tables of the registered structs do not match them. See [Checking the schema](../crud/migrations.md#checking-the-schema).
+
 ## Methods
 
 ### Save

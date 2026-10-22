@@ -2,15 +2,10 @@ package postgres
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/mikogs/gocrud/pkg/filters"
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 	"github.com/mikogs/gocrud/pkg/structinfo"
-)
-
-var (
-	regexpFieldInRaw = regexp.MustCompile(`\.[a-zA-Z0-9_]+`)
 )
 
 type QueryBuilder struct {
@@ -26,10 +21,10 @@ func New(structInfo *structinfo.StructInfo, queryContainer *postgresQueryContain
 	return queryBuilder
 }
 
-// Select returns a SELECT query with a WHERE condition built from 'filters' (field-value pairs).
-// Struct fields in the 'filters' argument are sorted alphabetically. Hence, when used with a database connection, their values (or pointers to it) must be sorted as well.
+// Select returns a SELECT query with a WHERE condition built from 'filters'.
+// The values of the placeholders are in the order of filters.FiltersInterfaces.
 // Columns in the SELECT query are ordered the same way as they are defined in the struct: SELECT field1_column, field2_column, ... etc.
-func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) Select(order []string, limit int, offset int, filters filters.Filter) (string, error) {
 	query := b.queryContainer.SelectPrefix
 
 	qOrder, err := b.queryOrder(order, b.queryContainer.CustomSelectPrefix)
@@ -56,9 +51,9 @@ func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *fi
 	return query, nil
 }
 
-// SelectCount returns a SELECT COUNT(*) query to count rows with a WHERE condition built from 'filters' (field-value pairs).
-// Struct fields in the 'filters' argument are sorted alphabetically. Hence, when used with a database connection, their values (or pointers to it) must be sorted as well.
-func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
+// SelectCount returns a SELECT COUNT(*) query to count rows with a WHERE condition built from 'filters'.
+// The values of the placeholders are in the order of filters.FiltersInterfaces.
+func (b *QueryBuilder) SelectCount(filters filters.Filter) (string, error) {
 	query := b.queryContainer.SelectCountPrefix
 
 	qWhere, err := b.queryFilters(filters, 1, b.queryContainer.CustomSelectCountPrefix)
@@ -73,9 +68,9 @@ func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 	return query, nil
 }
 
-// Delete returns a DELETE query with a WHERE condition built from 'filters' (field-value pairs).
-// Struct fields in the 'filters' argument are sorted alphabetically. Hence, when used with a database connection, their values (or pointers to it) must be sorted as well.
-func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
+// Delete returns a DELETE query with a WHERE condition built from 'filters'.
+// The values of the placeholders are in the order of filters.FiltersInterfaces.
+func (b *QueryBuilder) Delete(filters filters.Filter) (string, error) {
 	query := b.queryContainer.DeletePrefix
 
 	qWhere, err := b.queryFilters(filters, 1, false)
@@ -90,9 +85,9 @@ func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
 	return query, nil
 }
 
-// DeleteReturningID returns a DELETE query with a WHERE condition built from 'filters' (field-value pairs) with RETURNING id.
-// Struct fields in the 'filters' argument are sorted alphabetically. Hence, when used with a database connection, their values (or pointers to it) must be sorted as well.
-func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, error) {
+// DeleteReturningID returns a DELETE query with a WHERE condition built from 'filters' with RETURNING id.
+// The values of the placeholders are in the order of filters.FiltersInterfaces.
+func (b *QueryBuilder) DeleteReturningID(filters filters.Filter) (string, error) {
 	idFieldColumnName, ok := b.queryContainer.FieldColumnName["ID"]
 	if !ok {
 		return "", getClauseBuilderError("returning", "id field", idFieldNotFoundInQueryContainerError)
@@ -116,9 +111,9 @@ func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, erro
 	return query, nil
 }
 
-// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters' (field-value pairs).
-// Struct fields in 'values' and the 'filters' arguments are sorted alphabetically. Hence, when used with a database connection, their values (or pointers to it) must be sorted as well.
-func (b *QueryBuilder) Update(values map[string]interface{}, filters *filters.Filters) (string, error) {
+// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters'.
+// The values of the placeholders are 'values' sorted by field name, followed by the values in the order of filters.FiltersInterfaces.
+func (b *QueryBuilder) Update(values map[string]interface{}, filters filters.Filter) (string, error) {
 	query := b.queryContainer.UpdatePrefix
 
 	qSet, lastVarNumber, err := b.querySet(values)

@@ -13,11 +13,11 @@ import (
 const DefaultTagName = "sql"
 
 type dynamicQueryBuilder interface {
-	Select(order []string, limit int, offset int, filters *filters.Filters) (string, error)
-	SelectCount(filters *filters.Filters) (string, error)
-	Delete(filters *filters.Filters) (string, error)
-	DeleteReturningID(filters *filters.Filters) (string, error)
-	Update(values map[string]interface{}, filters *filters.Filters) (string, error)
+	Select(order []string, limit int, offset int, filters filters.Filter) (string, error)
+	SelectCount(filters filters.Filter) (string, error)
+	Delete(filters filters.Filter) (string, error)
+	DeleteReturningID(filters filters.Filter) (string, error)
+	Update(values map[string]interface{}, filters filters.Filter) (string, error)
 }
 
 // Builder reflects the object to generate and cache SQL queries (CREATE TABLE, INSERT, UPDATE, etc.).
@@ -167,8 +167,8 @@ func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }
 // PasswordFields returns a list with field names that are passwords.
 func (b *Builder) PasswordFields() []string { return b.structInfo.PasswordFields }
 
-// Select returns a SELECT query with a WHERE condition built from 'filters' (field-value pairs).
-func (b *Builder) Select(order []string, limit int, offset int, filters *filters.Filters) (string, error) {
+// Select returns a SELECT query with a WHERE condition built from 'filters'.
+func (b *Builder) Select(order []string, limit int, offset int, filters filters.Filter) (string, error) {
 	query, err := b.queryBuilder.Select(order, limit, offset, filters)
 	if err != nil {
 		return "", getQueryBuilderError("Select", err)
@@ -176,8 +176,8 @@ func (b *Builder) Select(order []string, limit int, offset int, filters *filters
 	return query + ";", nil
 }
 
-// SelectCount returns a SELECT COUNT(*) query to count rows with a WHERE condition built from 'filters' (field-value pairs).
-func (b *Builder) SelectCount(filters *filters.Filters) (string, error) {
+// SelectCount returns a SELECT COUNT(*) query to count rows with a WHERE condition built from 'filters'.
+func (b *Builder) SelectCount(filters filters.Filter) (string, error) {
 	query, err := b.queryBuilder.SelectCount(filters)
 	if err != nil {
 		return "", getQueryBuilderError("SelectCount", err)
@@ -185,8 +185,8 @@ func (b *Builder) SelectCount(filters *filters.Filters) (string, error) {
 	return query + ";", nil
 }
 
-// Delete returns a DELETE query with a WHERE condition built from 'filters' (field-value pairs).
-func (b *Builder) Delete(filters *filters.Filters) (string, error) {
+// Delete returns a DELETE query with a WHERE condition built from 'filters'.
+func (b *Builder) Delete(filters filters.Filter) (string, error) {
 	query, err := b.queryBuilder.Delete(filters)
 	if err != nil {
 		return "", getQueryBuilderError("Delete", err)
@@ -194,8 +194,8 @@ func (b *Builder) Delete(filters *filters.Filters) (string, error) {
 	return query + ";", nil
 }
 
-// DeleteReturningID returns a DELETE query with a WHERE condition built from 'filters' (field-value pairs) with RETURNING id.
-func (b *Builder) DeleteReturningID(filters *filters.Filters) (string, error) {
+// DeleteReturningID returns a DELETE query with a WHERE condition built from 'filters' with RETURNING id.
+func (b *Builder) DeleteReturningID(filters filters.Filter) (string, error) {
 	query, err := b.queryBuilder.DeleteReturningID(filters)
 	if err != nil {
 		return "", getQueryBuilderError("DeleteReturningID", err)
@@ -203,8 +203,8 @@ func (b *Builder) DeleteReturningID(filters *filters.Filters) (string, error) {
 	return query + ";", nil
 }
 
-// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters' (field-value pairs).
-func (b *Builder) Update(values map[string]interface{}, filters *filters.Filters) (string, error) {
+// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters'.
+func (b *Builder) Update(values map[string]interface{}, filters filters.Filter) (string, error) {
 	query, err := b.queryBuilder.Update(values, filters)
 	if err != nil {
 		return "", getQueryBuilderError("Update", err)

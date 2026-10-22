@@ -2,14 +2,11 @@ package sqlite
 
 import (
 	"fmt"
-	"regexp"
 
 	"github.com/mikogs/gocrud/pkg/filters"
 	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
-
-var regexpFieldInRaw = regexp.MustCompile(`\.[a-zA-Z0-9_]+`)
 
 type QueryBuilder struct {
 	structInfo     *structinfo.StructInfo
@@ -23,7 +20,7 @@ func New(structInfo *structinfo.StructInfo, queryContainer *sqliteQueryContainer
 	}
 }
 
-func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) Select(order []string, limit int, offset int, filters filters.Filter) (string, error) {
 	query := b.queryContainer.SelectPrefix
 
 	qOrder, err := b.queryOrder(order, b.queryContainer.CustomSelectPrefix)
@@ -50,7 +47,7 @@ func (b *QueryBuilder) Select(order []string, limit int, offset int, filters *fi
 	return query, nil
 }
 
-func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) SelectCount(filters filters.Filter) (string, error) {
 	query := b.queryContainer.SelectCountPrefix
 
 	qWhere, err := b.queryFilters(filters, b.queryContainer.CustomSelectCountPrefix)
@@ -65,7 +62,7 @@ func (b *QueryBuilder) SelectCount(filters *filters.Filters) (string, error) {
 	return query, nil
 }
 
-func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) Delete(filters filters.Filter) (string, error) {
 	query := b.queryContainer.DeletePrefix
 
 	qWhere, err := b.queryFilters(filters, false)
@@ -80,7 +77,7 @@ func (b *QueryBuilder) Delete(filters *filters.Filters) (string, error) {
 	return query, nil
 }
 
-func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) DeleteReturningID(filters filters.Filter) (string, error) {
 	idFieldColumnName, ok := b.queryContainer.FieldColumnName["ID"]
 	if !ok {
 		return "", getClauseBuilderError("returning", "id field", idFieldNotFoundInQueryContainerError)
@@ -102,7 +99,7 @@ func (b *QueryBuilder) DeleteReturningID(filters *filters.Filters) (string, erro
 	return query, nil
 }
 
-func (b *QueryBuilder) Update(values map[string]interface{}, filters *filters.Filters) (string, error) {
+func (b *QueryBuilder) Update(values map[string]interface{}, filters filters.Filter) (string, error) {
 	query := b.queryContainer.UpdatePrefix
 
 	qSet, err := b.querySet(values)

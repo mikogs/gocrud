@@ -49,28 +49,11 @@ var getFieldInfosIsNilError = func() *QueryBuilderError {
 	}
 }
 
-var rawFilterError = errors.New("raw filter value must be an []interface{} starting with a query string")
 var orderError = errors.New("order slice must have an even number of elements (field, direction pairs)")
-
-var getRawFilterBuilderError = func() *QueryBuilderError {
-	return &QueryBuilderError{
-		Op:  "get raw filter",
-		Err: rawFilterError,
-	}
-}
 
 var getOrderBuilderError = func() *QueryBuilderError {
 	return &QueryBuilderError{
 		Op:  "get order",
 		Err: orderError,
-	}
-}
-
-var inFilterError = errors.New("value of an OpIn filter must be a slice or an array")
-
-var getInFilterBuilderError = func() *QueryBuilderError {
-	return &QueryBuilderError{
-		Op:  "get in filter",
-		Err: inFilterError,
 	}
 }

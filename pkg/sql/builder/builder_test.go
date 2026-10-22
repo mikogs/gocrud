@@ -248,7 +248,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 				},
 			},
 		})
-	want = `DELETE FROM "test_struct" WHERE ("price"=$1) AND ` +
+	want = `DELETE FROM "test_struct" WHERE "price"=$1 AND ` +
 		`("price"=$2 OR "email_secondary"=$3 OR "age" IN ($4,$5,$6));`
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -268,7 +268,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 				},
 			},
 		})
-	want = `DELETE FROM "test_struct" WHERE ("price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5));`
+	want = `DELETE FROM "test_struct" WHERE "price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5);`
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 				},
 			},
 		})
-	want = `DELETE FROM "test_struct" WHERE ("price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5)) RETURNING "id";`
+	want = `DELETE FROM "test_struct" WHERE "price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5) RETURNING "id";`
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -575,8 +575,8 @@ func TestSQLRawFilterWithNilValue(t *testing.T) {
 	f := &filters.Filters{filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Price = ? OR .Age = ?", nil, 5}}}
 
 	wants := map[string]string{
-		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE ("price" = $1 OR "age" = $2);`,
-		DialectSQLite:   `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE ("price" = ? OR "age" = ?);`,
+		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE "price" = $1 OR "age" = $2;`,
+		DialectSQLite:   `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE "price" = ? OR "age" = ?;`,
 	}
 	for dialect, want := range wants {
 		t.Run(dialect, func(t *testing.T) {

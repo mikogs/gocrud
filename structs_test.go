@@ -128,8 +128,7 @@ func TestGet_BuilderErrorChain(t *testing.T) {
 				t.Fatalf("Get returned err %v, want a *builder.BuilderError of QueryBuilder.Select", err)
 			}
 
-			want := "builder select: QueryBuilder.Select: get where clause from filters: get raw filter: " +
-				"raw filter value must be an []interface{} starting with a query string"
+			want := "builder select: QueryBuilder.Select: get where clause from filters: invalid raw filter"
 			if err.Error() != want {
 				t.Fatalf("Get returned err %q, want %q", err.Error(), want)
 			}

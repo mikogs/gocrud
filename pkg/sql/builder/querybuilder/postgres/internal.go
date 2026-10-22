@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 
 	pkgfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where"
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 )
 
@@ -82,162 +82,25 @@ func (b *QueryBuilder) querySet(values map[string]interface{}) (string, int, err
 	return querySet[1:], numColumn, nil
 }
 
-func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum int, withAlias bool) (string, error) {
-	if filters == nil || len(*filters) == 0 {
-		return "", nil
-	}
-
-	sortedNames := make([]string, 0, len(*filters))
-	for name := range *filters {
-		sortedNames = append(sortedNames, name)
-	}
-	sort.Strings(sortedNames)
-
-	queryWhere := ""
+func (b *QueryBuilder) queryFilters(f pkgfilters.Filter, firstValueNum int, withAlias bool) (string, error) {
 	valueNum := firstValueNum
 
-	for _, name := range sortedNames {
-		// _raw is a special entry that allows an almost-raw SQL query
-		if name == pkgfilters.RawKey {
-			continue
-		}
-
-		fieldInfo, ok := b.structInfo.Fields[name]
-		if !ok {
-			return "", getFieldInfosIsNilError()
-		}
-		if fieldInfo.Ignored {
-			return "", getFieldIsIgnoredError()
-		}
-
-		columnName, ok := b.queryContainer.FieldColumnName[name]
-		if !ok {
-			return "", getColumnNameBuilderError("filter")
-		}
-
-		if (*filters)[name].IsNull() {
-			queryWhere += " AND " + nullCondition(quoteColumn(columnName, withAlias), (*filters)[name].Op)
-			continue
-		}
-
-		var fieldColumn string
-		if b.queryContainer.ColumnNotString[columnName] && ((*filters)[name].Op == pkgfilters.OpLike || (*filters)[name].Op == pkgfilters.OpMatch) {
-			fieldColumn = fmt.Sprintf(`CAST(%s AS TEXT)`, quoteColumn(columnName, withAlias))
-		} else {
-			fieldColumn = quoteColumn(columnName, withAlias)
-		}
-
-		if (*filters)[name].Op == pkgfilters.OpIn {
-			values, ok := (*filters)[name].InValues()
-			if !ok {
-				return "", getInFilterBuilderError()
+	return where.Build(f, where.Dialect{
+		Column: func(field string) (string, error) {
+			return b.filterColumn(field, withAlias)
+		},
+		TextColumn: func(field string, column string) string {
+			if b.queryContainer.ColumnNotString[b.queryContainer.FieldColumnName[field]] {
+				return "CAST(" + column + " AS TEXT)"
 			}
-			queryWhere += " AND " + inCondition(fieldColumn, len(values), valueNum)
-			valueNum += len(values)
-			continue
-		}
-
-		switch (*filters)[name].Op {
-		case pkgfilters.OpLike:
-			queryWhere += fmt.Sprintf(` AND %s LIKE $%d`, fieldColumn, valueNum)
-		case pkgfilters.OpMatch:
-			queryWhere += fmt.Sprintf(` AND %s ~ $%d`, fieldColumn, valueNum)
-		case pkgfilters.OpNotEqual:
-			queryWhere += fmt.Sprintf(` AND %s!=$%d`, fieldColumn, valueNum)
-		case pkgfilters.OpGreater:
-			queryWhere += fmt.Sprintf(` AND %s>$%d`, fieldColumn, valueNum)
-		case pkgfilters.OpLower:
-			queryWhere += fmt.Sprintf(` AND %s<$%d`, fieldColumn, valueNum)
-		case pkgfilters.OpGreaterOrEqual:
-			queryWhere += fmt.Sprintf(` AND %s>=$%d`, fieldColumn, valueNum)
-		case pkgfilters.OpLowerOrEqual:
-			queryWhere += fmt.Sprintf(` AND %s<=$%d`, fieldColumn, valueNum)
-		case pkgfilters.OpBit:
-			queryWhere += fmt.Sprintf(` AND %s&$%d>0`, fieldColumn, valueNum)
-		default:
-			queryWhere += fmt.Sprintf(` AND %s=$%d`, fieldColumn, valueNum)
-		}
-
-		valueNum++
-	}
-
-	if queryWhere != "" {
-		queryWhere = queryWhere[5:]
-	}
-
-	// _raw
-	rawQueryArr, ok := (*filters)[pkgfilters.RawKey]
-	if !ok {
-		return queryWhere, nil
-	}
-
-	rawQuery, rawValues, err := rawQueryAndValues(rawQueryArr)
-	if err != nil {
-		return "", err
-	}
-
-	if rawQuery == "" {
-		return queryWhere, nil
-	}
-
-	if queryWhere != "" {
-		queryWhere = fmt.Sprintf("(%s)", queryWhere)
-
-		conjunction := rawQueryArr.Op
-		if conjunction != pkgfilters.OpOR {
-			queryWhere += " AND "
-		} else {
-			queryWhere += " OR "
-		}
-	}
-
-	queryWhere += "("
-
-	fieldsInRaw := regexpFieldInRaw.FindAllString(rawQuery, -1)
-	alreadyReplaced := map[string]bool{}
-	for _, fieldInRaw := range fieldsInRaw {
-		if alreadyReplaced[fieldInRaw] {
-			continue
-		}
-
-		fieldName := strings.Replace(fieldInRaw, ".", "", 1)
-
-		columnName, ok := b.queryContainer.FieldColumnName[fieldName]
-		if !ok {
-			return "", getColumnNameBuilderError("raw query")
-		}
-
-		rawQuery = strings.ReplaceAll(rawQuery, fieldInRaw, quoteColumn(columnName, withAlias))
-		alreadyReplaced[fieldInRaw] = true
-	}
-
-	for j := 1; j < len(rawValues); j++ {
-		rawValue := reflect.ValueOf(rawValues[j])
-		if rawValue.Kind() != reflect.Slice && rawValue.Kind() != reflect.Array {
-			// Value is a single value so just replace ? with $x, eg $2
-			rawQuery = strings.Replace(rawQuery, "?", fmt.Sprintf("$%d", valueNum), 1)
+			return column
+		},
+		Placeholder: func() string {
 			valueNum++
-			continue
-		}
-
-		rawNumValue := rawValue.Len()
-
-		queryVal := ""
-		for k := 0; k < rawNumValue; k++ {
-			if k == 0 {
-				queryVal += fmt.Sprintf("$%d", valueNum)
-				valueNum++
-				continue
-			}
-			queryVal += fmt.Sprintf(",$%d", valueNum)
-			valueNum++
-		}
-		rawQuery = strings.Replace(rawQuery, "?", queryVal, 1)
-	}
-
-	queryWhere += rawQuery + ")"
-
-	return queryWhere, nil
+			return fmt.Sprintf("$%d", valueNum-1)
+		},
+		MatchOperator: "~",
+	})
 }
 
 // quoteColumn quotes the column name, keeping its alias (eg. "t1.name") only when withAlias is true.
@@ -249,45 +112,20 @@ func quoteColumn(columnName string, withAlias bool) string {
 	return postgresQueryContainer.QuoteColumn(columnName)
 }
 
-// rawQueryAndValues returns the query and the values of the raw filter, which must be
-// an []interface{} starting with the query string.
-func rawQueryAndValues(rawFilter pkgfilters.OpVal) (string, []interface{}, error) {
-	rawValues, ok := rawFilter.Val.([]interface{})
+// filterColumn returns the quoted column of a field that is used in a filter.
+func (b *QueryBuilder) filterColumn(field string, withAlias bool) (string, error) {
+	fieldInfo, ok := b.structInfo.Fields[field]
 	if !ok {
-		return "", nil, getRawFilterBuilderError()
+		return "", getFieldInfosIsNilError()
+	}
+	if fieldInfo.Ignored {
+		return "", getFieldIsIgnoredError()
 	}
 
-	if len(rawValues) == 0 {
-		return "", nil, nil
-	}
-
-	rawQuery, ok := rawValues[0].(string)
+	columnName, ok := b.queryContainer.FieldColumnName[field]
 	if !ok {
-		return "", nil, getRawFilterBuilderError()
+		return "", getColumnNameBuilderError("filter")
 	}
 
-	return rawQuery, rawValues, nil
-}
-
-// nullCondition returns an IS NULL condition for a filter with OpEqual, and IS NOT NULL for OpNotEqual.
-func nullCondition(column string, op int) string {
-	if op == pkgfilters.OpNotEqual {
-		return column + " IS NOT NULL"
-	}
-
-	return column + " IS NULL"
-}
-
-// inCondition returns an IN condition with num placeholders, starting with $first. An empty list matches nothing.
-func inCondition(column string, num int, first int) string {
-	if num == 0 {
-		return "1=0"
-	}
-
-	placeholders := make([]string, num)
-	for i := range placeholders {
-		placeholders[i] = fmt.Sprintf("$%d", first+i)
-	}
-
-	return column + " IN (" + strings.Join(placeholders, ",") + ")"
+	return quoteColumn(columnName, withAlias), nil
 }

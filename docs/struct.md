@@ -52,18 +52,17 @@ type Meeting struct {
 }
 ```
 
-**Filters.** Use `time.Time` values with any operator. A filter map holds one condition per field, so a range of times needs a raw filter:
+**Filters.** Use `time.Time` values with any operator. A filter map holds one condition per field, so a range of times is two maps joined with `And`, see [Filters](crud/ops.md#filters):
 
 ```go
 // the meetings that start within the next 7 days, soonest first
 now := time.Now()
 meetings, err := gocrud.Get[Meeting](ctx, crud, gocrud.GetOptions{
     Order: []string{"StartsAt", "asc"},
-    Filters: &sqlfilters.Filters{
-        sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{
-            ".StartsAt >= ? AND .StartsAt < ?", now, now.AddDate(0, 0, 7),
-        }},
-    },
+    Filters: sqlfilters.And(
+        sqlfilters.Filters{"StartsAt": {Op: sqlfilters.OpGreaterOrEqual, Val: now}},
+        sqlfilters.Filters{"StartsAt": {Op: sqlfilters.OpLower, Val: now.AddDate(0, 0, 7)}},
+    ),
 })
 ```
 
@@ -142,7 +141,14 @@ openTasks, err := gocrud.Get[Task](ctx, crud, gocrud.GetOptions{
 })
 ```
 
-`nil` with any other operator, and on a field that is not a pointer, is a validation error with the `type` violation. As always in SQL, a comparison with `NULL` is never true, so `DueAt < endOfWeek` does not match the tasks without a due date.
+`nil` with any other operator, and on a field that is not a pointer, is a validation error with the `type` violation. As always in SQL, a comparison with `NULL` is never true, so `DueAt < endOfWeek` does not match the tasks without a due date. To include them, join the conditions with `Or`:
+
+```go
+sqlfilters.Or(
+    sqlfilters.Filters{"DueAt": {Op: sqlfilters.OpLower, Val: endOfWeek}},
+    sqlfilters.Filters{"DueAt": {Op: sqlfilters.OpEqual, Val: nil}},
+)
+```
 
 **Values as strings.** An empty string is `NULL` for a pointer field, when values are converted from strings: with `ConvertFiltersFromString`, `UpdateMultiple` with `ConvertValuesFromString`, and in the [service](pkgs/service.md) layer. This matches an empty optional input in an HTML form. For a `*string` field, it means that an empty string cannot be set this way, only `NULL`.
 

@@ -104,19 +104,22 @@ Reads the record by `id` first (returning `NotFoundError` if absent), then delet
 ### List
 
 ```go
-objs, err := svc.List(
+objs, passwordFields, err := svc.List(
     ctx,
     "users",
     limit, offset,
     "Age", "asc",
-    map[string]string{"Status": "1"},
-    map[string]string{"Status": "eq"},
+    svccrud.Filters{
+        Vals: map[string]string{"Status": "1"},
+        Ops:  map[string]string{"Status": "eq"},
+    },
     nil, // optional row transform func
     nil, // optional constructor override
+    nil, // optional passwords to verify
 )
 ```
 
-Returns a paginated, filtered, ordered list of objects for the given key. All filter values are passed as strings and converted to the correct field types automatically.
+Returns a paginated, filtered, ordered list of objects for the given key. All filter values are passed as strings and converted to the correct field types automatically, see [Filters](#filters).
 
 **Parameters:**
 
@@ -127,12 +130,45 @@ Returns a paginated, filtered, ordered list of objects for the given key. All fi
 | `offset` | `int` | SQL `OFFSET` |
 | `order` | `string` | Field name to sort by (empty = no ordering) |
 | `orderDirection` | `string` | `"asc"` or `"desc"` |
-| `filterVals` | `map[string]string` | Field name → value |
-| `filterOps` | `map[string]string` | Field name → operator string (see below) |
+| `filters` | `Filters` | The values and operators of the filters, see [Filters](#filters) |
 | `rowFunc` | `func(interface{}) interface{}` | Optional per-row transform; `nil` returns raw structs |
 | `constructor` | `func() interface{}` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
+| `passFieldsToVerify` | `map[string]string` | Optional passwords to verify, as in `Read`, when exactly one record is found |
 
-**Filter operators:**
+**Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, or a filter value that fails struct validation.
+
+---
+
+### Num
+
+```go
+count, err := svc.Num(ctx, "users", svccrud.Filters{
+    Vals: map[string]string{"Status": "1"},
+    Ops:  map[string]string{"Status": "eq"},
+})
+```
+
+Returns the count of records matching the given filters. Accepts the same `Filters` as `List`. Useful for pagination — combine with `List`'s `limit`/`offset` to get a total alongside a page of results.
+
+---
+
+### Filters
+
+`List` and `Num` take the filters as strings, e.g. from the query of a request:
+
+```go
+type Filters struct {
+    Vals map[string]string // the values, by field name, e.g. "Status", or field and group, e.g. "Name.q"
+    Ops  map[string]string // the operators, by the same keys, "eq" when not set
+
+    ScopeVals map[string]string // conditions that every record has to match, by field name
+    ScopeOps  map[string]string
+}
+```
+
+An empty `Filters{}` matches all the records.
+
+**Operators:**
 
 | String | Meaning |
 |---|---|
@@ -150,35 +186,50 @@ Returns a paginated, filtered, ordered list of objects for the given key. All fi
 Values of `time.Time` fields can be written as RFC 3339 (`2024-05-01T10:30:00Z`) or as values of HTML date inputs (`2024-05-01`, `2024-05-01T10:30`), see [Times](../struct.md#3-times). For example, listing the meetings from a date picked by the user, for a request like `/meetings?from=2024-05-01`:
 
 ```go
-objs, _, err := svc.List(ctx, "meetings", 50, 0, "StartsAt", "asc",
-    map[string]string{"StartsAt": r.URL.Query().Get("from")},
-    map[string]string{"StartsAt": "ge"},
-    nil, nil, nil)
+objs, _, err := svc.List(ctx, "meetings", 50, 0, "StartsAt", "asc", svccrud.Filters{
+    Vals: map[string]string{"StartsAt": r.URL.Query().Get("from")},
+    Ops:  map[string]string{"StartsAt": "ge"},
+}, nil, nil, nil)
 ```
 
 For a pointer field, an empty value is `NULL`: `eq` with an empty value lists the rows where the field is `NULL`, and `ne` the rows where it is not. For example, the open tasks for `/tasks?completed_at=`:
 
 ```go
-objs, _, err := svc.List(ctx, "tasks", 50, 0, "DueAt", "asc",
-    map[string]string{"CompletedAt": r.URL.Query().Get("completed_at")},
-    map[string]string{"CompletedAt": "eq"},
-    nil, nil, nil)
+objs, _, err := svc.List(ctx, "tasks", 50, 0, "DueAt", "asc", svccrud.Filters{
+    Vals: map[string]string{"CompletedAt": r.URL.Query().Get("completed_at")},
+    Ops:  map[string]string{"CompletedAt": "eq"},
+}, nil, nil, nil)
 ```
 
-**Returns** `*FilterValidationError` on an unknown operator or a filter field that fails struct validation.
+**Groups.** The conditions are joined with AND. A key can also name a group after a dot, e.g. `Name.q`. The conditions of a group are joined with OR, and the group is joined with AND with the other conditions and groups. The name of a group can be any text without a dot, and only has to be the same for the conditions of the group. A key with an empty field or group name, or with a second dot, is a `type` violation.
 
----
-
-### Num
+A search box that looks for the text in the name or the email, of the customers in a city:
 
 ```go
-count, err := svc.Num(ctx, "users",
-    map[string]string{"Status": "1"},
-    map[string]string{"Status": "eq"},
-)
+text := "%" + r.URL.Query().Get("q") + "%"
+objs, _, err := svc.List(ctx, "customers", 50, 0, "Name", "asc", svccrud.Filters{
+    Vals: map[string]string{"City": "Warsaw", "Name.q": text, "Email.q": text},
+    Ops:  map[string]string{"Name.q": "like", "Email.q": "like"},
+}, nil, nil, nil)
+// WHERE "city"=$1 AND ("email" LIKE $2 OR "name" LIKE $3)
 ```
 
-Returns the count of records matching the given filters. Accepts the same `filterVals`/`filterOps` maps as `List`. Useful for pagination — combine with `List`'s `limit`/`offset` to get a total alongside a page of results.
+A group with one condition is joined with AND, so groups also give several conditions on one field, e.g. a range:
+
+```go
+Vals: map[string]string{"Total.min": "100", "Total.max": "500"},
+Ops:  map[string]string{"Total.min": "ge", "Total.max": "lt"},
+```
+
+**Scope.** `ScopeVals` and `ScopeOps` are conditions that every record has to match, e.g. that it belongs to the signed-in user. They are joined with AND around all the other conditions, so `Vals` cannot match records outside the scope, even with a group, and a condition in `Vals` on the same field only narrows the result:
+
+```go
+objs, _, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc", svccrud.Filters{
+    Vals:      filterValsFromRequest, // anything the client sent
+    Ops:       filterOpsFromRequest,
+    ScopeVals: map[string]string{"UserID": userID},
+}, nil, nil, nil)
+```
 
 ---
 
@@ -197,7 +248,7 @@ op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual,
 | Type | Sentinel / constructor | When returned |
 |---|---|---|
 | `*ModelValidationError` | — | `Save`: struct field validation failed |
-| `*FilterValidationError` | — | `List` / `Num`: unknown filter operator or filter validation failed |
+| `*FilterValidationError` | — | `List` / `Num`: unknown filter operator, invalid filter name, or filter validation failed |
 | `NotFoundError` | `errors.Is(err, NotFoundError)` | `Read` / `Delete`: no record with the given ID |
 | `InvalidKeyError` | `errors.Is(err, InvalidKeyError)` | Any method: key not found in the registry |
 | `InvalidFilterOpError` | `errors.Is(err, InvalidFilterOpError)` | `Op`: unknown operator string. `List` and `Num` return a `*FilterValidationError` for it instead |
@@ -213,10 +264,9 @@ svc := svccrud.New(map[string]func() interface{}{
     "notes": func() interface{} { return &Note{} },
 }, dbConn, gocrud.DialectPostgres)
 
-// In an HTTP handler:
-objs, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc",
-    map[string]string{"UserID": r.Header.Get("X-User-ID")},
-    map[string]string{"UserID": "eq"},
+// In an HTTP handler, the notes of the user:
+objs, _, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc",
+    svccrud.Filters{ScopeVals: map[string]string{"UserID": userID}},
     nil, // rowFunc
     nil, // constructor (use registered default)
     nil, // passFieldsToVerify

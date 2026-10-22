@@ -155,8 +155,8 @@ type GetOptions struct {
     Limit  int   // Maximum number of rows to return (SQL LIMIT)
     Offset int   // Number of rows to skip (SQL OFFSET)
 
-    // Filtering
-    Filters *sqlfilters.Filters // Structured WHERE clause conditions
+    // Filtering, see Filters below
+    Filters sqlfilters.Filter
 
     // Transformation
     RowObjTransformFunc func(interface{}) interface{} // Custom function applied to every row
@@ -175,39 +175,9 @@ type GetOptions struct {
 * **Sorting (Order)**: Accepts a flat list of strings where pairs represent Field and Direction.
   * Example: `[]string{"Age", "ASC", "Price", "DESC"}` sorts by `Age` ascending, then `Price` descending.
 
-* **Filtering (Filters)**: Uses `sqlfilters.Filters` to build `WHERE` clauses.
-  * **Standard Filters**: Map field names to operators (`Op`) and values (`Val`). A `nil` value with `OpEqual` or `OpNotEqual` is an `IS NULL` or `IS NOT NULL` condition, see [Optional values](../struct.md#5-optional-values-null).
-  * **Raw SQL (`sqlfilters.Raw`)**: A fragment of SQL for conditions that standard filters cannot express, e.g. `".Price > ? OR .Stock = ?"`. Its `Op` is `sqlfilters.OpAND` or `sqlfilters.OpOR`, which joins it with the standard filters, and its `Val` is an `[]interface{}` with the SQL followed by the values, e.g. `{Op: sqlfilters.OpOR, Val: []interface{}{".Price > ?", 100}}`. Fields are written as `.FieldName` and replaced with their columns, and the values for `?` are passed as query parameters, so they are safe. The SQL text itself is used as it is, so never build it from user input.
+* **Filtering (Filters)**: The conditions of the `WHERE` clause, e.g. `sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "paid"}}`, see [Filters](#filters).
 
-  The operators of standard filters:
-
-  | Operator | SQL | Value |
-  |---|---|---|
-  | `OpEqual` | `=`, or `IS NULL` for `nil` | a value of the field type |
-  | `OpNotEqual` | `!=`, or `IS NOT NULL` for `nil` | a value of the field type |
-  | `OpGreater`, `OpGreaterOrEqual` | `>`, `>=` | a value of the field type |
-  | `OpLower`, `OpLowerOrEqual` | `<`, `<=` | a value of the field type |
-  | `OpLike` | `LIKE` | a pattern, e.g. `"%smith%"` |
-  | `OpMatch` | `~` (PostgreSQL only) | a regular expression |
-  | `OpBit` | `& value > 0` | a bit mask |
-  | `OpIn` | `IN (...)` | a slice or an array of values of the field type |
-
-  `OpIn` matches any of the values in the list. Each value is validated like the value of the field. An empty list matches nothing.
-
-  ```go
-  orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
-      Filters: &sqlfilters.Filters{
-          "Status":     {Op: sqlfilters.OpIn, Val: []string{"paid", "shipped"}},
-          "CustomerID": {Op: sqlfilters.OpIn, Val: customerIDs}, // e.g. []uint64{3, 8, 21}
-      },
-  })
-  ```
-
-  With `ConvertFiltersFromString`, the values of `OpIn` are separated with commas, e.g. `"paid,shipped"`, and an empty string is an empty list. A value cannot contain a comma.
-
-  Each value of `OpIn` is a parameter of the query, and databases limit their number: 65535 in PostgreSQL and 32766 in SQLite.
-
-* **Type Conversion (ConvertFiltersFromString)**: Automatically casts string inputs (e.g., from HTTP query parameters) to the correct Go data types required by the database columns. Times can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).
+* **Type Conversion (ConvertFiltersFromString)**: Converts the string values of the filters, e.g. from HTTP query parameters, to the types of the fields, see [Values from strings](#values-from-strings).
 
 * **Row Transformation (RowObjTransformFunc)**: Instead of returning raw structs, you can transform each row into a different format (e.g., a map for JSON, a string for CSV, or HTML snippets).
 
@@ -241,12 +211,12 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 
 ```go
 type GetCountOptions struct {
-    Filters                  *sqlfilters.Filters // Structured WHERE clause conditions
-    ConvertFiltersFromString bool                // Converts string filter values to target field types
+    Filters                  sqlfilters.Filter // Conditions, see Filters below
+    ConvertFiltersFromString bool              // Converts string filter values to target field types
 }
 ```
 
-* **Filtering (Filters)**: Uses the same `sqlfilters.Filters` mechanism as `Get`, allowing you to count only rows that match specific conditions. This is particularly useful for pagination — combining GetCount with `Get`'s `Limit`/`Offset` gives you total records alongside a paginated subset.
+* **Filtering (Filters)**: The same [filters](#filters) as in `Get`, allowing you to count only rows that match specific conditions. This is particularly useful for pagination — combining GetCount with `Get`'s `Limit`/`Offset` gives you total records alongside a paginated subset.
 
 * **Type Conversion (`ConvertFiltersFromString`)**: Identical behavior to `Get`. When enabled, string-based filter values (e.g., from URL query parameters) are automatically converted to the correct Go data types before being applied to the query.
 
@@ -276,7 +246,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 
 ```go
 type DeleteMultipleOptions struct {
-    Filters            *sqlfilters.Filters // Conditions to select rows for deletion
+    Filters sqlfilters.Filter // Conditions to select rows for deletion, see Filters below
 }
 ```
 
@@ -294,7 +264,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 
 * **Batch Update**: Executes an `UPDATE` query that modifies only the specified fields for all rows matching the filter conditions.
 * **Selective Updates**: Only the fields listed in fieldsToUpdate are modified; all other fields remain unchanged.
-* **Filtering**: Uses `sqlfilters.Filters` to determine which rows should be updated, similar to Get and DeleteMultiple.
+* **Filtering**: The same [filters](#filters) as in `Get` and `DeleteMultiple` select the rows that are updated.
 
 **Parameters**
 
@@ -307,8 +277,8 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 
 ```go
 type UpdateMultipleOptions struct {
-    Filters                 *sqlfilters.Filters // Conditions to select rows for update
-    ConvertValuesFromString bool                // Converts string values to target field types
+    Filters                 sqlfilters.Filter // Conditions to select rows for update, see Filters below
+    ConvertValuesFromString bool              // Converts string values to target field types
 }
 ```
 
@@ -321,6 +291,114 @@ type UpdateMultipleOptions struct {
   * When enabled, string values in fieldsToUpdate are automatically converted to the correct Go data types before being written to the database.
   * Useful when values come from external sources (e.g., HTTP form data, URL parameters).
 
+## Filters
+
+`Get`, `GetCount`, `UpdateMultiple` and `DeleteMultiple` select the rows with the `Filters` option, a `sqlfilters.Filter` from the package `github.com/mikogs/gocrud/pkg/filters`. A filter is one of:
+
+| Filter | Matches the rows for which |
+|---|---|
+| `sqlfilters.Filters{…}`, or a pointer to it | all the conditions on fields in the map are true |
+| `sqlfilters.And(f1, f2, …)` | all the filters are true |
+| `sqlfilters.Or(f1, f2, …)` | at least one of the filters is true |
+| `sqlfilters.Raw(sql, values…)` | a fragment of SQL is true |
+
+A `nil` filter matches all the rows.
+
+### Conditions on fields
+
+`sqlfilters.Filters` maps the names of fields to an operator and a value. All the conditions in a map have to be true:
+
+```go
+orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.Filters{
+        "Status":     {Op: sqlfilters.OpIn, Val: []string{"paid", "shipped"}},
+        "CustomerID": {Op: sqlfilters.OpEqual, Val: customerID},
+    },
+})
+```
+
+| Operator | SQL | Value |
+|---|---|---|
+| `OpEqual` | `=`, or `IS NULL` for `nil` | a value of the field type |
+| `OpNotEqual` | `!=`, or `IS NOT NULL` for `nil` | a value of the field type |
+| `OpGreater`, `OpGreaterOrEqual` | `>`, `>=` | a value of the field type |
+| `OpLower`, `OpLowerOrEqual` | `<`, `<=` | a value of the field type |
+| `OpLike` | `LIKE` | a pattern, e.g. `"%smith%"` |
+| `OpMatch` | `~` (PostgreSQL only) | a regular expression |
+| `OpBit` | `& value > 0` | a bit mask |
+| `OpIn` | `IN (...)` | a slice or an array of values of the field type |
+
+* **`nil`** is valid only for a [nullable field](../struct.md#5-optional-values-null), with `OpEqual` or `OpNotEqual`.
+* **`OpIn`** matches any of the values in the list, and an empty list matches nothing. Each value is a parameter of the query, and databases limit their number: 65535 in PostgreSQL and 32766 in SQLite.
+
+### Groups
+
+A map has one condition for each field, joined with AND. `And` and `Or` combine filters in any other way, and can be nested:
+
+```go
+// paid orders, and shipped orders that are not delivered yet, of 100 to 500
+orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.And(
+        sqlfilters.Or(
+            sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "paid"}},
+            sqlfilters.Filters{
+                "Status":      {Op: sqlfilters.OpEqual, Val: "shipped"},
+                "DeliveredAt": {Op: sqlfilters.OpEqual, Val: nil},
+            },
+        ),
+        sqlfilters.Filters{"Total": {Op: sqlfilters.OpGreaterOrEqual, Val: 100}},
+        sqlfilters.Filters{"Total": {Op: sqlfilters.OpLower, Val: 500}},
+    ),
+})
+```
+
+```sql
+WHERE ("status"=$1 OR ("delivered_at" IS NULL AND "status"=$2)) AND "total">=$3 AND "total"<$4
+```
+
+An empty `Or()` matches no rows, and an empty `And()` matches all the rows, so a group can be built in a loop:
+
+```go
+// customers with the text in any of the fields
+search := sqlfilters.Or()
+for _, field := range []string{"Name", "Email", "Phone"} {
+    search.Filters = append(search.Filters, sqlfilters.Filters{field: {Op: sqlfilters.OpLike, Val: "%" + text + "%"}})
+}
+
+customers, err := gocrud.Get[Customer](ctx, crud, gocrud.GetOptions{Filters: search})
+```
+
+### Raw SQL
+
+`Raw` is a fragment of SQL, for conditions that the other filters cannot express, e.g. with an SQL function:
+
+```go
+users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.And(
+        sqlfilters.Filters{"Active": {Op: sqlfilters.OpEqual, Val: true}},
+        sqlfilters.Raw("LOWER(.Email) = ? OR .ID IN (?)", strings.ToLower(email), adminIDs),
+    ),
+})
+```
+
+* **Fields** are written as `.FieldName`, and replaced with their columns. A dot after a letter, a digit or a quote is left as it is, e.g. in `t1.price` or `1.5`.
+* **Each `?`** is replaced with a parameter of the query for one of the values, in order. A slice or an array is a list of parameters, e.g. for `IN (?)`. The number of `?` has to be the number of values, otherwise the operation fails with an error that matches `where.RawFilterError`, from `github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where`.
+* **The SQL** is used as it is, so never build it from user input. Pass the input as values.
+
+The values of a raw filter are not validated, and not converted from strings.
+
+### Values from strings
+
+With `ConvertFiltersFromString`, `Get` and `GetCount` convert the string values of the conditions on fields to the types of the fields, also in groups. This is how values from HTTP query parameters are used:
+
+* **Times** can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).
+* **`OpIn`** values are separated with commas, e.g. `"paid,shipped"`, and an empty string is an empty list. A value cannot contain a comma.
+* **An empty string** is `NULL` for a nullable field.
+* **A value that cannot be converted** is a validation error with the `type` violation.
+
+### Validation
+
+Each condition on a field is validated as if its value was the value of the field, with the `validate` and `crud_regexp` tags, e.g. `"Status": {Op: sqlfilters.OpEqual, Val: "lost"}` fails for a field with `validate:"oneof=new paid shipped"`. The operation then returns a `*gocrud.ValidationError` with the violations of all the conditions, by field name.
 
 ## Transactions
 
@@ -358,6 +436,7 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `gocrud.NotFoundError` | `Load[T]` did not find the object |
 | `gocrud.PreloadError` | a name in `Preload` is not a relation field |
 | `gocrud.UnsupportedOptionError` | an option is not supported by a [typed function](generics.md) |
+| `gocrud.QueryMethodError` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
 | `gocrud.AliasedColumnsMigrateError` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
 | `structinfo.NotStructPointerError`, `IDFieldError`, `NoColumnsError`, `PasswordFieldError`, `RelationError`, `ForeignKeyError` | the struct cannot be used, see [Struct](../struct.md) |
 

@@ -78,9 +78,10 @@ func testFilterGroupsValidation(t *testing.T, crud *CRUD) {
 				sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "lost"}},
 				sqlfilters.Filters{"Weight": {Op: sqlfilters.OpEqual, Val: nil}},
 			),
+			sqlfilters.Filters{"ID": {Op: sqlfilters.OpIn, Val: []string{"1"}}},
 		),
 	})
-	fatalIfNotViolations(t, err, map[string]string{"Status": "oneof", "Weight": ViolationType})
+	fatalIfNotViolations(t, err, map[string]string{"Status": "oneof", "Weight": ViolationType, "ID": ViolationType})
 }
 
 func testFilterGroupsUpdateAndDelete(t *testing.T, crud *CRUD) {

@@ -207,9 +207,12 @@ func ValidateFilters(obj interface{}, filter sqlfilters.Filter, tagName string) 
 		field, isField := objType.FieldByName(c.Field)
 
 		if c.Op == sqlfilters.OpIn {
-			err := validateInFilter(obj, c.Field, c.OpVal, tagName)
+			inViolations, err := validateInFilter(obj, c.Field, c.OpVal, tagName)
 			if err != nil {
 				return err
+			}
+			for name, violation := range inViolations {
+				violations[name] = violation
 			}
 			continue
 		}
@@ -250,35 +253,36 @@ func ValidateFilters(obj interface{}, filter sqlfilters.Filter, tagName string) 
 	return nil
 }
 
-// validateInFilter validates each value of an OpIn filter as if it was the value of the field.
-func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tagName string) error {
+// validateInFilter validates each value of an OpIn filter as if it was the value of the field, and returns the
+// violations of the first invalid value.
+func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tagName string) (map[string]string, error) {
 	values, ok := filter.InValues()
 	if !ok {
-		return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+		return map[string]string{name: ViolationType}, nil
 	}
 
 	for _, value := range values {
 		// NULL is never IN a list
 		if isNilValue(value) {
-			return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+			return map[string]string{name: ViolationType}, nil
 		}
 
 		err := sqlfilters.SetObjFields(obj, &sqlfilters.Filters{name: {Op: sqlfilters.OpEqual, Val: value}})
 		if err != nil {
-			return getObjInvalidCRUDError(map[string]string{name: ViolationType})
+			return map[string]string{name: ViolationType}, nil
 		}
 
 		ok, violations, err := Validate(obj, map[string]bool{name: true}, tagName)
 		if err != nil {
-			return getValidateObjCRUDError(err)
+			return nil, getValidateObjCRUDError(err)
 		}
 
 		if !ok {
-			return getObjInvalidCRUDError(violations)
+			return violations, nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // getRelationFieldNames returns the names of the relation fields of the struct type t, caching them for subsequent calls.

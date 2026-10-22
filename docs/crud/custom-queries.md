@@ -29,11 +29,11 @@ func (n *Note) DeleteReturningIDQuery() (string, error) {
 }
 
 // Get and GetCount do not return the hidden notes.
-func (n *Note) SelectQuery(order []string, limit int, offset int, filters *sqlfilters.Filters) (string, error) {
+func (n *Note) SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error) {
     return `SELECT "id","text","hidden" FROM "note" WHERE "hidden" = false ORDER BY "id"`, nil
 }
 
-func (n *Note) SelectCountQuery(filters *sqlfilters.Filters) (string, error) {
+func (n *Note) SelectCountQuery(filters sqlfilters.Filter) (string, error) {
     return `SELECT COUNT(*) FROM "note" WHERE "hidden" = false`, nil
 }
 ```
@@ -41,6 +41,8 @@ func (n *Note) SelectCountQuery(filters *sqlfilters.Filters) (string, error) {
 `Load` still returns hidden notes, because `SelectByIDQuery` is not replaced. The queries above ignore the filters, ordering and pagination, so a real implementation would add them, or use the builder methods below, which keep them.
 
 ## Query methods
+
+A method must have exactly the signature in the table. A method with the name of a query method and another signature, e.g. one written for an older version of gocrud, would not be called, so the operations on the struct fail with an error that matches `gocrud.QueryMethodError` instead.
 
 The query is run with the same arguments as the generated query, in the order below. "Columns" are the stored fields of the struct, in the order they are declared, i.e. without the ignored fields and the relation fields.
 
@@ -50,16 +52,16 @@ The query is run with the same arguments as the generated query, in the order be
 | `InsertOnConflictUpdateQuery() (string, error)` | `Save` of an object with an `ID` | all the columns, then the updated columns | nothing |
 | `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID` | nothing |
 | `SelectByIDQuery() (string, error)` | `Load` | the `ID` | the columns |
-| `SelectQuery(order []string, limit int, offset int, filters *sqlfilters.Filters) (string, error)` | `Get` | the filter values | the columns |
-| `SelectCountQuery(filters *sqlfilters.Filters) (string, error)` | `GetCount` | the filter values | the number of rows |
-| `UpdateQuery(values map[string]interface{}, filters *sqlfilters.Filters) (string, error)` | `UpdateMultiple` | the values, ordered by field name, then the filter values | nothing |
+| `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns |
+| `SelectCountQuery(filters sqlfilters.Filter) (string, error)` | `GetCount` | the filter values | the number of rows |
+| `UpdateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error)` | `UpdateMultiple` | the values, ordered by field name, then the filter values | nothing |
 | `DeleteByIDQuery() (string, error)` | `Delete` | the `ID` | nothing |
 | `DeleteReturningIDQuery() (string, error)` | `DeleteMultiple` | the filter values | the IDs of the rows, which `DeleteMultiple` returns |
 | `CreateTableQuery() (string, error)` | `CreateTable`, `Migrate` | none, statements can be separated with `;` | nothing |
 | `DropTableQuery() (string, error)` | `DropTable` | none | nothing |
 
 * **The updated columns** are the columns without `ID`, and without `CreatedAt` and `CreatedBy` when the struct has the [creation and modification fields](../struct.md#4-creation-and-modification-fields).
-* **The filter values** are the values of the standard filters, ordered by field name, with one value for each element of `OpIn`, and none for `IS NULL` conditions, followed by the values of the raw filter.
+* **The filter values** are the values that `sqlfilters.FiltersInterfaces(filters)` returns: the values of the filters of a group in their order, and of the conditions in a map ordered by field name, with one value for each element of `OpIn`, none for `IS NULL` conditions, and one for each element of a slice in a raw filter. `sqlfilters.Conditions(filters)` returns the conditions on fields in the same order, e.g. to build the `WHERE` clause.
 * **Placeholders** are `$1`, `$2`, … in PostgreSQL and `?` in SQLite. Times are converted for SQLite as in the generated queries.
 
 ## Builder methods

@@ -152,7 +152,7 @@ func updateUser(ctx context.Context, crud *gocrud.CRUD, user *User, adminID uint
 
 ## 6. List
 
-`Get` returns the objects that match the filters, in the given order, as `[]*User`. `Order` is a list of field names and directions, and the filters map field names to an operator and a value. See [Operations](crud/ops.md#get) for all the options, including raw SQL conditions and pagination.
+`Get` returns the objects that match the filters, in the given order, as `[]*User`. `Order` is a list of field names and directions, and the filters map field names to an operator and a value. See [Operations](crud/ops.md#get) for all the options, and [Filters](crud/ops.md#filters) for conditions joined with OR, and raw SQL.
 
 ```go
 func listUsers(ctx context.Context, crud *gocrud.CRUD) {

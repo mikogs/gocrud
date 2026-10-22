@@ -183,8 +183,8 @@ func testMigrateInTx(t *testing.T, crud *CRUD) {
 
 func testMigrateAliasedColumns(t *testing.T, crud *CRUD) {
 	_, err := Migrate[AliasProduct_WithPrice](context.Background(), crud)
-	if !errors.Is(err, AliasedColumnsMigrateError) {
-		t.Fatalf("Migrate returned err %v, want %v", err, AliasedColumnsMigrateError)
+	if !errors.Is(err, ErrAliasedColumnsMigrate) {
+		t.Fatalf("Migrate returned err %v, want %v", err, ErrAliasedColumnsMigrate)
 	}
 }
 

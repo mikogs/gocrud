@@ -90,7 +90,7 @@ func (b *QueryBuilder) Delete(filters filters.Filter) (string, error) {
 func (b *QueryBuilder) DeleteReturningID(filters filters.Filter) (string, error) {
 	idFieldColumnName, ok := b.queryContainer.FieldColumnName["ID"]
 	if !ok {
-		return "", getClauseBuilderError("returning", "id field", idFieldNotFoundInQueryContainerError)
+		return "", getClauseBuilderError("returning", "id field", errIDFieldNotFoundInQueryContainer)
 	}
 
 	idColumn := postgresQueryContainer.ColumnWithoutAlias(idFieldColumnName)

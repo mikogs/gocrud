@@ -10,7 +10,7 @@ import (
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
-const DefaultTagName = "sql"
+const DefaultTagName = "crud"
 
 type dynamicQueryBuilder interface {
 	Select(order []string, limit int, offset int, filters filters.Filter) (string, error)
@@ -26,7 +26,6 @@ type Builder struct {
 	tagName    string
 	structInfo *structinfo.StructInfo
 
-	columnFieldName        map[string]string
 	tableName              string
 	columns                []querycontainer.Column
 	indexStatements        []string
@@ -64,7 +63,6 @@ func New(obj interface{}, options Options) (*Builder, error) {
 		if err != nil {
 			return nil, err
 		}
-		b.columnFieldName = container.ColumnFieldName
 		b.tableName = container.RawTableName
 		b.columns = container.Columns
 		b.indexStatements = container.IndexStatements
@@ -82,7 +80,6 @@ func New(obj interface{}, options Options) (*Builder, error) {
 		if err != nil {
 			return nil, err
 		}
-		b.columnFieldName = container.ColumnFieldName
 		b.tableName = container.RawTableName
 		b.columns = container.Columns
 		b.indexStatements = container.IndexStatements
@@ -123,11 +120,14 @@ func (b *Builder) SelectByID() string { return b.selectByID + ";" }
 // DeleteByID returns an SQL query for deleting an object by its ID.
 func (b *Builder) DeleteByID() string { return b.deleteByID + ";" }
 
-// DatabaseColumnToFieldName takes a database column and converts it to a struct field name.
-func (b *Builder) DatabaseColumnToFieldName(n string) string { return b.columnFieldName[n] }
-
 // HasModificationFields returns true if all the following int64 fields are present: CreatedAt, CreatedBy, ModifiedAt, ModifiedBy.
 func (b *Builder) HasModificationFields() bool { return b.structInfo.ModificationFields }
+
+// HasUUID returns true if the ID field is a string with a UUID.
+func (b *Builder) HasUUID() bool { return b.structInfo.UUID }
+
+// UUIDFields returns the names of the fields that hold UUIDs: the ID with a UUID, and the string foreign keys.
+func (b *Builder) UUIDFields() []string { return b.structInfo.UUIDFields }
 
 // HasAliasedColumnNames returns true if any of the fields have column names in the format of "alias.column_name".
 func (b *Builder) HasAliasedColumnNames() bool { return b.structInfo.AliasedColumnNames }

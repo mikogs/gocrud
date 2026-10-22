@@ -119,12 +119,12 @@ func TestSQLInvalidFilters(t *testing.T) {
 		dialect string
 		err     error
 	}{
-		"too few values for raw":  {filters.Raw(".Age > ? AND .Price < ?", 1), DialectPostgres, where.RawFilterError},
-		"too many values for raw": {filters.Raw(".Age > ?", 1, 2), DialectSQLite, where.RawFilterError},
+		"too few values for raw":  {filters.Raw(".Age > ? AND .Price < ?", 1), DialectPostgres, where.ErrRawFilter},
+		"too many values for raw": {filters.Raw(".Age > ?", 1, 2), DialectSQLite, where.ErrRawFilter},
 		"unknown field in raw":    {filters.Raw(".Unknown > ?", 1), DialectPostgres, nil},
 		"unknown field in group":  {filters.Or(filters.Filters{"Unknown": {Op: filters.OpEqual, Val: 1}}), DialectPostgres, nil},
-		"in that is not a list":   {filters.And(filters.Filters{"Age": {Op: filters.OpIn, Val: 1}}), DialectSQLite, where.InFilterError},
-		"match in sqlite":         {filters.Filters{"FirstName": {Op: filters.OpMatch, Val: "^J"}}, DialectSQLite, where.MatchFilterError},
+		"in that is not a list":   {filters.And(filters.Filters{"Age": {Op: filters.OpIn, Val: 1}}), DialectSQLite, where.ErrInFilter},
+		"match in sqlite":         {filters.Filters{"FirstName": {Op: filters.OpMatch, Val: "^J"}}, DialectSQLite, where.ErrMatchFilter},
 	}
 
 	for name, test := range tests {

@@ -60,7 +60,7 @@ func IsFieldModification(name string, t reflect.Type) bool {
 	case "CreatedAt", "ModifiedAt":
 		return IsTimeType(t)
 	case "CreatedBy", "ModifiedBy":
-		return t.Kind() == reflect.Uint64
+		return t.Kind() == reflect.Uint64 || t.Kind() == reflect.String
 	default:
 		return false
 	}

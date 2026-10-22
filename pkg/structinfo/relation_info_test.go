@@ -71,6 +71,36 @@ func TestNew_Relations(t *testing.T) {
 	}
 }
 
+type uuidAuthor struct {
+	ID    string
+	Name  string
+	Posts []*uuidPost `crud:"rel:AuthorID"`
+}
+
+type uuidPost struct {
+	ID       string
+	AuthorID string      `crud:"fk:uuid_author"`
+	EditorID *string     `crud:"fk:uuid_author on_delete:set_null"`
+	Author   *uuidAuthor `crud:"rel:AuthorID"`
+	Shipper  *relShipper `crud:"rel:ShipperID"`
+	// a numeric ID of another struct
+	ShipperID uint64
+}
+
+func TestNew_UUIDRelations(t *testing.T) {
+	info, err := New(&uuidPost{}, "crud")
+	if err != nil {
+		t.Fatalf("New failed: %s", err.Error())
+	}
+	if !reflect.DeepEqual(info.UUIDFields, []string{"ID", "AuthorID", "EditorID"}) || !info.Fields["AuthorID"].UUID || info.Fields["ShipperID"].UUID {
+		t.Fatalf("New returned UUIDFields %v, want the ID and the string foreign keys", info.UUIDFields)
+	}
+
+	if _, err := New(&uuidAuthor{}, "crud"); err != nil {
+		t.Fatalf("New failed for has many with a string key: %s", err.Error())
+	}
+}
+
 func TestNew_InvalidRelations(t *testing.T) {
 	type noID struct{ Name string }
 	type wrongID struct {
@@ -161,12 +191,27 @@ func TestNew_InvalidRelations(t *testing.T) {
 			Name  string
 			Items []stringKey `crud:"rel:OrderID"`
 		}{},
+		"has many with a number key for a UUID": &struct {
+			ID    string
+			Name  string
+			Items []relOrderItem `crud:"rel:OrderID"`
+		}{},
+		"belongs to with a string key for a number": &struct {
+			ID         uint64
+			CustomerID string
+			Customer   *relCustomer `crud:"rel:CustomerID"`
+		}{},
+		"belongs to with a number key for a UUID": &struct {
+			ID       uint64
+			AuthorID uint64
+			Author   *uuidAuthor `crud:"rel:AuthorID"`
+		}{},
 	}
 
 	for name, obj := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := New(obj, "crud"); !errors.Is(err, RelationError) {
-				t.Fatalf("New returned err %v, want %v", err, RelationError)
+			if _, err := New(obj, "crud"); !errors.Is(err, ErrRelation) {
+				t.Fatalf("New returned err %v, want %v", err, ErrRelation)
 			}
 		})
 	}

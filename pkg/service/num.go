@@ -15,7 +15,7 @@ func (c *CRUD) Num(ctx context.Context, key string, filters Filters) (uint64, er
 	constructor, ok := c.registry[key]
 	if !ok {
 		slog.Error("key not found", logAttrService)
-		return 0, InvalidKeyError
+		return 0, ErrInvalidKey
 	}
 
 	filter, err := buildFilter(filters, logAttrService)

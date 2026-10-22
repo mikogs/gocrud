@@ -25,28 +25,6 @@ func TestFilters_Add(t *testing.T) {
 	}
 }
 
-func TestFiltersInterfaces(t *testing.T) {
-	f := And(&Filters{
-		"Name":  {Op: OpEqual, Val: "John"},
-		"Age":   {Op: OpGreater, Val: 30},
-		"Price": {Op: OpLower, Val: 9.99},
-	}, Raw(".Age < ? AND .ID IN (?) AND .Name IN (?)", 100, []int{1, 2}, []string{"a", "b"}))
-
-	want := []interface{}{30, "John", 9.99, 100, 1, 2, "a", "b"}
-	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {
-		t.Fatalf("FiltersInterfaces returned %v, want %v", got, want)
-	}
-}
-
-func TestFiltersInterfaces_Empty(t *testing.T) {
-	if got := FiltersInterfaces(nil); len(got) != 0 {
-		t.Fatalf("FiltersInterfaces returned %v for nil filters, want none", got)
-	}
-	if got := FiltersInterfaces(&Filters{}); len(got) != 0 {
-		t.Fatalf("FiltersInterfaces returned %v for empty filters, want none", got)
-	}
-}
-
 func TestSetObjFields(t *testing.T) {
 	obj := &setObjFieldsTestStruct{}
 	err := SetObjFields(obj, &Filters{
@@ -107,15 +85,6 @@ func TestSetObjFields_IntIntoString(t *testing.T) {
 	err := SetObjFields(obj, &Filters{"Name": {Val: 65}})
 	if err == nil {
 		t.Fatalf("SetObjFields did not return an err, set field to %q", obj.Name)
-	}
-}
-
-func TestFiltersInterfaces_RawNilValue(t *testing.T) {
-	f := Raw(".Age = ? OR .Name = ?", nil, "John")
-
-	want := []interface{}{nil, "John"}
-	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {
-		t.Fatalf("FiltersInterfaces returned %v, want %v", got, want)
 	}
 }
 

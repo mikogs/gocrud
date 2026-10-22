@@ -20,8 +20,8 @@ func TestCRUD_Accessors(t *testing.T) {
 		t.Fatal("New returned an object for an unknown key")
 	}
 
-	if id := testService.ID(&test.TestStruct{ID: 42}); id != 42 {
-		t.Fatalf("ID returned %d, want 42", id)
+	if id := testService.ID(&test.TestStruct{ID: 42}); id != uint64(42) {
+		t.Fatalf("ID returned %#v, want uint64(42)", id)
 	}
 
 	if got := testService.PasswordFieldNames("passwordstruct"); !reflect.DeepEqual(got, []string{"Password"}) {
@@ -61,8 +61,8 @@ func TestOp(t *testing.T) {
 	}
 
 	for _, op := range []string{"", "EQ", "equals", "nin"} {
-		if _, err := Op(op); !errors.Is(err, InvalidFilterOpError) {
-			t.Fatalf("Op(%q) returned err %v, want %v", op, err, InvalidFilterOpError)
+		if _, err := Op(op); !errors.Is(err, ErrInvalidFilterOp) {
+			t.Fatalf("Op(%q) returned err %v, want %v", op, err, ErrInvalidFilterOp)
 		}
 	}
 }
@@ -78,7 +78,7 @@ func TestValidationErrors_Messages(t *testing.T) {
 		}
 	}
 
-	if !errors.Is(NotFoundError, gocrud.NotFoundError) {
-		t.Fatal("NotFoundError is not gocrud.NotFoundError")
+	if !errors.Is(ErrNotFound, gocrud.ErrNotFound) {
+		t.Fatal("ErrNotFound is not gocrud.ErrNotFound")
 	}
 }

@@ -87,8 +87,8 @@ func testRelationFields(t *testing.T, crud *CRUD) {
 }
 
 func testInvalidRelation(t *testing.T, crud *CRUD) {
-	if err := CreateTable[RelInvalid](context.Background(), crud); !errors.Is(err, structinfo.RelationError) {
-		t.Fatalf("CreateTable returned err %v, want %v", err, structinfo.RelationError)
+	if err := CreateTable[RelInvalid](context.Background(), crud); !errors.Is(err, structinfo.ErrRelation) {
+		t.Fatalf("CreateTable returned err %v, want %v", err, structinfo.ErrRelation)
 	}
 }
 

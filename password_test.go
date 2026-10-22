@@ -2,7 +2,6 @@ package gocrud
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -32,8 +31,8 @@ func TestLoad_PasswordFieldIsZeroed(t *testing.T) {
 	}
 
 	loaded := &PasswordStruct{}
-	if output := testCRUD.Load(context.Background(), loaded, fmt.Sprintf("%d", obj.ID), LoadOptions{}); output.Error != nil {
-		t.Fatalf("Load failed: %s", output.Error.Error())
+	if _, err := testCRUD.Load(context.Background(), loaded, obj.ID, LoadOptions{}); err != nil {
+		t.Fatalf("Load failed: %s", err.Error())
 	}
 
 	if loaded.Password != "" {
@@ -87,36 +86,36 @@ func TestLoad_VerifyPasswordFields(t *testing.T) {
 	}
 
 	loaded := &PasswordStruct{}
-	output := testCRUD.Load(context.Background(), loaded, fmt.Sprintf("%d", obj.ID), LoadOptions{
+	passwordFields, err := testCRUD.Load(context.Background(), loaded, obj.ID, LoadOptions{
 		VerifyPasswordFields: map[string]string{
 			"Password": "correct-horse",
 			"Name":     "dave",
 		},
 	})
-	if output.Error != nil {
-		t.Fatalf("Load failed: %s", output.Error.Error())
+	if err != nil {
+		t.Fatalf("Load failed: %s", err.Error())
 	}
 
-	if got := output.PasswordFields["Password"]; got != PassOK {
+	if got := passwordFields["Password"]; got != PassOK {
 		t.Errorf("expected PassOK for correct password, got %d", got)
 	}
-	if _, ok := output.PasswordFields["Name"]; ok {
-		t.Errorf("expected no entry for non-password field, got %d", output.PasswordFields["Name"])
+	if _, ok := passwordFields["Name"]; ok {
+		t.Errorf("expected no entry for non-password field, got %d", passwordFields["Name"])
 	}
-	if len(output.PasswordFields) != 1 {
-		t.Errorf("expected exactly 1 entry in PasswordFields, got %d", len(output.PasswordFields))
+	if len(passwordFields) != 1 {
+		t.Errorf("expected exactly 1 entry in PasswordFields, got %d", len(passwordFields))
 	}
 
 	loaded2 := &PasswordStruct{}
-	output2 := testCRUD.Load(context.Background(), loaded2, fmt.Sprintf("%d", obj.ID), LoadOptions{
+	passwordFields2, err := testCRUD.Load(context.Background(), loaded2, obj.ID, LoadOptions{
 		VerifyPasswordFields: map[string]string{
 			"Password": "wrong-password",
 		},
 	})
-	if output2.Error != nil {
-		t.Fatalf("Load failed: %s", output2.Error.Error())
+	if err != nil {
+		t.Fatalf("Load failed: %s", err.Error())
 	}
-	if got := output2.PasswordFields["Password"]; got != PassInvalid {
+	if got := passwordFields2["Password"]; got != PassInvalid {
 		t.Errorf("expected PassInvalid for wrong password, got %d", got)
 	}
 

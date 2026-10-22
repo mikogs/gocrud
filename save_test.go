@@ -8,180 +8,124 @@ import (
 	"github.com/mikogs/gocrud/pkg/test"
 )
 
-// TestSave tests if Save properly inserts and updates an object in the database
-func TestSave(t *testing.T) {
-	recreateTestStructTable()
+func testSave(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 0, nil)
+	ctx := context.Background()
 
-	objSaved := test.TestStructWithData()
-	err := testCRUD.Save(context.Background(), objSaved, SaveOptions{})
-	if err != nil {
-		t.Fatalf("Save failed to insert struct to the table: %s", err.(*CRUDError).Op)
+	saved := test.TestStructWithData()
+	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil || saved.ID == 0 {
+		t.Fatalf("Save returned %v and ID %d, want the object inserted", err, saved.ID)
+	}
+	if loaded := loadTestStruct(t, crud, saved.ID); !test.AreTestStructObjectsSame(saved, loaded) {
+		t.Fatalf("Save inserted %+v, want %+v", loaded, saved)
 	}
 
-	objLoaded := &test.TestStruct{}
-	fieldsPtrs := []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
-	err = testDB.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to insert struct to the table: %s", err.Error())
+	saved.PrimaryEmail = "updated@example.com"
+	saved.Age = 50
+	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil {
+		t.Fatalf("Save failed to update: %s", err.Error())
 	}
-
-	if objLoaded.ID == 0 || objLoaded.Flags != objSaved.Flags || objLoaded.PrimaryEmail != objSaved.PrimaryEmail ||
-		objLoaded.EmailSecondary != objSaved.EmailSecondary || objLoaded.FirstName != objSaved.FirstName ||
-		objLoaded.LastName != objSaved.LastName || objLoaded.Age != objSaved.Age || objLoaded.Price != objSaved.Price ||
-		objLoaded.PostCode != objSaved.PostCode || objLoaded.PostCode2 != objSaved.PostCode2 ||
-		objLoaded.CreatedBy != objSaved.CreatedBy || objLoaded.Key != objSaved.Key || objLoaded.Password != objSaved.Password {
-		t.Fatalf("Save failed to insert struct to the table")
-	}
-
-	// Now, update the object in the database
-	objSaved.Flags = 7
-	objSaved.PrimaryEmail = "primary1@example.com"
-	objSaved.EmailSecondary = "secondary2@example.com"
-	objSaved.FirstName = "Johnny"
-	objSaved.LastName = "Smithsy"
-	objSaved.Age = 50
-	objSaved.Price = 222
-	objSaved.PostCode = "22-222"
-	objSaved.PostCode2 = "33-333"
-	objSaved.Password = "xxx"
-	objSaved.CreatedBy = 7
-	objSaved.Key = "123456789012345678901234567890aaa"
-
-	err = testCRUD.Save(context.Background(), objSaved, SaveOptions{})
-	if err != nil {
-		t.Fatalf("Save failed to update struct")
-	}
-
-	objLoaded = &test.TestStruct{}
-	fieldsPtrs = []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
-	err = testDB.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to update struct in the table: %s", err.Error())
-	}
-
-	if objLoaded.ID == 0 {
-		t.Fatalf("Save failed to update struct in the table")
+	if loaded := loadTestStruct(t, crud, saved.ID); !test.AreTestStructObjectsSame(saved, loaded) {
+		t.Fatalf("Save updated %+v, want %+v", loaded, saved)
 	}
 }
 
-// TestSaveInsertWithID tests if an element with provided ID will be inserted
-func TestSave_InsertWithID(t *testing.T) {
-	recreateTestStructTable()
+func testSaveWithID(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 0, nil)
+	ctx := context.Background()
 
-	objSaved := test.TestStructWithData()
-	objSaved.ID = 99999
-	objSaved.FirstName = "ProvidedID"
-	err := testCRUD.Save(context.Background(), objSaved, SaveOptions{})
-	if err != nil {
-		t.Fatalf("Save failed to insert struct with provided ID to the table: %s", err.(*CRUDError).Op)
+	saved := test.TestStructWithData()
+	saved.ID = 99999
+	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil {
+		t.Fatalf("Save failed to insert an object with an ID: %s", err.Error())
 	}
 
-	objLoaded := &test.TestStruct{}
-	fieldsPtrs := ObjFieldInterfaces(objLoaded, true)
-	err = testDB.QueryRow("SELECT * FROM test_struct WHERE id=99999 ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to insert struct with provided ID in the table: %s", err.Error())
+	saved.FirstName = "Updated"
+	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil {
+		t.Fatalf("Save failed to update an object with an ID: %s", err.Error())
+	}
+	if loaded := loadTestStruct(t, crud, 99999); loaded.FirstName != "Updated" {
+		t.Fatalf("Save stored %+v, want the object with ID 99999 updated", loaded)
 	}
 
-	if objLoaded.ID != 99999 || objLoaded.FirstName != objSaved.FirstName {
-		t.Fatalf("Save failed to insert struct with provided ID in the table")
+	saved.FirstName = "NoInsert"
+	if err := crud.Save(ctx, saved, SaveOptions{NoInsert: true}); err != nil {
+		t.Fatalf("Save with NoInsert failed to update: %s", err.Error())
+	}
+	if loaded := loadTestStruct(t, crud, 99999); loaded.FirstName != "NoInsert" {
+		t.Fatalf("Save with NoInsert stored %+v, want the object updated", loaded)
+	}
+	if err := crud.Save(ctx, saved, SaveOptions{NoInsert: true}); err != nil {
+		t.Fatalf("Save with NoInsert and the same values failed: %s", err.Error())
 	}
 
-	// update that object
-	objLoaded.FirstName = "UpdatedProvidedID"
-	err = testCRUD.Save(context.Background(), objLoaded, SaveOptions{})
-	if err != nil {
-		t.Fatalf("Save failed to update struct previously inserted with provided ID to the table: %s", err.(*CRUDError).Op)
+	missing := test.TestStructWithData()
+	missing.ID = 88888
+	if err := crud.Save(ctx, missing, SaveOptions{NoInsert: true}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Save with NoInsert of an object that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-
-	objLoadedAgain := &test.TestStruct{}
-	fieldsPtrs = ObjFieldInterfaces(objLoadedAgain, true)
-	err = testDB.QueryRow("SELECT * FROM test_struct WHERE id=99999 ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
-	if err != nil {
-		t.Fatalf("Save failed to update struct previously inserted with provided ID in the table: %s", err.Error())
-	}
-	if objLoadedAgain.ID != 99999 || objLoadedAgain.FirstName != objLoaded.FirstName {
-		t.Fatalf("Save failed to update struct previously inserted with provided ID in the table")
+	if cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
+		t.Fatalf("Save with NoInsert inserted an object, got %d rows, want 1", cnt)
 	}
 }
 
-// TestSaveInsertWithIDAndNoInsert tests if an element with provided ID is not inserted when NoInsert is true
-func TestSave_InsertWithIDAndNoInsert(t *testing.T) {
-	recreateTestStructTable()
+func duplicateKeyTestStruct(t *testing.T, crud *CRUD) *test.TestStruct {
+	t.Helper()
 
-	objSaved := test.TestStructWithData()
-	objSaved.ID = 99999
-	objSaved.FirstName = "ProvidedID"
-	err := testCRUD.Save(context.Background(), objSaved, SaveOptions{
-		NoInsert: true,
-	})
-	if err != nil {
-		t.Fatalf("Save failed to not insert struct with provided ID to the table when NoInsert: %s", err.(*CRUDError).Op)
-	}
+	saved := test.TestStructWithData()
+	recreateTestStructs(t, crud, 1, func(int) *test.TestStruct { return saved })
 
-	var rowCount int
-	err = testDB.QueryRow("SELECT COUNT(*) FROM test_struct WHERE id=99999").Scan(&rowCount)
-	if err != nil {
-		t.Fatalf("Save failed to not insert struct with provided ID in the table when NoInsert: %s", err.Error())
-	}
-
-	if rowCount > 0 {
-		t.Fatalf("Save failed to not insert struct with provided ID in the table when NoInsert")
-	}
+	duplicate := test.TestStructWithData()
+	duplicate.Key = saved.Key
+	return duplicate
 }
 
-func TestSave_ErrUniq(t *testing.T) {
-	recreateTestStructTable()
-
-	objSaved := test.TestStructWithData()
-	objSaved.Key = "gottabeunique123456789012345678901234567890"
-	_ = testCRUD.Save(context.Background(), objSaved, SaveOptions{})
-
-	objWithSameKey := test.TestStructWithData()
-	objWithSameKey.Key = "gottabeunique123456789012345678901234567890"
-	err := testCRUD.Save(context.Background(), objWithSameKey, SaveOptions{})
+func testSaveUniq(t *testing.T, crud *CRUD, wantField string) {
+	err := crud.Save(context.Background(), duplicateKeyTestStruct(t, crud), SaveOptions{})
 	var uniqError *UniqError
-	if !errors.As(err, &uniqError) || uniqError.Field != "test_struct_key_key" || uniqError.Error() != "uniq failed for field: test_struct_key_key" {
-		t.Fatalf("Save failed to return uniq error for test_struct_key_key, got: %v", err)
+	if !errors.As(err, &uniqError) || uniqError.Field != wantField || uniqError.Error() != "uniq failed for field: "+wantField {
+		t.Fatalf("Save of a duplicate key returned %v, want a UniqError for %s", err, wantField)
 	}
 }
 
-func TestSave_ErrUniqUsingGetCount(t *testing.T) {
-	recreateTestStructTable()
+func testSaveInvalid(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 0, nil)
 
-	objSaved := test.TestStructWithData()
-	objSaved.Key = "gottabeunique123456789012345678901234567890"
-	_ = testCRUD.Save(context.Background(), objSaved, SaveOptions{})
+	obj, wantViolations := invalidTestStruct()
+	err := crud.Save(context.Background(), obj, SaveOptions{})
+	fatalIfNotViolations(t, err, wantViolations)
+
+	if cnt, _ := GetCount[test.TestStruct](context.Background(), crud, GetCountOptions{}); cnt != 0 {
+		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", cnt)
+	}
+}
+
+func TestSave(t *testing.T)        { testSave(t, testCRUD) }
+func TestSQLite_Save(t *testing.T) { testSave(t, testCRUDSQLite) }
+
+func TestSave_WithID(t *testing.T)        { testSaveWithID(t, testCRUD) }
+func TestSQLite_Save_WithID(t *testing.T) { testSaveWithID(t, testCRUDSQLite) }
+
+func TestSave_Uniq(t *testing.T)        { testSaveUniq(t, testCRUD, "test_struct_key_key") }
+func TestSQLite_Save_Uniq(t *testing.T) { testSaveUniq(t, testCRUDSQLite, "test_struct.key") }
+
+func TestSave_Invalid(t *testing.T)        { testSaveInvalid(t, testCRUD) }
+func TestSQLite_Save_Invalid(t *testing.T) { testSaveInvalid(t, testCRUDSQLite) }
+
+func TestSave_UniqUsingGetCount(t *testing.T) {
+	duplicate := duplicateKeyTestStruct(t, testCRUD)
+
+	if _, err := testDB.Exec("ALTER TABLE test_struct DROP CONSTRAINT IF EXISTS test_struct_key_key;"); err != nil {
+		t.Fatalf("Exec failed to remove the UNIQUE constraint: %s", err.Error())
+	}
 
 	// a CRUD of its own, so that the flag does not change the other tests
 	uniqCRUD := New(testDB, Options{Dialect: DialectPostgres})
 	uniqCRUD.SetFlag(GetCountOnUniq)
 
-	_, err := testDB.Exec("ALTER TABLE test_struct DROP CONSTRAINT IF EXISTS test_struct_key_key;")
-	if err != nil {
-		t.Fatalf("Exec failed to remove UNIQUE constraint: %s", err.Error())
-	}
-
-	objWithSameKey := test.TestStructWithData()
-	objWithSameKey.Key = "gottabeunique123456789012345678901234567890"
-	err = uniqCRUD.Save(context.Background(), objWithSameKey, SaveOptions{})
+	err := uniqCRUD.Save(context.Background(), duplicate, SaveOptions{})
 	var uniqError *UniqError
 	if !errors.As(err, &uniqError) || uniqError.Field != "Key" {
-		t.Fatalf("Save failed to return uniq error for Key when there is no UNIQUE constraint, got: %v", err)
-	}
-}
-
-func TestSave_InvalidObject(t *testing.T) {
-	recreateTestStructTable()
-
-	obj, wantViolations := invalidTestStruct()
-	err := testCRUD.Save(context.Background(), obj, SaveOptions{})
-	fatalIfNotViolations(t, err, wantViolations)
-
-	cnt, _ := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{})
-	if cnt != 0 {
-		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", cnt)
+		t.Fatalf("Save of a duplicate key without a UNIQUE constraint returned %v, want a UniqError for Key", err)
 	}
 }

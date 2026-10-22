@@ -2,6 +2,7 @@ package gocrud
 
 import (
 	"context"
+	"reflect"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 )
@@ -11,14 +12,14 @@ type DeleteMultipleOptions struct {
 }
 
 // DeleteMultiple removes objects from the database based on specified filters, and returns the IDs of the
-// removed objects. Rows of other tables that are deleted by foreign keys are not included.
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]uint64, error) {
+// removed objects, of the type of the ID field. Rows of other tables that are deleted by foreign keys are not included.
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]interface{}, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
 	}
 
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = prepareFilters(obj, builder, options.Filters, false, c.tagName)
 	if err != nil {
 		return nil, err
 	}
@@ -43,14 +44,14 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 	}
 	defer rows.Close()
 
-	deletedIDs := []uint64{}
+	deletedIDs := []interface{}{}
 	for rows.Next() {
-		var deletedID uint64
-		if err := rows.Scan(&deletedID); err != nil {
+		deletedID := reflect.New(reflect.ValueOf(obj).Elem().FieldByName(IDField).Type())
+		if err := rows.Scan(deletedID.Interface()); err != nil {
 			return nil, getDBFuncCRUDError("rows scan", err)
 		}
 
-		deletedIDs = append(deletedIDs, deletedID)
+		deletedIDs = append(deletedIDs, deletedID.Elem().Interface())
 	}
 	if err := rows.Err(); err != nil {
 		return nil, getDBFuncCRUDError("rows", err)

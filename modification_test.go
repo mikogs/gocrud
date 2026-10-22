@@ -2,7 +2,6 @@ package gocrud
 
 import (
 	"context"
-	"strconv"
 	"testing"
 	"time"
 
@@ -13,7 +12,7 @@ func loadTestStruct(t *testing.T, crud *CRUD, id uint64) *test.TestStruct {
 	t.Helper()
 
 	loaded := &test.TestStruct{}
-	if err := crud.Load(context.Background(), loaded, strconv.FormatUint(id, 10), LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), loaded, id, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.ID != id {

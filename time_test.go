@@ -95,7 +95,7 @@ func testTimeRoundTrip(t *testing.T, crud *CRUD, precision time.Duration) {
 	}
 
 	loaded := &Event{}
-	if err := crud.Load(ctx, loaded, strconv.FormatUint(event.ID, 10), LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(ctx, loaded, event.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if !loaded.StartsAt.Equal(startsAt.Round(precision)) {
@@ -135,7 +135,7 @@ func testTimeColumnDefault(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &Event{}
-	if err := crud.Load(context.Background(), loaded, "1", LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.Name != "Imported" || !loaded.StartsAt.IsZero() || !loaded.EndsAt.IsZero() {
@@ -283,7 +283,7 @@ func testTimeLoadedInUTC(t *testing.T, crud *CRUD) {
 	saveEvents(t, crud)
 
 	loaded := &Event{}
-	if err := crud.Load(context.Background(), loaded, "1", LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.StartsAt.Location() != time.UTC || loaded.EndsAt.Location() != time.UTC {

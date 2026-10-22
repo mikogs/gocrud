@@ -8,14 +8,15 @@ In package `gocrud`. `obj` is a pointer to a struct.
 
 | Function | Description |
 |---|---|
-| `ObjIDValue(obj) uint64` | returns the `ID` |
-| `ObjSetIDValue(obj, id uint64)` | sets the `ID` |
+| `ObjIDValue(obj) interface{}` | returns the `ID`: a `uint64`, or a `string` with a UUID |
+| `ObjIDIsZero(obj) bool` | checks if the `ID` is not set, `0` or `""`, as in an object that is not saved |
+| `ObjSetIDValue(obj, id interface{}) error` | sets the `ID` to a non-negative integer, or a decimal string, for a `uint64` ID, and to a UUID in its standard form for a `string` ID. `nil` clears the `ID`. Another value returns an error that matches `ErrInvalidID` |
 | `ObjIDInterface(obj) interface{}` | returns a pointer to the `ID` field, e.g. for `Scan` |
 | `ObjFieldValue(obj, fieldName string) interface{}` | returns the value of a field: `int64` for integers, `uint64` for unsigned integers, `float64`, `bool`, `string` or `time.Time`, the value a pointer field points to, and `nil` for `NULL` or a field that does not exist |
 | `ObjFieldInterfaces(obj, includeID bool) []interface{}` | returns pointers to the fields of the supported types, in the order of the struct. Fields with the `-` tag are included, as tags are not read |
 | `ZeroObjFields(obj)` | sets all the exported fields to their zero values |
-| `SetObjCreated(obj, at time.Time, by uint64)` | sets `CreatedAt` and `CreatedBy` |
-| `SetObjModified(obj, at time.Time, by uint64)` | sets `ModifiedAt` and `ModifiedBy` |
+| `SetObjCreated(obj, at time.Time, by interface{}) error` | sets `CreatedAt` and `CreatedBy`, see `SaveOptions.ModifiedBy` for `by` |
+| `SetObjModified(obj, at time.Time, by interface{}) error` | sets `ModifiedAt` and `ModifiedBy` |
 | `SetObjStringField(obj, fieldName, value string)` | sets a field of type `string` |
 
 The constant `IDField` is `"ID"`, the name of the ID field.

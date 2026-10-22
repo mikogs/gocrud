@@ -87,8 +87,8 @@ func createForeignKeyTables(t *testing.T, crud *CRUD) {
 func fatalIfNotForeignKeyViolation(t *testing.T, err error) {
 	t.Helper()
 
-	if !errors.Is(err, ForeignKeyViolationError) {
-		t.Fatalf("got err %v, want %v", err, ForeignKeyViolationError)
+	if !errors.Is(err, ErrForeignKeyViolation) {
+		t.Fatalf("got err %v, want %v", err, ErrForeignKeyViolation)
 	}
 }
 

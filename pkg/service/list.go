@@ -23,7 +23,7 @@ func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, o
 		constructor, ok = c.registry[key]
 		if !ok {
 			slog.Error("key not found", logAttrService)
-			return nil, map[string]int{}, InvalidKeyError
+			return nil, map[string]int{}, ErrInvalidKey
 		}
 	}
 

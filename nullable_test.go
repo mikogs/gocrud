@@ -3,7 +3,6 @@ package gocrud
 import (
 	"context"
 	"errors"
-	"strconv"
 	"testing"
 	"time"
 
@@ -53,7 +52,7 @@ func loadProfile(t *testing.T, crud *CRUD, id uint64) *Profile {
 	t.Helper()
 
 	profile := &Profile{}
-	if err := crud.Load(context.Background(), profile, strconv.FormatUint(id, 10), LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), profile, id, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 

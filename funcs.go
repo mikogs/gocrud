@@ -1,8 +1,12 @@
 package gocrud
 
 import (
+	"fmt"
 	"reflect"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 
 	structInfo "github.com/mikogs/gocrud/pkg/structinfo"
 )
@@ -69,8 +73,60 @@ func ObjIDInterface(obj interface{}) interface{} {
 	return reflect.ValueOf(obj).Elem().FieldByName(IDField).Addr().Interface()
 }
 
-func ObjSetIDValue(obj interface{}, id uint64) {
-	reflect.ValueOf(obj).Elem().FieldByName(IDField).SetUint(id)
+// ObjSetIDValue sets the ID of obj. For an ID of type uint64, id is a non-negative integer or a decimal string, and
+// for a string ID, a UUID. nil clears the ID, so that the object is inserted as a new one. Otherwise, it returns an
+// error that matches ErrInvalidID.
+func ObjSetIDValue(obj interface{}, id interface{}) error {
+	idField := reflect.ValueOf(obj).Elem().FieldByName(IDField)
+	if id == nil {
+		idField.Set(reflect.Zero(idField.Type()))
+		return nil
+	}
+
+	value, err := idValue(idField.Kind() == reflect.String, id)
+	if err != nil {
+		return err
+	}
+
+	idField.Set(reflect.ValueOf(value))
+	return nil
+}
+
+// idValue returns id as the value of an ID field: a UUID in its standard form for a string ID, and a uint64
+// otherwise.
+func idValue(isUUID bool, id interface{}) (interface{}, error) {
+	if isUUID {
+		var text string
+		switch id := id.(type) {
+		case string:
+			text = id
+		case uuid.UUID:
+			text = id.String()
+		default:
+			return nil, fmt.Errorf("%w: %v (%T) is not a UUID", ErrInvalidID, id, id)
+		}
+
+		parsed, err := uuid.Parse(text)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %q is not a UUID", ErrInvalidID, text)
+		}
+		return parsed.String(), nil
+	}
+
+	value := reflect.ValueOf(id)
+	switch {
+	case value.CanUint():
+		return value.Uint(), nil
+	case value.CanInt() && value.Int() >= 0:
+		return uint64(value.Int()), nil
+	case value.Kind() == reflect.String:
+		number, err := strconv.ParseUint(value.String(), 10, 64)
+		if err == nil {
+			return number, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%w: %v (%T) is not a number", ErrInvalidID, id, id)
 }
 
 // zeroPasswordFields clears the value of every password field on obj so that
@@ -88,8 +144,14 @@ func zeroPasswordFields(obj interface{}, passwordFields []string) {
 	}
 }
 
-func ObjIDValue(obj interface{}) uint64 {
-	return reflect.ValueOf(obj).Elem().FieldByName(IDField).Uint()
+// ObjIDValue returns the ID of obj: a uint64, or a string with a UUID.
+func ObjIDValue(obj interface{}) interface{} {
+	return reflect.ValueOf(obj).Elem().FieldByName(IDField).Interface()
+}
+
+// ObjIDIsZero checks if the ID of obj is not set, i.e. 0 or an empty string, as in an object that is not saved.
+func ObjIDIsZero(obj interface{}) bool {
+	return reflect.ValueOf(obj).Elem().FieldByName(IDField).IsZero()
 }
 
 func ObjFieldValue(obj interface{}, fieldName string) interface{} {
@@ -169,14 +231,42 @@ func ZeroObjFields(obj interface{}) {
 	}
 }
 
-func SetObjCreated(obj interface{}, at time.Time, by uint64) {
+// SetObjCreated sets CreatedAt and CreatedBy. by is the ID of the user, see setObjBy.
+func SetObjCreated(obj interface{}, at time.Time, by interface{}) error {
 	reflect.ValueOf(obj).Elem().FieldByName("CreatedAt").Set(reflect.ValueOf(at))
-	reflect.ValueOf(obj).Elem().FieldByName("CreatedBy").SetUint(by)
+	return setObjBy(obj, "CreatedBy", by)
 }
 
-func SetObjModified(obj interface{}, at time.Time, by uint64) {
+// SetObjModified sets ModifiedAt and ModifiedBy. by is the ID of the user, see setObjBy.
+func SetObjModified(obj interface{}, at time.Time, by interface{}) error {
 	reflect.ValueOf(obj).Elem().FieldByName("ModifiedAt").Set(reflect.ValueOf(at))
-	reflect.ValueOf(obj).Elem().FieldByName("ModifiedBy").SetUint(by)
+	return setObjBy(obj, "ModifiedBy", by)
+}
+
+// setObjBy sets a field with the ID of a user: a non-negative integer for a uint64 field, and a string for a string
+// field. nil sets the zero value. Otherwise, it returns an error that matches ErrInvalidID.
+func setObjBy(obj interface{}, fieldName string, by interface{}) error {
+	field := reflect.ValueOf(obj).Elem().FieldByName(fieldName)
+	if by == nil {
+		field.Set(reflect.Zero(field.Type()))
+		return nil
+	}
+
+	if field.Kind() == reflect.String {
+		text, ok := by.(string)
+		if !ok {
+			return fmt.Errorf("%w: %s: %v (%T) is not a string", ErrInvalidID, fieldName, by, by)
+		}
+		field.SetString(text)
+		return nil
+	}
+
+	value, err := idValue(false, by)
+	if err != nil {
+		return fmt.Errorf("%s: %w", fieldName, err)
+	}
+	field.SetUint(value.(uint64))
+	return nil
 }
 
 func SetObjStringField(obj interface{}, passField, hashField string) {

@@ -14,9 +14,9 @@ import (
 var regexpFieldInRaw = regexp.MustCompile(`(^|[^a-zA-Z0-9_"])\.([a-zA-Z_][a-zA-Z0-9_]*)`)
 
 var (
-	InFilterError    = errors.New("value of an OpIn filter must be a slice or an array")
-	MatchFilterError = errors.New("OpMatch is not supported")
-	RawFilterError   = errors.New("invalid raw filter")
+	ErrInFilter    = errors.New("value of an OpIn filter must be a slice or an array")
+	ErrMatchFilter = errors.New("OpMatch is not supported")
+	ErrRawFilter   = errors.New("invalid raw filter")
 )
 
 // Dialect is what differs between databases in a WHERE clause.
@@ -131,7 +131,7 @@ func condition(c filters.Condition, d Dialect) (string, error) {
 	case filters.OpIn:
 		values, ok := c.InValues()
 		if !ok {
-			return "", InFilterError
+			return "", ErrInFilter
 		}
 		// an empty list matches nothing
 		if len(values) == 0 {
@@ -142,7 +142,7 @@ func condition(c filters.Condition, d Dialect) (string, error) {
 		return d.TextColumn(c.Field, column) + " LIKE " + d.Placeholder(), nil
 	case filters.OpMatch:
 		if d.MatchOperator == "" {
-			return "", MatchFilterError
+			return "", ErrMatchFilter
 		}
 		return d.TextColumn(c.Field, column) + " " + d.MatchOperator + " " + d.Placeholder(), nil
 	case filters.OpNotEqual:
@@ -180,7 +180,7 @@ func raw(r filters.RawFilter, d Dialect) (string, error) {
 
 	parts := strings.Split(sql, "?")
 	if len(parts)-1 != len(r.Values) {
-		return "", fmt.Errorf("%w: %d placeholders and %d values in %q", RawFilterError, len(parts)-1, len(r.Values), r.SQL)
+		return "", fmt.Errorf("%w: %d placeholders and %d values in %q", ErrRawFilter, len(parts)-1, len(r.Values), r.SQL)
 	}
 
 	var b strings.Builder

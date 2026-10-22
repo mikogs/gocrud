@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	InvalidKeyError = errors.New("invalid key")
+	ErrInvalidKey = errors.New("invalid key")
 )
 
 type CRUD struct {
@@ -68,7 +68,8 @@ func (c *CRUD) New(key string) interface{} {
 	return constructor()
 }
 
-func (c *CRUD) ID(obj interface{}) uint64 {
+// ID returns the ID of obj: a uint64, or a string with a UUID.
+func (c *CRUD) ID(obj interface{}) interface{} {
 	return gocrud.ObjIDValue(obj)
 }
 
@@ -202,6 +203,6 @@ func Op(op string) (int, error) {
 	case "in":
 		return sqlfilters.OpIn, nil
 	default:
-		return 0, InvalidFilterOpError
+		return 0, ErrInvalidFilterOp
 	}
 }

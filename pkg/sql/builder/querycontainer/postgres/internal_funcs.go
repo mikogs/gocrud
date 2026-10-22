@@ -2,9 +2,13 @@ package postgres
 
 // columnDefinitionFromField maps a struct field type to the definition of its database column.
 // Nullable columns do not have NOT NULL and DEFAULT, so that their values can be NULL.
-func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool, overrideColumnType string, isNullable bool) string {
-	// 'ID' is a special field
+// A string foreign key holds a UUID, and has no default, as an empty string is not a UUID.
+func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool, overrideColumnType string, isNullable bool, isUUID bool) string {
+	// 'ID' is a special field, a string ID holds a UUID
 	if fieldName == "ID" {
+		if fieldType == "string" {
+			return "UUID PRIMARY KEY"
+		}
 		return "SERIAL PRIMARY KEY"
 	}
 
@@ -15,7 +19,13 @@ func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool
 	}
 
 	definition := columnType
-	if !isNullable {
+	switch {
+	case isUUID:
+		definition = "UUID"
+		if !isNullable {
+			definition += " NOT NULL"
+		}
+	case !isNullable:
 		definition += " NOT NULL DEFAULT " + defaultValue
 	}
 

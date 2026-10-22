@@ -107,8 +107,8 @@ func testFilterGroupsUpdateAndDelete(t *testing.T, crud *CRUD) {
 			sqlfilters.Raw(".Weight > ?", 3),
 		),
 	})
-	sort.Slice(deletedIDs, func(i, j int) bool { return deletedIDs[i] < deletedIDs[j] })
-	if err != nil || !reflect.DeepEqual(deletedIDs, []uint64{1, 4}) {
+	sort.Slice(deletedIDs, func(i, j int) bool { return deletedIDs[i].(uint64) < deletedIDs[j].(uint64) })
+	if err != nil || !reflect.DeepEqual(deletedIDs, []interface{}{uint64(1), uint64(4)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want [1 4]", deletedIDs, err)
 	}
 	fatalIfNotShipments(t, crud, GetOptions{}, []uint64{2, 3})

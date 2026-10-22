@@ -9,8 +9,9 @@ import (
 	"github.com/mikogs/gocrud/pkg/logger"
 )
 
-// Save saves obj in the database. userID is stored in the ModifiedBy and CreatedBy fields, when obj has them.
-func (c *CRUD) Save(ctx context.Context, obj interface{}, userID uint64) error {
+// Save saves obj in the database. userID is stored in the ModifiedBy and CreatedBy fields, when obj has them: a
+// non-negative integer for fields of type uint64, and a string for fields of type string, see gocrud.SaveOptions.
+func (c *CRUD) Save(ctx context.Context, obj interface{}, userID interface{}) error {
 	logAttrService := logger.AttrService(c, "Save")
 
 	err := c.crud.Save(ctx, obj, gocrud.SaveOptions{

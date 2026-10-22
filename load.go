@@ -3,14 +3,11 @@ package gocrud
 import (
 	"context"
 	"database/sql"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type LoadOptions struct {
-	Unused bool
-
 	// VerifyPasswordFields maps a struct field name to a plaintext password
 	// to verify against the bcrypt hash stored in that field.
 	VerifyPasswordFields map[string]string
@@ -19,35 +16,25 @@ type LoadOptions struct {
 	Preload []string
 }
 
-// LoadOutput is returned by Load. PasswordFields holds, for every password
-// field that also appears in LoadOptions.VerifyPasswordFields, either PassOK
-// or PassInvalid. Keys in VerifyPasswordFields that do not name an actual
-// password field are ignored.
-type LoadOutput struct {
-	Error          error
-	PasswordFields map[string]int
-}
-
-func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options LoadOptions) *LoadOutput {
-	output := &LoadOutput{
-		PasswordFields: map[string]int{},
-	}
-
-	idInt, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		output.Error = getConvertIDToIntCRUDError(err)
-		return output
-	}
+// Load sets obj to the object with the given ID: a non-negative integer or a decimal string for an ID of type uint64,
+// and a UUID for a string ID. When there is no such object, all the fields of obj are set to their zero values.
+// It returns PassOK or PassInvalid for every password field that is also in options.VerifyPasswordFields. Keys in
+// VerifyPasswordFields that do not name an actual password field are ignored.
+func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, options LoadOptions) (map[string]int, error) {
+	passwordFields := map[string]int{}
 
 	builder, err := c.builder(obj)
 	if err != nil {
-		output.Error = getBuilderObjectCRUDError(err)
-		return output
+		return nil, getBuilderObjectCRUDError(err)
+	}
+
+	idArg, err := idValue(builder.HasUUID(), id)
+	if err != nil {
+		return nil, getCRUDFuncCRUDError("load", err)
 	}
 
 	if err := c.checkPreload(builder, options.Preload, ""); err != nil {
-		output.Error = getCRUDFuncCRUDError("preload", err)
-		return output
+		return nil, getCRUDFuncCRUDError("preload", err)
 	}
 
 	var query string
@@ -56,47 +43,43 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options Loa
 	if selectByIDerImpl, ok := obj.(selectByIDQueryBuilder); ok {
 		query, err = selectByIDerImpl.SelectByIDQuery()
 		if err != nil {
-			output.Error = getObjFuncCRUDError("select by id query", err)
-			return output
+			return nil, getObjFuncCRUDError("select by id query", err)
 		}
 	} else {
 		query = builder.SelectByID()
 	}
 
-	err = c.conn.QueryRowContext(ctx, query, idInt).Scan(objColumnInterfaces(obj, builder.ColumnFieldNames(), true)...)
+	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objColumnInterfaces(obj, builder.ColumnFieldNames(), true)...)
 	switch {
 	case err == sql.ErrNoRows:
 		ZeroObjFields(obj)
-
-		return output
-
+		return passwordFields, nil
 	case err != nil:
-		output.Error = getDBFuncCRUDError("query row", err)
-		return output
+		return nil, getDBFuncCRUDError("query row", err)
+	}
 
-	default:
-		timeFieldsToUTC(obj, builder.TimeFields())
+	timeFieldsToUTC(obj, builder.TimeFields())
 
-		passwordFields := builder.PasswordFields()
-
-		for _, fieldName := range passwordFields {
-			password, ok := options.VerifyPasswordFields[fieldName]
-			if !ok {
-				continue
-			}
-
-			hash, _ := ObjFieldValue(obj, fieldName).(string)
-			if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-				output.PasswordFields[fieldName] = PassInvalid
-				continue
-			}
-
-			output.PasswordFields[fieldName] = PassOK
+	for _, fieldName := range builder.PasswordFields() {
+		password, ok := options.VerifyPasswordFields[fieldName]
+		if !ok {
+			continue
 		}
 
-		zeroPasswordFields(obj, passwordFields)
+		hash, _ := ObjFieldValue(obj, fieldName).(string)
+		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+			passwordFields[fieldName] = PassInvalid
+			continue
+		}
 
-		output.Error = c.preload(ctx, builder, []interface{}{obj}, options.Preload)
-		return output
+		passwordFields[fieldName] = PassOK
 	}
+
+	zeroPasswordFields(obj, builder.PasswordFields())
+
+	if err := c.preload(ctx, builder, []interface{}{obj}, options.Preload); err != nil {
+		return nil, err
+	}
+
+	return passwordFields, nil
 }

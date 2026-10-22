@@ -19,14 +19,7 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 	}
 
 	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
-	if options.ConvertFiltersFromString {
-		options.Filters, err = convertFiltersFromString(obj, options.Filters)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = prepareFilters(obj, builder, options.Filters, options.ConvertFiltersFromString, c.tagName)
 	if err != nil {
 		return 0, err
 	}

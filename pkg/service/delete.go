@@ -8,7 +8,8 @@ import (
 	"github.com/mikogs/gocrud/pkg/logger"
 )
 
-func (c *CRUD) Delete(ctx context.Context, key string, id uint64) error {
+// Delete deletes the record with the id, of the types that Read accepts.
+func (c *CRUD) Delete(ctx context.Context, key string, id interface{}) error {
 	logAttrService := logger.AttrService(c, "Delete")
 
 	obj, _, err := c.Read(ctx, key, id, nil, nil)
@@ -18,7 +19,7 @@ func (c *CRUD) Delete(ctx context.Context, key string, id uint64) error {
 
 	err = c.crud.Delete(ctx, obj, gocrud.DeleteOptions{})
 	if err != nil {
-		slog.Error("error deleting", logAttrService, slog.Uint64("id", id))
+		slog.Error("error deleting", logAttrService, slog.Any("id", id))
 		return err
 	}
 

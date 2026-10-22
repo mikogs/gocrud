@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// ForeignKeyCycleError is returned when the foreign keys of the registered structs reference each other in a cycle,
+// ErrForeignKeyCycle is returned when the foreign keys of the registered structs reference each other in a cycle,
 // so their tables cannot be created one after another.
-var ForeignKeyCycleError = errors.New("foreign keys reference each other in a cycle")
+var ErrForeignKeyCycle = errors.New("foreign keys reference each other in a cycle")
 
 // tableKeys returns the registry keys of the structs that own a table, i.e. are not projections of other structs,
 // ordered so that the tables referenced by foreign keys come before the tables that reference them.
@@ -57,7 +57,7 @@ func (c *CRUD) tableKeys() ([]string, error) {
 		case visited:
 			return nil
 		case visiting:
-			return fmt.Errorf("%w: %s", ForeignKeyCycleError, strings.Join(append(path, key), " -> "))
+			return fmt.Errorf("%w: %s", ErrForeignKeyCycle, strings.Join(append(path, key), " -> "))
 		}
 
 		state[key] = visiting

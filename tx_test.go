@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 	"testing"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -54,7 +53,7 @@ func placeOrder(ctx context.Context, crud *CRUD, customerID uint64, cart []CartI
 
 		for _, item := range cart {
 			product, err := Load[Product](ctx, tx, item.ProductID)
-			if errors.Is(err, NotFoundError) {
+			if errors.Is(err, ErrNotFound) {
 				return fmt.Errorf("%w: %d", ErrProductNotFound, item.ProductID)
 			}
 			if err != nil {
@@ -119,7 +118,7 @@ func fatalIfStock(t *testing.T, crud *CRUD, product *Product, want int64) {
 	t.Helper()
 
 	loaded := &Product{}
-	if err := crud.Load(context.Background(), loaded, strconv.FormatUint(product.ID, 10), LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), loaded, product.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.Stock != want {
@@ -154,7 +153,7 @@ func testRunInTxCommit(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &Order{}
-	if err := crud.Load(context.Background(), loaded, strconv.FormatUint(order.ID, 10), LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(context.Background(), loaded, order.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if *loaded != *order {

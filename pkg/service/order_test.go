@@ -108,10 +108,10 @@ func TestCreateTables_ForeignKeyCycle(t *testing.T) {
 		"b": func() interface{} { return &SvcCycleB{} },
 	}, testDB, gocrud.DialectPostgres)
 
-	if err := svc.CreateTables(context.Background()); !errors.Is(err, ForeignKeyCycleError) {
-		t.Fatalf("CreateTables returned err %v, want %v", err, ForeignKeyCycleError)
+	if err := svc.CreateTables(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
+		t.Fatalf("CreateTables returned err %v, want %v", err, ErrForeignKeyCycle)
 	}
-	if _, err := svc.Migrate(context.Background()); !errors.Is(err, ForeignKeyCycleError) {
-		t.Fatalf("Migrate returned err %v, want %v", err, ForeignKeyCycleError)
+	if _, err := svc.Migrate(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
+		t.Fatalf("Migrate returned err %v, want %v", err, ErrForeignKeyCycle)
 	}
 }

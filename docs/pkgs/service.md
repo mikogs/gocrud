@@ -50,7 +50,7 @@ Updates the tables of all the registered structs to match them, in a single tran
 err := svc.Save(ctx, obj, userID)
 ```
 
-Saves `obj` to the database. If `obj.ID == 0` an `INSERT` is performed; otherwise an upsert. `userID` is written to the `CreatedBy` and `ModifiedBy` fields, and the current time to `CreatedAt` and `ModifiedAt`, when the struct has them. The creation fields are never changed by an update, see [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
+Saves `obj` to the database. If the `ID` is empty, `0` or `""`, an `INSERT` is performed, and a UUID is generated for a `string` ID; otherwise an upsert. `userID` is written to the `CreatedBy` and `ModifiedBy` fields, and the current time to `CreatedAt` and `ModifiedAt`, when the struct has them. It is a non-negative integer for fields of type `uint64`, and a string for fields of type `string`, or `nil` for no user. The creation fields are never changed by an update, see [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
 
 **Returns** `*ModelValidationError` when struct validation fails, otherwise a generic error.
 
@@ -62,7 +62,9 @@ Saves `obj` to the database. If `obj.ID == 0` an `INSERT` is performed; otherwis
 obj, passwordFields, err := svc.Read(ctx, "users", id, nil, nil)
 ```
 
-Loads a single record by `id`. Returns `NotFoundError` if no record with that ID exists.
+Loads a single record by `id`. Returns `ErrNotFound` if no record with that ID exists.
+
+The `id` is a number, or a decimal string, for an `ID` of type `uint64`, and a UUID for a `string` ID, so that the ID from a URL can be passed as it is. An ID of the wrong type, e.g. `abc` for a numeric ID, or a number for a UUID, returns `ErrInvalidID`.
 
 The fourth argument is an optional constructor (`func() interface{}`). When `nil` the key's registered constructor is used. Pass a non-nil constructor to load the record into a different struct type — for example a read-specific projection with fewer fields, which will generate a narrower `SELECT`.
 
@@ -97,7 +99,7 @@ if err == nil && passwordFields["Password"] == gocrud.PassOK {
 err := svc.Delete(ctx, "users", id)
 ```
 
-Reads the record by `id` first (returning `NotFoundError` if absent), then deletes it. Rows of other tables that reference it are handled by the database, according to their [foreign keys](../crud/relations.md#foreign-keys).
+Reads the record by `id`, of the same types as in `Read`, first (returning `ErrNotFound` if absent), then deletes it. Rows of other tables that reference it are handled by the database, according to their [foreign keys](../crud/relations.md#foreign-keys).
 
 ---
 
@@ -237,10 +239,10 @@ objs, _, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc", svccrud.Filte
 
 ```go
 obj   := svc.New("users")                // returns a new zero-value *User, or nil if key unknown
-id    := svc.ID(obj)                     // returns obj.ID as uint64
+id    := svc.ID(obj)                     // returns obj.ID, a uint64 or a string with a UUID
 keys  := svc.Registry()                  // returns the registry keys, in no particular order
 names := svc.PasswordFieldNames("users") // returns the fields tagged with pass, or nil if key unknown
-op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual, or InvalidFilterOpError
+op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual, or ErrInvalidFilterOp
 ```
 
 ## Error types
@@ -249,10 +251,11 @@ op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual,
 |---|---|---|
 | `*ModelValidationError` | — | `Save`: struct field validation failed |
 | `*FilterValidationError` | — | `List` / `Num`: unknown filter operator, invalid filter name, or filter validation failed |
-| `NotFoundError` | `errors.Is(err, NotFoundError)` | `Read` / `Delete`: no record with the given ID |
-| `InvalidKeyError` | `errors.Is(err, InvalidKeyError)` | Any method: key not found in the registry |
-| `InvalidFilterOpError` | `errors.Is(err, InvalidFilterOpError)` | `Op`: unknown operator string. `List` and `Num` return a `*FilterValidationError` for it instead |
-| `ForeignKeyCycleError` | `errors.Is(err, ForeignKeyCycleError)` | `CreateTables` / `Migrate`: foreign keys reference each other in a cycle |
+| `ErrNotFound` | `errors.Is(err, ErrNotFound)` | `Read` / `Delete`: no record with the given ID |
+| `ErrInvalidID` | `errors.Is(err, ErrInvalidID)` | `Read` / `Delete`: an ID of the wrong type, `Save`: a user ID of the wrong type |
+| `ErrInvalidKey` | `errors.Is(err, ErrInvalidKey)` | Any method: key not found in the registry |
+| `ErrInvalidFilterOp` | `errors.Is(err, ErrInvalidFilterOp)` | `Op`: unknown operator string. `List` and `Num` return a `*FilterValidationError` for it instead |
+| `ErrForeignKeyCycle` | `errors.Is(err, ErrForeignKeyCycle)` | `CreateTables` / `Migrate`: foreign keys reference each other in a cycle |
 
 Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]string` field mapping each failed field to the name of the failed validation rule, e.g. `"required"` or `"min"` from the [go-playground/validator](https://github.com/go-playground/validator) library, `"regexp"` (`gocrud.ViolationRegExp`) for a failed `crud_regexp` pattern, or `"type"` (`gocrud.ViolationType`) for a value of a wrong type or an invalid filter operator.
 

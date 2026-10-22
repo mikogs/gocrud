@@ -7,8 +7,6 @@ type FieldInfo struct {
 	OverrideColumnName string
 	// OverrideColumnType is the type of the column in the database table.
 	OverrideColumnType string
-	// Default contains default value for the field.
-	Default string
 	// Unique is set to true if the field is marked with a tag 'uniq'.
 	Unique bool
 	// Password is set to true if the field is marked with a "password" tag.
@@ -18,6 +16,8 @@ type FieldInfo struct {
 	// ForeignKeyTable is the name of the table that the field references with an 'fk:<table>' tag, without
 	// the table name prefix.
 	ForeignKeyTable string
+	// UUID is set to true for a foreign key of type string or *string, which holds the UUID of the referenced row.
+	UUID bool
 	// OnDelete is the action set with an 'on_delete:<action>' tag: OnDeleteCascade, OnDeleteRestrict or
 	// OnDeleteSetNull. It is empty when the tag is not set.
 	OnDelete string

@@ -42,14 +42,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	}
 
 	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
-	if options.ConvertFiltersFromString {
-		options.Filters, err = convertFiltersFromString(obj, options.Filters)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = prepareFilters(obj, builder, options.Filters, options.ConvertFiltersFromString, c.tagName)
 	if err != nil {
 		return nil, nil, err
 	}

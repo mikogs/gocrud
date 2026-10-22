@@ -215,13 +215,13 @@ func testPreloadLoad(t *testing.T, crud *CRUD) {
 	}
 
 	untyped := &PreOrder{}
-	if err := crud.Load(ctx, untyped, "3", LoadOptions{Preload: []string{"Customer"}}).Error; err != nil || untyped.Customer.Name != "Globex" {
+	if _, err := crud.Load(ctx, untyped, 3, LoadOptions{Preload: []string{"Customer"}}); err != nil || untyped.Customer.Name != "Globex" {
 		t.Fatalf("Load returned %v and customer %+v, want Globex", err, untyped.Customer)
 	}
 
 	counted, conn := withCountingConn(crud)
-	if _, err := Load[PreOrder](ctx, counted, 99, "Customer"); !errors.Is(err, NotFoundError) || conn.queries != 1 {
-		t.Fatalf("Load returned err %v after %d queries, want %v after 1", err, conn.queries, NotFoundError)
+	if _, err := Load[PreOrder](ctx, counted, 99, "Customer"); !errors.Is(err, ErrNotFound) || conn.queries != 1 {
+		t.Fatalf("Load returned err %v after %d queries, want %v after 1", err, conn.queries, ErrNotFound)
 	}
 }
 
@@ -273,8 +273,8 @@ func testPreloadInvalid(t *testing.T, crud *CRUD) {
 
 	for _, name := range []string{"Status", "Warehouse", "Items.Product", "customer"} {
 		_, err := Get[PreOrder](context.Background(), crud, GetOptions{Preload: []string{name}})
-		if !errors.Is(err, PreloadError) {
-			t.Fatalf("Get with Preload %q returned err %v, want %v", name, err, PreloadError)
+		if !errors.Is(err, ErrPreload) {
+			t.Fatalf("Get with Preload %q returned err %v, want %v", name, err, ErrPreload)
 		}
 	}
 

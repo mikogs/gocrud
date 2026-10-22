@@ -12,9 +12,9 @@ import (
 	"github.com/mikogs/gocrud/pkg/sql/builder/querycontainer"
 )
 
-// AliasedColumnsMigrateError is returned by Migrate for a struct with aliased column names, which reads from
+// ErrAliasedColumnsMigrate is returned by Migrate for a struct with aliased column names, which reads from
 // several tables.
-var AliasedColumnsMigrateError = errors.New("struct with aliased column names cannot be migrated")
+var ErrAliasedColumnsMigrate = errors.New("struct with aliased column names cannot be migrated")
 
 // postgresMaxIdentifierLength is the maximum length of a name in PostgreSQL, longer names are truncated.
 const postgresMaxIdentifierLength = 63
@@ -56,7 +56,7 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 	}
 
 	if builder.HasAliasedColumnNames() {
-		return nil, getCRUDFuncCRUDError("migrate", AliasedColumnsMigrateError)
+		return nil, getCRUDFuncCRUDError("migrate", ErrAliasedColumnsMigrate)
 	}
 
 	migration := &Migration{Table: builder.TableName()}
@@ -93,8 +93,9 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 
 			existing, ok := existingColumns[column.Name]
 			if ok {
-				// the type of the ID column depends on how it was created, e.g. SERIAL is stored as integer
-				if !column.IsID {
+				if column.IsID {
+					migration.Differences = append(migration.Differences, c.idColumnDifferences(builder.HasUUID(), existing)...)
+				} else {
 					migration.Differences = append(migration.Differences, c.columnDifferences(column, existing)...)
 				}
 				continue
@@ -377,6 +378,25 @@ func (c *CRUD) columnDifferences(column querycontainer.Column, existing database
 	return differences
 }
 
+// idColumnDifferences describes how the column of the ID differs from the ID field: a UUID is stored as uuid in
+// PostgreSQL and as TEXT in SQLite. The type of a numeric ID column depends on how it was created, e.g. SERIAL is
+// stored as integer, so it is not compared otherwise.
+func (c *CRUD) idColumnDifferences(isUUID bool, existing databaseColumn) []string {
+	uuidType := "uuid"
+	if c.dialect == DialectSQLite {
+		uuidType = "TEXT"
+	}
+
+	switch {
+	case isUUID && !strings.EqualFold(existing.dataType, uuidType):
+		return []string{fmt.Sprintf(`column "%s" has type %s, the ID field is a string with a UUID`, existing.name, existing.dataType)}
+	case !isUUID && strings.EqualFold(existing.dataType, uuidType):
+		return []string{fmt.Sprintf(`column "%s" has type %s, the ID field is a uint64`, existing.name, existing.dataType)}
+	default:
+		return nil
+	}
+}
+
 // postgresDataType returns the name of a column type as in information_schema.columns, with its length.
 // An empty name is returned for a type that is not known.
 func postgresDataType(columnType string) (string, int) {
@@ -409,6 +429,8 @@ func postgresDataType(columnType string) (string, int) {
 		return "real", 0
 	case "TIMESTAMPTZ":
 		return "timestamp with time zone", 0
+	case "UUID":
+		return "uuid", 0
 	default:
 		return "", 0
 	}

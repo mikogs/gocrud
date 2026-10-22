@@ -9,36 +9,26 @@ import (
 	"github.com/mikogs/gocrud/pkg/test"
 )
 
-func TestRead_WhenObjectExists(t *testing.T) {
+func TestRead(t *testing.T) {
 	recreateTestStructTable()
+	ctx := context.Background()
 
-	// Insert an object first
-	objSaved := test.TestStructWithData()
-	_ = testCRUD.Save(context.Background(), objSaved, gocrud.SaveOptions{})
-
-	// Get the object
-	objRead, _, err := testService.Read(context.Background(), "teststruct", objSaved.ID, nil, nil)
-	if err != nil {
-		t.Fatalf("Read failed to get object: %s", err.Error())
+	saved := test.TestStructWithData()
+	if err := testService.Save(ctx, saved, uint64(1)); err != nil {
+		t.Fatalf("Save failed: %s", err.Error())
 	}
-	if !test.AreTestStructObjectsSame(objSaved, objRead.(*test.TestStruct)) {
-		t.Fatalf("Read failed to set object with data")
-	}
-}
 
-func TestRead_WhenObjectDoesNotExist(t *testing.T) {
-	recreateTestStructTable()
-
-	_, _, err := testService.Read(context.Background(), "teststruct", 444, nil, nil)
-	if err != nil {
-		if !errors.Is(err, NotFoundError) {
-			t.Fatalf("Read failed to get object: %s", err.Error())
+	for _, id := range []interface{}{saved.ID, int(saved.ID), "1"} {
+		obj, _, err := testService.Read(ctx, "teststruct", id, nil, nil)
+		if err != nil || !test.AreTestStructObjectsSame(saved, obj.(*test.TestStruct)) {
+			t.Fatalf("Read(%#v) returned %+v, %v, want the object", id, obj, err)
 		}
 	}
-	if err == nil {
-		t.Fatalf("Read failed to return NotFoundError")
+
+	if _, _, err := testService.Read(ctx, "teststruct", 444, nil, nil); !errors.Is(err, ErrNotFound) || !errors.Is(err, gocrud.ErrNotFound) {
+		t.Fatalf("Read of an ID that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-	if !errors.Is(err, gocrud.NotFoundError) {
-		t.Fatalf("Read returned err %v, want it to match gocrud.NotFoundError", err)
+	if _, _, err := testService.Read(ctx, "teststruct", "one", nil, nil); !errors.Is(err, ErrInvalidID) {
+		t.Fatalf("Read of a text ID returned %v, want %v", err, ErrInvalidID)
 	}
 }

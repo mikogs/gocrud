@@ -2,28 +2,52 @@ package gocrud
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/mikogs/gocrud/pkg/test"
 )
 
-// TestLoad tests if Load properly gets row from the database table and populate object fields with its value
-func TestLoad(t *testing.T) {
-	recreateTestStructTable()
+func testLoad(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 1, func(int) *test.TestStruct { return test.TestStructWithData() })
+	ctx := context.Background()
 
-	// Insert an object first
-	objSaved := test.TestStructWithData()
-	_ = testCRUD.Save(context.Background(), objSaved, SaveOptions{})
-
-	// Get the object
-	objLoaded := &test.TestStruct{}
-	output := testCRUD.Load(context.Background(), objLoaded, fmt.Sprintf("%d", objSaved.ID), LoadOptions{})
-	if output.Error != nil {
-		t.Fatalf("Load failed to get data: %s", output.Error.(*CRUDError).Op)
+	loaded := &test.TestStruct{}
+	if _, err := crud.Load(ctx, loaded, "1", LoadOptions{}); err != nil || loaded.ID != 1 || loaded.FirstName != "John" {
+		t.Fatalf("Load returned %v and %+v, want the object", err, loaded)
 	}
 
-	if !test.AreTestStructObjectsSame(objSaved, objLoaded) {
-		t.Fatalf("Load failed to set struct with data: %s", output.Error.(*CRUDError).Op)
+	if _, err := crud.Load(ctx, loaded, 2, LoadOptions{}); err != nil || !ObjIDIsZero(loaded) || loaded.FirstName != "" {
+		t.Fatalf("Load of an ID that does not exist returned %v and %+v, want the fields zeroed", err, loaded)
+	}
+
+	if _, err := crud.Load(ctx, loaded, "one", LoadOptions{}); !errors.Is(err, ErrInvalidID) {
+		t.Fatalf("Load of an invalid ID returned %v, want %v", err, ErrInvalidID)
 	}
 }
+
+func testDelete(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 2, func(int) *test.TestStruct { return test.TestStructWithData() })
+	ctx := context.Background()
+
+	obj := loadTestStruct(t, crud, 1)
+	if err := crud.Delete(ctx, obj, DeleteOptions{}); err != nil {
+		t.Fatalf("Delete failed: %s", err.Error())
+	}
+	if obj.ID != 0 || obj.FirstName != "" {
+		t.Fatalf("Delete left the fields %+v, want them zeroed", obj)
+	}
+
+	if _, err := Load[test.TestStruct](ctx, crud, 1); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Load of the deleted object returned %v, want %v", err, ErrNotFound)
+	}
+	if cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
+		t.Fatalf("Delete left %d objects, want 1", cnt)
+	}
+}
+
+func TestLoad(t *testing.T)        { testLoad(t, testCRUD) }
+func TestSQLite_Load(t *testing.T) { testLoad(t, testCRUDSQLite) }
+
+func TestDelete(t *testing.T)        { testDelete(t, testCRUD) }
+func TestSQLite_Delete(t *testing.T) { testDelete(t, testCRUDSQLite) }

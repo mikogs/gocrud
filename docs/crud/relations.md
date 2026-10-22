@@ -48,7 +48,7 @@ There are two kinds of relations:
 | a pointer, e.g. `Customer *Customer` | belongs to | is in this struct, e.g. `Order.CustomerID` |
 | a slice, e.g. `Items []OrderItem` or `Items []*OrderItem` | has many | is in the related struct, e.g. `OrderItem.OrderID` |
 
-The key field is of type `uint64`, or `*uint64` when the relation is optional, and holds the `ID` of the related object. The declarations are checked when the struct is used for the first time, and a mistake, e.g. a key field that does not exist, is an error that matches `structinfo.RelationError`.
+The key field holds the `ID` of the related object, and has its type: `uint64` or `string` for a [UUID](../struct.md#1-the-id-field), or a pointer to it, `*uint64` or `*string`, when the relation is optional. The declarations are checked when the struct is used for the first time, and a mistake, e.g. a key field that does not exist, or a `string` key of a struct with a `uint64` ID, is an error that matches `structinfo.ErrRelation`.
 
 Use `omitempty` in the `json` tag of relation fields, so that they are not encoded when they are not loaded.
 
@@ -88,7 +88,7 @@ for _, item := range order.Items {
 
 Each relation on a path is loaded with one query as well, so this takes 4 queries.
 
-Preload names are checked before any query is run. A name that is not a relation field is an error that matches `gocrud.PreloadError`, and names the path, e.g. `Items.Supplier: Supplier is not a relation field of OrderItem`.
+Preload names are checked before any query is run. A name that is not a relation field is an error that matches `gocrud.ErrPreload`, and names the path, e.g. `Items.Supplier: Supplier is not a relation field of OrderItem`.
 
 ### Things to keep in mind
 
@@ -134,27 +134,27 @@ type Order struct {
 }
 ```
 
-`CreateTable` and `Migrate` create the column with `REFERENCES "customer"("id") ON DELETE CASCADE`. The table name is the name of the referenced table, without the `TableNamePrefix`, which is added to it. The key field is of type `uint64`, or `*uint64` when the reference is optional.
+`CreateTable` and `Migrate` create the column with `REFERENCES "customer"("id") ON DELETE CASCADE`. The table name is the name of the referenced table, without the `TableNamePrefix`, which is added to it. The key field is of the type of the referenced `ID`, `uint64` or `string`, or a pointer to it when the reference is optional.
 
 | `on_delete` | When the referenced row is deleted |
 |---|---|
 | `cascade` | the rows that reference it are deleted as well, e.g. the items of a deleted order |
-| `set_null` | the key field of the rows that reference it is set to `NULL`, needs a `*uint64` field |
+| `set_null` | the key field of the rows that reference it is set to `NULL`, needs a `*uint64` or `*string` field |
 | `restrict` | the delete fails while there are rows that reference it |
 | not set | the same as `restrict`, the delete fails (SQL `NO ACTION`) |
 
 The database applies the actions, also to rows deleted with `DeleteMultiple`, by other applications, or with your own SQL.
 
-A mistake in the tags, e.g. `on_delete:set_null` on a field that cannot be `NULL`, is an error that matches `structinfo.ForeignKeyError`.
+A mistake in the tags, e.g. `on_delete:set_null` on a field that cannot be `NULL`, is an error that matches `structinfo.ErrForeignKey`.
 
 ### Violations
 
-Saving an object that references a row that does not exist, or deleting a row that is referenced with `restrict`, fails with an error that matches `gocrud.ForeignKeyViolationError`:
+Saving an object that references a row that does not exist, or deleting a row that is referenced with `restrict`, fails with an error that matches `gocrud.ErrForeignKeyViolation`:
 
 ```go
 err := crud.Save(ctx, order, gocrud.SaveOptions{})
 switch {
-case errors.Is(err, gocrud.ForeignKeyViolationError):
+case errors.Is(err, gocrud.ErrForeignKeyViolation):
     http.Error(w, "the customer does not exist", http.StatusConflict)
 case err != nil:
     http.Error(w, "internal error", http.StatusInternalServerError)
@@ -162,6 +162,25 @@ case err != nil:
 ```
 
 A key field of type `uint64` is `0` when it is not set, and `0` does not reference any row, so saving such an object fails too. Use `*uint64` for references that are optional.
+
+### UUIDs
+
+A foreign key to a table with UUIDs is a `string`, or a `*string` when it is optional:
+
+```go
+type Ticket struct {
+    ID         string  `json:"id"`
+    ProjectID  string  `json:"project_id" crud:"fk:project on_delete:cascade"`
+    AssigneeID *string `json:"assignee_id" crud:"fk:user on_delete:set_null"`
+    Title      string  `json:"title" validate:"required"`
+}
+```
+
+* The column is `UUID` in PostgreSQL, as a foreign key has to be of the type of the referenced column, and `TEXT` in SQLite.
+* `Save` stores the UUIDs in their standard lowercase form, and filters and `UpdateMultiple` convert them too.
+* A value that is not a UUID is a validation error with the `type` violation, also an empty string in a `string` field, so use `*string` for an optional reference.
+
+A struct with a `uint64` ID can reference a table with UUIDs, and the other way round. The key field always has the type of the ID it holds.
 
 ### SQLite
 
@@ -175,7 +194,7 @@ Without it, foreign keys are created, but ignored. `Migrate` reports it in the d
 
 ### Creating and migrating tables
 
-A table can be created only after the tables it references. The [service](../pkgs/service.md) `CreateTables` and `Migrate` create and migrate the tables in that order. To order the tables yourself, `crud.TableName(obj)` returns the name of the table of a struct, and `crud.ReferencedTables(obj)` the names of the tables its foreign keys reference. A table that references itself, e.g. a category with a parent category, is fine. Tables that reference each other in a cycle cannot be created one after another, and are an error that matches `service.ForeignKeyCycleError`.
+A table can be created only after the tables it references. The [service](../pkgs/service.md) `CreateTables` and `Migrate` create and migrate the tables in that order. To order the tables yourself, `crud.TableName(obj)` returns the name of the table of a struct, and `crud.ReferencedTables(obj)` the names of the tables its foreign keys reference. A table that references itself, e.g. a category with a parent category, is fine. Tables that reference each other in a cycle cannot be created one after another, and are an error that matches `service.ErrForeignKeyCycle`.
 
 `Migrate` adds new foreign key columns with their foreign keys. In a table that already has rows, a new foreign key column has to be a pointer, so that the existing rows get `NULL`: a column that cannot be `NULL` would get `0`, which does not reference any row, and the migration fails.
 

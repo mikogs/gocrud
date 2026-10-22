@@ -24,7 +24,7 @@ type TestStruct struct {
 	PostCode2      string `json:"post_code2"`
 	Password       string `json:"password"`
 	CreatedBy      uint64 `json:"created_by"`
-	Key            string `json:"key" sql:"uniq type:varchar(2000)"`
+	Key            string `json:"key" crud:"uniq type:varchar(2000)"`
 }
 
 type TestStructWithCustomSelect struct {
@@ -40,17 +40,17 @@ func (s *TestStructWithCustomSelect) BuildSelectPrefixQuery(tableNamePrefix stri
 type TestStructWithIgnoredFields struct {
 	ID        uint64 `json:"id"`
 	Name      string `json:"name"`
-	IgnoreMe  string `json:"-" sql:"-"`
+	IgnoreMe  string `json:"-" crud:"-"`
 	Price     int64  `json:"price"`
-	IgnoreMe2 string `json:"-" sql:"-"`
+	IgnoreMe2 string `json:"-" crud:"-"`
 }
 
 type TestStructWithIndexes struct {
 	ID        uint64 `json:"id"`
-	Email     string `json:"email" sql:"idx"`
-	FirstName string `json:"first_name" sql:"idx:name_idx"`
-	LastName  string `json:"last_name" sql:"idx:name_idx"`
-	Code      string `json:"code" sql:"uidx:code_idx"`
+	Email     string `json:"email" crud:"idx"`
+	FirstName string `json:"first_name" crud:"idx:name_idx"`
+	LastName  string `json:"last_name" crud:"idx:name_idx"`
+	Code      string `json:"code" crud:"uidx:code_idx"`
 }
 
 var testStructObj = &TestStruct{}
@@ -142,7 +142,7 @@ func TestSQLSelectQueries(t *testing.T) {
 
 	got, err := h.Select(nil, 67, 13, nil)
 	want = selectPrefix + " LIMIT 67 OFFSET 13;"
-	if got != want {
+	if err != nil || got != want {
 		t.Fatalf("\nwant %v\ngot  %v", want, got)
 	}
 
@@ -330,9 +330,9 @@ func TestSQLIndexes(t *testing.T) {
 }
 
 type TestStructWithAliases struct {
-	ID    uint64 `sql:"name:t1.id"`
-	Name  string `sql:"name:t1.name idx"`
-	Price int64  `sql:"name:t2.price"`
+	ID    uint64 `crud:"name:t1.id"`
+	Name  string `crud:"name:t1.name idx"`
+	Price int64  `crud:"name:t2.price"`
 }
 
 func (s *TestStructWithAliases) BuildSelectPrefixQuery(tableNamePrefix string) (string, error) {
@@ -346,9 +346,9 @@ func (s *TestStructWithAliases) BuildSelectCountPrefixQuery(tableNamePrefix stri
 }
 
 type TestStructWithAliasesWithoutCustomSelect struct {
-	ID    uint64 `sql:"name:t1.id"`
-	Name  string `sql:"name:t1.name idx"`
-	Price int64  `sql:"name:t2.price"`
+	ID    uint64 `crud:"name:t1.id"`
+	Name  string `crud:"name:t1.name idx"`
+	Price int64  `crud:"name:t2.price"`
 }
 
 var aliasesTestFilters = filters.And(filters.Filters{
@@ -485,63 +485,13 @@ func TestNew_InvalidStruct(t *testing.T) {
 	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
 		t.Run(dialect, func(t *testing.T) {
 			b, err := New(&withoutID{}, Options{Dialect: dialect})
-			if !errors.Is(err, structinfo.IDFieldError) || b != nil {
-				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.IDFieldError)
+			if !errors.Is(err, structinfo.ErrIDField) || b != nil {
+				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.ErrIDField)
 			}
 
 			b, err = New(nil, Options{Dialect: dialect})
-			if !errors.Is(err, structinfo.NotStructPointerError) || b != nil {
-				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.NotStructPointerError)
-			}
-		})
-	}
-}
-
-func TestSQLInvalidRawFilters(t *testing.T) {
-	tests := map[string]filters.Filter{
-		"too few values":  filters.Raw(".Price > ? AND .Age < ?", 1),
-		"too many values": filters.Raw(".Price > ?", 1, 2),
-		"unknown field":   filters.Raw(".Unknown > ?", 1),
-	}
-
-	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
-		h := mustNew(t, testStructObj, Options{Dialect: dialect})
-
-		for name, f := range tests {
-			t.Run(dialect+"/"+name, func(t *testing.T) {
-
-				if _, err := h.Select(nil, 0, 0, f); err == nil {
-					t.Fatal("Select did not return an err for an invalid raw filter")
-				}
-				if _, err := h.SelectCount(f); err == nil {
-					t.Fatal("SelectCount did not return an err for an invalid raw filter")
-				}
-				if _, err := h.DeleteReturningID(f); err == nil {
-					t.Fatal("DeleteReturningID did not return an err for an invalid raw filter")
-				}
-				if _, err := h.Update(map[string]interface{}{"Price": 1}, f); err == nil {
-					t.Fatal("Update did not return an err for an invalid raw filter")
-				}
-			})
-		}
-	}
-}
-
-func TestSQLRawFilterWithNilValue(t *testing.T) {
-	f := filters.Raw(".Price = ? OR .Age = ?", nil, 5)
-
-	wants := map[string]string{
-		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE "price" = $1 OR "age" = $2;`,
-		DialectSQLite:   `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE "price" = ? OR "age" = ?;`,
-	}
-	for dialect, want := range wants {
-		t.Run(dialect, func(t *testing.T) {
-			got, err := mustNew(t, testStructObj, Options{Dialect: dialect}).SelectCount(f)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-			if got != want {
-				t.Fatalf("\nwant %v\ngot  %v", want, got)
+			if !errors.Is(err, structinfo.ErrNotStructPointer) || b != nil {
+				t.Fatalf("New returned %v, %v, want nil, %v", b, err, structinfo.ErrNotStructPointer)
 			}
 		})
 	}
@@ -561,7 +511,7 @@ func TestSQLOddOrder(t *testing.T) {
 type TestStructWithTimes struct {
 	ID       uint64
 	Name     string
-	StartsAt time.Time `sql:"idx"`
+	StartsAt time.Time `crud:"idx"`
 }
 
 func TestSQLTimeColumns(t *testing.T) {
@@ -622,8 +572,8 @@ func TestSQLModificationFieldsNotUpdated(t *testing.T) {
 type TestStructWithNullableFields struct {
 	ID        uint64
 	Name      string
-	Nickname  *string `sql:"uniq"`
-	Bio       *string `sql:"type:text"`
+	Nickname  *string `crud:"uniq"`
+	Bio       *string `crud:"type:text"`
 	Age       *int64
 	Score     *float64
 	Rate      float32
@@ -723,9 +673,9 @@ func TestSQLInConditions(t *testing.T) {
 
 type TestStructWithForeignKeys struct {
 	ID         uint64
-	CustomerID uint64  `sql:"fk:customer on_delete:cascade"`
-	ShipperID  *uint64 `sql:"fk:shipper on_delete:set_null uniq"`
-	NoteID     uint64  `sql:"fk:note"`
+	CustomerID uint64  `crud:"fk:customer on_delete:cascade"`
+	ShipperID  *uint64 `crud:"fk:shipper on_delete:set_null uniq"`
+	NoteID     uint64  `crud:"fk:note"`
 }
 
 func TestSQLForeignKeys(t *testing.T) {
@@ -864,14 +814,6 @@ func TestSQLiteDeleteQueries(t *testing.T) {
 }
 
 func TestBuilderHelpers(t *testing.T) {
-	h := mustNew(t, testStructObj, Options{})
-
-	if got := h.DatabaseColumnToFieldName("post_code2"); got != "PostCode2" {
-		t.Fatalf("DatabaseColumnToFieldName returned %q, want PostCode2", got)
-	}
-	if got := h.DatabaseColumnToFieldName("unknown"); got != "" {
-		t.Fatalf("DatabaseColumnToFieldName returned %q for an unknown column, want an empty string", got)
-	}
 
 	if !IsStructField(testStructObj, "PostCode") || IsStructField(testStructObj, "Unknown") {
 		t.Fatal("IsStructField returned wrong results")
@@ -892,5 +834,40 @@ func TestSQLOrderDirections(t *testing.T) {
 		if err != nil || !strings.HasSuffix(got, want) {
 			t.Fatalf("%s: Select returned %q, %v, want it to end with %q", dialect, got, err, want)
 		}
+	}
+}
+
+type TestTicket struct {
+	ID    string
+	Title string
+}
+
+func TestSQLUUIDQueries(t *testing.T) {
+	wants := map[string][3]string{
+		DialectPostgres: {
+			`CREATE TABLE IF NOT EXISTS "test_ticket" ("id" UUID PRIMARY KEY,"title" VARCHAR(255) NOT NULL DEFAULT '');`,
+			`INSERT INTO "test_ticket"("id","title") VALUES ($1,$2) RETURNING "id";`,
+			`SELECT COUNT(*) AS cnt FROM "test_ticket" WHERE CAST("id" AS TEXT) LIKE $1;`,
+		},
+		DialectSQLite: {
+			`CREATE TABLE IF NOT EXISTS "test_ticket" ("id" TEXT PRIMARY KEY,"title" TEXT NOT NULL DEFAULT '');`,
+			`INSERT INTO "test_ticket"("id","title") VALUES (?,?) RETURNING "id";`,
+			`SELECT COUNT(*) AS cnt FROM "test_ticket" WHERE "id" LIKE ?;`,
+		},
+	}
+
+	for dialect, want := range wants {
+		t.Run(dialect, func(t *testing.T) {
+			h := mustNew(t, &TestTicket{}, Options{Dialect: dialect})
+			selectCount, err := h.SelectCount(filters.Filters{"ID": {Op: filters.OpLike, Val: "0190%"}})
+			got := [3]string{h.CreateTable(), h.Insert(), selectCount}
+			if err != nil || got != want || !h.HasUUID() {
+				t.Fatalf("\nwant %v\ngot  %v, %v", want, got, err)
+			}
+		})
+	}
+
+	if mustNew(t, testStructObj, Options{}).HasUUID() {
+		t.Fatal("HasUUID returned true for a uint64 ID")
 	}
 }

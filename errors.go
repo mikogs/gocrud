@@ -45,17 +45,21 @@ var getBuilderObjectCRUDError = func(err error) *CRUDError {
 	}
 }
 
-// QueryMethodError is matched by the error of an operation on a struct that has a query method, e.g. SelectQuery,
-// with a signature other than the one that gocrud calls.
-var QueryMethodError = errors.New("invalid query method")
+// ErrInvalidID is matched by the error of an operation that gets an ID of the wrong type, e.g. a number for a struct
+// with a UUID, or a string that is not a UUID.
+var ErrInvalidID = errors.New("invalid id")
 
-// ForeignKeyViolationError is matched by the errors of queries that violate a foreign key, e.g. a save of an object
+// ErrQueryMethod is matched by the error of an operation on a struct that has a query method, e.g. SelectQuery,
+// with a signature other than the one that gocrud calls.
+var ErrQueryMethod = errors.New("invalid query method")
+
+// ErrForeignKeyViolation is matched by the errors of queries that violate a foreign key, e.g. a save of an object
 // that references an object that does not exist, or a delete of an object that is referenced.
-var ForeignKeyViolationError = errors.New("foreign key violation")
+var ErrForeignKeyViolation = errors.New("foreign key violation")
 
 var getDBFuncCRUDError = func(action string, err error) *CRUDError {
 	if isForeignKeyViolation(err) {
-		err = fmt.Errorf("%w: %w", ForeignKeyViolationError, err)
+		err = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 	}
 
 	return &CRUDError{
@@ -91,20 +95,6 @@ var getCRUDFuncCRUDError = func(action string, err error) *CRUDError {
 var getObjFuncCRUDError = func(action string, err error) *CRUDError {
 	return &CRUDError{
 		Op:  "object " + action,
-		Err: err,
-	}
-}
-
-var getUpdateFieldFromTagsCRUDError = func() *CRUDError {
-	return &CRUDError{
-		Op:  "update field from tags",
-		Err: errors.New("missing"),
-	}
-}
-
-var getConvertIDToIntCRUDError = func(err error) *CRUDError {
-	return &CRUDError{
-		Op:  "convert id to int",
 		Err: err,
 	}
 }

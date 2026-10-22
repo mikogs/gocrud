@@ -80,7 +80,7 @@ func PlaceOrder(ctx context.Context, crud *gocrud.CRUD, customerID uint64, cart 
 
         for _, item := range cart {
             product, err := gocrud.Load[Product](ctx, tx, item.ProductID)
-            if errors.Is(err, gocrud.NotFoundError) {
+            if errors.Is(err, gocrud.ErrNotFound) {
                 return fmt.Errorf("%w: %d", ErrProductNotFound, item.ProductID)
             }
             if err != nil {
@@ -302,7 +302,7 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
 
     var validationErr *svccrud.ModelValidationError
     switch {
-    case errors.Is(err, svccrud.NotFoundError):
+    case errors.Is(err, svccrud.ErrNotFound):
         http.Error(w, "task not found", http.StatusNotFound)
     case errors.As(err, &validationErr):
         http.Error(w, fmt.Sprintf("invalid fields: %v", validationErr.Violations), http.StatusUnprocessableEntity)

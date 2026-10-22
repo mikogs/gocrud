@@ -121,7 +121,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 	qc.IndexStatements, qc.IndexNames = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
-	err := qc.setQueries(obj, tableNamePrefix)
+	err := qc.setQueries(obj, tableNamePrefix, structInfo.UUID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,9 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 	return qc, nil
 }
 
-func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) error {
+// setQueries sets the queries of the struct. The INSERT of a struct with a UUID includes the ID, which is generated
+// before the object is inserted, instead of the one assigned by the database.
+func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string, uuid bool) error {
 	numColumn := len(q.ColumnNames)
 
 	columnNames := strings.Join(q.ColumnNames, ",")
@@ -224,6 +226,9 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) err
 		q.Insert = query
 	} else {
 		q.Insert = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) RETURNING %s", q.TableName, columnNamesWithoutID, valuesWithoutID, idColumn)
+		if uuid {
+			q.Insert = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) RETURNING %s", q.TableName, columnNames, values, idColumn)
+		}
 	}
 
 	if insertOnConflictUpdateBuilderImpl, ok := obj.(querycontainer.InsertOnConflictUpdateBuilder); ok {

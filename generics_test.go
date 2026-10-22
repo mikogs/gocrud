@@ -92,8 +92,8 @@ func testGenericLoad(t *testing.T, crud *CRUD) {
 	}
 
 	article, err = Load[Article](context.Background(), crud, 999)
-	if !errors.Is(err, NotFoundError) || article != nil {
-		t.Fatalf("Load returned %v, %v, want nil, %v", article, err, NotFoundError)
+	if !errors.Is(err, ErrNotFound) || article != nil {
+		t.Fatalf("Load returned %v, %v, want nil, %v", article, err, ErrNotFound)
 	}
 }
 
@@ -167,16 +167,16 @@ func testGenericInvalidUse(t *testing.T, crud *CRUD) {
 		"RowObjTransformFunc":  {RowObjTransformFunc: func(obj interface{}) interface{} { return obj }},
 		"VerifyPasswordFields": {VerifyPasswordFields: map[string]string{"Password": "secret"}},
 	} {
-		if _, err := Get[Article](ctx, crud, options); !errors.Is(err, UnsupportedOptionError) {
-			t.Fatalf("Get with %s returned err %v, want %v", name, err, UnsupportedOptionError)
+		if _, err := Get[Article](ctx, crud, options); !errors.Is(err, ErrUnsupportedOption) {
+			t.Fatalf("Get with %s returned err %v, want %v", name, err, ErrUnsupportedOption)
 		}
 	}
 
-	if _, err := Get[*Article](ctx, crud, GetOptions{}); !errors.Is(err, structinfo.NotStructPointerError) {
-		t.Fatalf("Get with a pointer type returned err %v, want %v", err, structinfo.NotStructPointerError)
+	if _, err := Get[*Article](ctx, crud, GetOptions{}); !errors.Is(err, structinfo.ErrNotStructPointer) {
+		t.Fatalf("Get with a pointer type returned err %v, want %v", err, structinfo.ErrNotStructPointer)
 	}
-	if _, err := Load[int](ctx, crud, 1); !errors.Is(err, structinfo.NotStructPointerError) {
-		t.Fatalf("Load with a type that is not a struct returned err %v, want %v", err, structinfo.NotStructPointerError)
+	if _, err := Load[int](ctx, crud, 1); !errors.Is(err, structinfo.ErrNotStructPointer) {
+		t.Fatalf("Load with a type that is not a struct returned err %v, want %v", err, structinfo.ErrNotStructPointer)
 	}
 }
 

@@ -98,6 +98,7 @@ The existing customers have `NULL` emails and `0` points. The longer code has to
 |---|---|
 | A column that is not a field of the struct | It may be a field that was renamed, or data still used elsewhere. Dropping it would lose the data. |
 | A column of a different type | The existing values may not fit the new type, e.g. text in a number column, or a longer text in a shorter column. |
+| An `ID` column of the other kind, e.g. `SERIAL` for a `string` ID with a UUID | The IDs are referenced by other tables and by URLs, so they have to be converted together, with a plan. The exact type of a numeric `ID` column is not compared, as it depends on how the table was created. |
 | A `NOT NULL` column of a pointer field | Usually safe, but it changes what other code reading the table can expect. |
 | A nullable column of a field that is not a pointer | Existing `NULL` values have to be replaced first. |
 | An existing column of a field tagged with `uniq` that is not unique | The column may already have duplicate values, which have to be resolved first. |
@@ -138,7 +139,7 @@ CREATE UNIQUE INDEX uniq_customer_code ON customer (code);
 
 ## Things to keep in mind
 
-* **Structs with column aliases** read from several tables, see [Column Aliases](../struct.md#column-aliases). `Migrate` returns an error that matches `gocrud.AliasedColumnsMigrateError` for them, as it would add the columns of the other tables to the table of the struct.
+* **Structs with column aliases** read from several tables, see [Column Aliases](../struct.md#column-aliases). `Migrate` returns an error that matches `gocrud.ErrAliasedColumnsMigrate` for them, as it would add the columns of the other tables to the table of the struct.
 * **Projections**, e.g. `User_Summary` that uses the table of `User` with fewer fields, should not be migrated: all the other columns would be reported as not being fields of the struct. Migrate the full struct instead.
 * **Indexes** that are reported when they are no longer declared are the ones that gocrud creates: `idx_<table>_<name>` for `idx` and `uidx`, and `uniq_<table>_<column>` described below. Indexes that you created yourself, and the ones of primary keys and `UNIQUE` constraints, are not checked for being no longer declared. A column counts as unique when it has a unique index or constraint of its own: a unique index on several columns, or with a `WHERE` condition, does not make the column unique. Drop an index that is no longer needed with `DROP INDEX "idx_customer_points"`.
 * **A unique field** added in SQLite gets a unique index named `uniq_<table>_<column>` instead of a `UNIQUE` constraint, because SQLite cannot add a column with a constraint. Both reject duplicates in the same way.

@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/go-playground/validator/v10 v10.30.5
+	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/ory/dockertest/v3 v3.12.0
 	golang.org/x/crypto v0.58.0
@@ -28,7 +29,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect

@@ -97,7 +97,9 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 
 		queryContainer.FieldColumnName[field.Name] = columnName
 
-		if structinfo.BaseType(field.Type).Kind() != reflect.String {
+		// a UUID is not a string in the database, e.g. LIKE needs it cast to text
+		isUUID := structInfo.Fields[field.Name].UUID || (field.Name == "ID" && structInfo.UUID)
+		if structinfo.BaseType(field.Type).Kind() != reflect.String || isUUID {
 			queryContainer.ColumnNotString[columnName] = true
 		}
 
@@ -109,11 +111,15 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		}
 
 		foreignKey := querycontainer.NewForeignKey(tableNamePrefix, structInfo.Fields[field.Name].ForeignKeyTable, structInfo.Fields[field.Name].OnDelete)
-		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable) + foreignKey.Clause()
+		columnDefinition := columnDefinitionFromField(field.Name, structinfo.BaseType(field.Type).String(), unique, structInfo.Fields[field.Name].OverrideColumnType, structInfo.Fields[field.Name].Nullable, structInfo.Fields[field.Name].UUID) + foreignKey.Clause()
 		queryContainer.ColumnDefinitions = append(queryContainer.ColumnDefinitions, fmt.Sprintf(`%s %s`, QuoteColumn(ColumnWithoutAlias(columnName)), columnDefinition))
+		columnType := columnType(structinfo.BaseType(field.Type).String(), structInfo.Fields[field.Name].OverrideColumnType)
+		if isUUID {
+			columnType = "UUID"
+		}
 		queryContainer.Columns = append(queryContainer.Columns, querycontainer.Column{
 			Name:       ColumnWithoutAlias(columnName),
-			Type:       columnType(structinfo.BaseType(field.Type).String(), structInfo.Fields[field.Name].OverrideColumnType),
+			Type:       columnType,
 			Nullable:   structInfo.Fields[field.Name].Nullable,
 			Unique:     unique,
 			IsID:       field.Name == "ID",
@@ -132,7 +138,7 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 	queryContainer.IndexStatements, queryContainer.IndexNames = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
-	err := queryContainer.setQueries(obj, tableNamePrefix)
+	err := queryContainer.setQueries(obj, tableNamePrefix, structInfo.UUID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +146,9 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 	return queryContainer, nil
 }
 
-func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (err error) {
+// setQueries sets the queries of the struct. The INSERT of a struct with a UUID includes the ID, which is generated
+// before the object is inserted, instead of the one assigned by the database.
+func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string, uuid bool) (err error) {
 	numColumn := len(q.ColumnNames)
 	numUpdateColumn := len(q.UpdateColumnNames)
 
@@ -225,6 +233,9 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string) (er
 		q.Insert = query
 	} else {
 		q.Insert = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) RETURNING %s", q.TableName, columnNamesWithoutID, valuesWithoutID, idColumn)
+		if uuid {
+			q.Insert = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) RETURNING %s", q.TableName, columnNames, values, idColumn)
+		}
 	}
 
 	if insertOnConflictUpdateBuilderImpl, ok := obj.(querycontainer.InsertOnConflictUpdateBuilder); ok {

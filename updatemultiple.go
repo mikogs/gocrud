@@ -31,6 +31,10 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 			fieldsToUpdate[name] = valueAsFieldType
 		}
 	}
+	if err := normalizeUUIDValues(fieldsToUpdate, builder.UUIDFields()); err != nil {
+		return err
+	}
+
 	ok, violations, err := ValidateValues(obj, fieldsToUpdate, c.tagName)
 	if err != nil {
 		return getValidateObjCRUDError(err)
@@ -40,7 +44,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 		return getObjInvalidCRUDError(violations)
 	}
 
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = prepareFilters(obj, builder, options.Filters, false, c.tagName)
 	if err != nil {
 		return err
 	}
@@ -64,5 +68,32 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 		return getDBFuncCRUDError("exec", err)
 	}
 
+	return nil
+}
+
+// normalizeUUIDValues sets the UUIDs in the values of fields with UUIDs to their standard form, as SQLite compares them
+// as text. A value that is not a UUID is a type violation, and nil sets a nullable field to NULL.
+func normalizeUUIDValues(values map[string]interface{}, uuidFields []string) error {
+	violations := map[string]string{}
+	for _, name := range uuidFields {
+		value, ok := values[name]
+		if !ok || isNilValue(value) {
+			continue
+		}
+		if pointer, ok := value.(*string); ok {
+			value = *pointer
+		}
+
+		id, err := idValue(true, value)
+		if err != nil {
+			violations[name] = ViolationType
+			continue
+		}
+		values[name] = id
+	}
+
+	if len(violations) > 0 {
+		return getObjInvalidCRUDError(violations)
+	}
 	return nil
 }

@@ -140,15 +140,15 @@ func testNestedPreloadInvalid(t *testing.T, crud *CRUD) {
 		t.Run(path, func(t *testing.T) {
 			counted, conn := withCountingConn(crud)
 			_, err := Get[NestOrder](context.Background(), counted, GetOptions{Preload: []string{"Customer", path}})
-			if !errors.Is(err, PreloadError) || !strings.Contains(err.Error(), want) {
-				t.Fatalf("Get returned err %v, want %v with %q", err, PreloadError, want)
+			if !errors.Is(err, ErrPreload) || !strings.Contains(err.Error(), want) {
+				t.Fatalf("Get returned err %v, want %v with %q", err, ErrPreload, want)
 			}
 			if conn.queries != 0 {
 				t.Fatalf("Get ran %d queries for an invalid preload path, want 0", conn.queries)
 			}
 
-			if _, err := Load[NestOrder](context.Background(), counted, 1, path); !errors.Is(err, PreloadError) || conn.queries != 0 {
-				t.Fatalf("Load returned err %v after %d queries, want %v after 0", err, conn.queries, PreloadError)
+			if _, err := Load[NestOrder](context.Background(), counted, 1, path); !errors.Is(err, ErrPreload) || conn.queries != 0 {
+				t.Fatalf("Load returned err %v after %d queries, want %v after 0", err, conn.queries, ErrPreload)
 			}
 		})
 	}

@@ -71,7 +71,7 @@ func checkQueryMethods(obj interface{}) error {
 	objType := reflect.TypeOf(obj)
 	for name, iface := range queryMethodInterfaces {
 		if _, ok := objType.MethodByName(name); ok && !objType.Implements(iface) {
-			return fmt.Errorf("%w: %s.%s is %s, want %s", QueryMethodError, objType, name,
+			return fmt.Errorf("%w: %s.%s is %s, want %s", ErrQueryMethod, objType, name,
 				reflect.ValueOf(obj).MethodByName(name).Type(), iface.Method(0).Type)
 		}
 	}

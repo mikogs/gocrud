@@ -3,23 +3,22 @@ package gocrud
 import (
 	"context"
 	"errors"
-	"strconv"
 )
 
-// NotFoundError is returned by Load when there is no object with the given ID.
-var NotFoundError = errors.New("object not found")
+// ErrNotFound is returned by Load when there is no object with the given ID.
+var ErrNotFound = errors.New("object not found")
 
-// UnsupportedOptionError is returned by Get when an option that it does not support is set.
-var UnsupportedOptionError = errors.New("option not supported by the generic function, use the CRUD method instead")
+// ErrUnsupportedOption is returned by Get when an option that it does not support is set.
+var ErrUnsupportedOption = errors.New("option not supported by the generic function, use the CRUD method instead")
 
 // Get returns the objects of type T that match the options. T is a struct type, e.g. Get[User].
 // RowObjTransformFunc and VerifyPasswordFields are not supported, use CRUD.Get for them.
 func Get[T any](ctx context.Context, c *CRUD, options GetOptions) ([]*T, error) {
 	if options.RowObjTransformFunc != nil {
-		return nil, getCRUDFuncCRUDError("get", errors.Join(UnsupportedOptionError, errors.New("RowObjTransformFunc")))
+		return nil, getCRUDFuncCRUDError("get", errors.Join(ErrUnsupportedOption, errors.New("RowObjTransformFunc")))
 	}
 	if options.VerifyPasswordFields != nil {
-		return nil, getCRUDFuncCRUDError("get", errors.Join(UnsupportedOptionError, errors.New("VerifyPasswordFields")))
+		return nil, getCRUDFuncCRUDError("get", errors.Join(ErrUnsupportedOption, errors.New("VerifyPasswordFields")))
 	}
 
 	objs, _, err := c.Get(ctx, func() interface{} { return new(T) }, options)
@@ -35,18 +34,18 @@ func Get[T any](ctx context.Context, c *CRUD, options GetOptions) ([]*T, error) 
 	return typedObjs, nil
 }
 
-// Load returns the object of type T with the given ID, or NotFoundError when there is no such object.
+// Load returns the object of type T with the given ID, or ErrNotFound when there is no such object.
 // The related objects of the relation fields named in preload are loaded as well.
-func Load[T any](ctx context.Context, c *CRUD, id uint64, preload ...string) (*T, error) {
+// The ID is a non-negative integer for an ID of type uint64, and a UUID for a string ID.
+func Load[T any](ctx context.Context, c *CRUD, id interface{}, preload ...string) (*T, error) {
 	obj := new(T)
 
-	output := c.Load(ctx, obj, strconv.FormatUint(id, 10), LoadOptions{Preload: preload})
-	if output.Error != nil {
-		return nil, output.Error
+	if _, err := c.Load(ctx, obj, id, LoadOptions{Preload: preload}); err != nil {
+		return nil, err
 	}
 
-	if ObjIDValue(obj) == 0 {
-		return nil, NotFoundError
+	if ObjIDIsZero(obj) {
+		return nil, ErrNotFound
 	}
 
 	return obj, nil
@@ -62,8 +61,9 @@ func UpdateMultiple[T any](ctx context.Context, c *CRUD, values map[string]inter
 	return c.UpdateMultiple(ctx, new(T), values, options)
 }
 
-// DeleteMultiple deletes all the objects of type T that match the options, and returns their IDs.
-func DeleteMultiple[T any](ctx context.Context, c *CRUD, options DeleteMultipleOptions) ([]uint64, error) {
+// DeleteMultiple deletes all the objects of type T that match the options, and returns their IDs, of the type of the
+// ID field.
+func DeleteMultiple[T any](ctx context.Context, c *CRUD, options DeleteMultipleOptions) ([]interface{}, error) {
 	return c.DeleteMultiple(ctx, new(T), options)
 }
 

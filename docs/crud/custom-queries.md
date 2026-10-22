@@ -42,15 +42,15 @@ func (n *Note) SelectCountQuery(filters sqlfilters.Filter) (string, error) {
 
 ## Query methods
 
-A method must have exactly the signature in the table. A method with the name of a query method and another signature, e.g. one written for an older version of gocrud, would not be called, so the operations on the struct fail with an error that matches `gocrud.QueryMethodError` instead.
+A method must have exactly the signature in the table. A method with the name of a query method and another signature, e.g. one written for an older version of gocrud, would not be called, so the operations on the struct fail with an error that matches `gocrud.ErrQueryMethod` instead.
 
 The query is run with the same arguments as the generated query, in the order below. "Columns" are the stored fields of the struct, in the order they are declared, i.e. without the ignored fields and the relation fields.
 
 | Method | Used by | Arguments of the query | The query returns |
 |---|---|---|---|
-| `InsertQuery() (string, error)` | `Save` of a new object | the columns without `ID` | the new `ID` |
+| `InsertQuery() (string, error)` | `Save` of a new object | the columns without `ID`, or all the columns for a UUID, which `Save` generates | the new `ID` |
 | `InsertOnConflictUpdateQuery() (string, error)` | `Save` of an object with an `ID` | all the columns, then the updated columns | nothing |
-| `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID` | nothing |
+| `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID` | nothing, and `Save` returns `ErrNotFound` when it changes no rows |
 | `SelectByIDQuery() (string, error)` | `Load` | the `ID` | the columns |
 | `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns |
 | `SelectCountQuery(filters sqlfilters.Filter) (string, error)` | `GetCount` | the filter values | the number of rows |

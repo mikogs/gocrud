@@ -9,16 +9,16 @@ import (
 	structInfo "github.com/mikogs/gocrud/pkg/structinfo"
 )
 
-const IDField = "ID"
+const idField = "ID"
 
-func ObjFieldInterfaces(obj interface{}, includeID bool) []interface{} {
+func objFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 	objValue := reflect.ValueOf(obj).Elem()
 
 	var fieldInterfaces []interface{}
 
 	for i := 0; i < objValue.NumField(); i++ {
 		valueField := objValue.Field(i)
-		if objValue.Type().Field(i).Name == IDField && !includeID {
+		if objValue.Type().Field(i).Name == idField && !includeID {
 			continue
 		}
 
@@ -47,7 +47,7 @@ func FatalIfTestStructNotDeletedInTheDatabase(t *testing.T, db *sql.DB, id uint6
 func FatalIfNoTestStructInTheDatabase(t *testing.T, db *sql.DB) *TestStruct {
 	objLoaded := &TestStruct{}
 	fieldsPtrs := []interface{}{&objLoaded.ID}
-	fieldsPtrs = append(fieldsPtrs, ObjFieldInterfaces(objLoaded, false)...)
+	fieldsPtrs = append(fieldsPtrs, objFieldInterfaces(objLoaded, false)...)
 	err := db.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
 	if err != nil {
 		t.Fatalf("Save failed to insert struct to the table: %s", err.Error())

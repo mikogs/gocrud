@@ -50,9 +50,9 @@ func TestNew_InvalidForeignKeys(t *testing.T) {
 			ID   uint64 `crud:"fk:customer"`
 			Name string
 		}{},
-		"on a string": &struct {
+		"on an int64": &struct {
 			ID   uint64
-			Code string `crud:"fk:customer"`
+			Code int64 `crud:"fk:customer"`
 		}{},
 		"on a signed integer": &struct {
 			ID         uint64
@@ -70,8 +70,8 @@ func TestNew_InvalidForeignKeys(t *testing.T) {
 
 	for name, obj := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := New(obj, "crud"); !errors.Is(err, ForeignKeyError) {
-				t.Fatalf("New returned err %v, want %v", err, ForeignKeyError)
+			if _, err := New(obj, "crud"); !errors.Is(err, ErrForeignKey) {
+				t.Fatalf("New returned err %v, want %v", err, ErrForeignKey)
 			}
 		})
 	}

@@ -10,7 +10,11 @@ import (
 // columnDefinitionFromField maps a struct field type to the definition of its database column.
 // Nullable columns do not have NOT NULL and DEFAULT, so that their values can be NULL.
 func columnDefinitionFromField(fieldName string, fieldType string, isUnique bool, overrideColumnType string, isNullable bool) string {
+	// a string ID holds a UUID
 	if fieldName == "ID" {
+		if fieldType == "string" {
+			return "TEXT PRIMARY KEY"
+		}
 		return "INTEGER PRIMARY KEY"
 	}
 

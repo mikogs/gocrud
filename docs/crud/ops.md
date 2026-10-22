@@ -14,8 +14,9 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 
 **Behavior**
 
-* **Default Behavior (Upsert)**: By default, `Save` attempts to insert a new record. If a record with the same `ID` already exists in the database, it automatically falls back to performing an update.
-* **Update Only**: To force an update operation without attempting an insertion (if the ID is known to exist), set the `NoInsert` flag to `true` in the options.
+* **New objects**: An object with an empty `ID`, `0` or `""`, is inserted. The database assigns a numeric `ID`, and `Save` generates a UUID for a `string` ID, see [The ID Field](../struct.md#1-the-id-field). The `ID` is set on the object.
+* **Default Behavior (Upsert)**: An object with an `ID` is inserted with that `ID`. If a record with the same `ID` already exists in the database, it automatically falls back to performing an update.
+* **Update Only**: To force an update operation without attempting an insertion, set the `NoInsert` flag to `true` in the options. When there is no object with the `ID`, nothing is saved, and `Save` returns an error that matches `gocrud.ErrNotFound`.
 
 **Parameters**
 
@@ -27,11 +28,13 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 
 ```go
 type SaveOptions struct {
-    NoInsert   bool      // If true, skips the INSERT attempt and performs only UPDATE.
-    ModifiedBy uint64    // Optional ID of the user performing the modification.
-    ModifiedAt time.Time // Optional time of the modification, the current time when zero.
+    NoInsert   bool        // If true, skips the INSERT attempt and performs only UPDATE.
+    ModifiedBy interface{} // Optional ID of the user performing the modification.
+    ModifiedAt time.Time   // Optional time of the modification, the current time when zero.
 }
 ```
+
+`ModifiedBy` is a non-negative integer, or a decimal string, for `CreatedBy` and `ModifiedBy` fields of type `uint64`, and a string for fields of type `string`. Another value fails with an error that matches `gocrud.ErrInvalidID`.
 
 When the struct has the `CreatedAt`, `CreatedBy`, `ModifiedAt` and `ModifiedBy` fields, `Save` fills them in. The creation fields are set only when the object is inserted, and are never changed by an update. See [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
 
@@ -71,21 +74,21 @@ The `Load` method retrieves a record from the database based on a specific ID an
 **Signature**
 
 ```go
-func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options LoadOptions) *LoadOutput
+func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, options LoadOptions) (map[string]int, error)
 ```
 
 **Behavior**
 
 * **Data Retrieval**: Fetches the row corresponding to the provided id and maps the database columns to the fields of the obj struct.
 * **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` after the row is scanned. The bcrypt hash is never left in memory after a successful load.
-* **Password Verification**: For every field tagged `crud:"pass"` that also appears as a key in `options.VerifyPasswordFields`, the corresponding map value is checked as a plaintext password against the bcrypt hash stored in that field, and the result is recorded in the returned `LoadOutput.PasswordFields` map. Keys in `options.VerifyPasswordFields` that do not name an actual password field are ignored and do not appear in the result.
-* **Not Found Handling**: If no record exists with the given id, the method returns no error (typically), but the obj instance is zeroed out. This means all fields in the struct are reset to their default zero values (e.g., 0, "", nil, false), ensuring the caller receives a clean, empty object rather than partial or stale data.
+* **Password Verification**: For every field tagged `crud:"pass"` that also appears as a key in `options.VerifyPasswordFields`, the corresponding map value is checked as a plaintext password against the bcrypt hash stored in that field, and the result is recorded in the returned map. Keys in `options.VerifyPasswordFields` that do not name an actual password field are ignored and do not appear in the result.
+* **Not Found Handling**: If no record exists with the given id, the method returns no error, but the obj instance is zeroed out. This means all fields in the struct are reset to their default zero values (e.g., 0, "", nil, false), ensuring the caller receives a clean, empty object rather than partial or stale data. Check it with `gocrud.ObjIDIsZero(obj)`, or use [`Load[T]`](generics.md#load), which returns `ErrNotFound`.
 
 **Parameters**
 
 * `ctx context.Context`: The execution context for the operation.
 * `obj interface{}`: The target struct instance to be populated with data. It must be a pointer to a struct.
-* `id string`: The unique identifier of the record to load.
+* `id interface{}`: The ID of the record: a non-negative integer, or a decimal string, for an `ID` of type `uint64`, and a UUID for a `string` ID, so that an ID from a URL can be passed as it is. Another value fails with an error that matches `gocrud.ErrInvalidID`.
 * `options LoadOptions`: Configuration options for the load operation.
 
 **LoadOptions**
@@ -102,14 +105,7 @@ type LoadOptions struct {
 }
 ```
 
-**LoadOutput**
-
-```go
-type LoadOutput struct {
-    Error          error
-    PasswordFields map[string]int // PassOK or PassInvalid, keyed by password field name
-}
-```
+**Returns** the results of `VerifyPasswordFields`, by the name of the password field:
 
 * `PassOK`: the supplied plaintext matches the stored bcrypt hash.
 * `PassInvalid`: the supplied plaintext does not match the stored bcrypt hash.
@@ -227,13 +223,13 @@ The `DeleteMultiple` method removes multiple records from the database table tha
 **Signature**
 
 ```go
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]uint64, error)
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]interface{}, error)
 ```
 
 **Behavior**
 
 * **Batch Deletion**: Executes a `DELETE` query based on the `Filters` provided, removing all rows that satisfy the conditions.
-* **Deleted IDs**: Returns the IDs of the deleted rows, in the order the database returns them, or an empty slice when no rows matched. The rows of other tables that are deleted by foreign keys are not included.
+* **Deleted IDs**: Returns the IDs of the deleted rows, of the type of the `ID` field, `uint64` or `string`, in the order the database returns them, or an empty slice when no rows matched. The rows of other tables that are deleted by foreign keys are not included.
 * **Related rows**: Rows of other tables that reference the deleted rows are deleted, updated or protected by the database, according to their foreign keys, see [Foreign keys](relations.md#foreign-keys).
 
 **Parameters**
@@ -382,7 +378,7 @@ users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
 ```
 
 * **Fields** are written as `.FieldName`, and replaced with their columns. A dot after a letter, a digit or a quote is left as it is, e.g. in `t1.price` or `1.5`.
-* **Each `?`** is replaced with a parameter of the query for one of the values, in order. A slice or an array is a list of parameters, e.g. for `IN (?)`. The number of `?` has to be the number of values, otherwise the operation fails with an error that matches `where.RawFilterError`, from `github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where`.
+* **Each `?`** is replaced with a parameter of the query for one of the values, in order. A slice or an array is a list of parameters, e.g. for `IN (?)`. The number of `?` has to be the number of values, otherwise the operation fails with an error that matches `where.ErrRawFilter`, from `github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where`.
 * **The SQL** is used as it is, so never build it from user input. Pass the input as values.
 
 The values of a raw filter are not validated, and not converted from strings.
@@ -426,19 +422,20 @@ err = gocrud.ValidateFilters(obj, filters, "crud")
 
 ## Errors
 
-Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed, e.g. `"database exec"`, and whose `Err` is the cause. `UniqError`, and `NotFoundError` of `Load[T]`, are returned as they are. Use `errors.Is` and `errors.As` to check any of them:
+Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed, e.g. `"database exec"`, and whose `Err` is the cause. `UniqError`, and `ErrNotFound` of `Load[T]`, are returned as they are. Use `errors.Is` and `errors.As` to check any of them:
 
 | Error | When |
 |---|---|
 | `*gocrud.ValidationError` | the object or a filter is not valid, `Violations` has the failed rules |
 | `*gocrud.UniqError` | a unique field already has the value, see below |
-| `gocrud.ForeignKeyViolationError` | a foreign key is violated, see [Relations](relations.md#violations) |
-| `gocrud.NotFoundError` | `Load[T]` did not find the object |
-| `gocrud.PreloadError` | a name in `Preload` is not a relation field |
-| `gocrud.UnsupportedOptionError` | an option is not supported by a [typed function](generics.md) |
-| `gocrud.QueryMethodError` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
-| `gocrud.AliasedColumnsMigrateError` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
-| `structinfo.NotStructPointerError`, `IDFieldError`, `NoColumnsError`, `PasswordFieldError`, `RelationError`, `ForeignKeyError` | the struct cannot be used, see [Struct](../struct.md) |
+| `gocrud.ErrForeignKeyViolation` | a foreign key is violated, see [Relations](relations.md#violations) |
+| `gocrud.ErrNotFound` | `Load[T]` did not find the object, or `Save` with `NoInsert` did not find the object to update |
+| `gocrud.ErrPreload` | a name in `Preload` is not a relation field |
+| `gocrud.ErrInvalidID` | an ID, or the ID of a user in `SaveOptions.ModifiedBy`, is of the wrong type, e.g. a number for a struct with a UUID, or a string that is not a UUID |
+| `gocrud.ErrUnsupportedOption` | an option is not supported by a [typed function](generics.md) |
+| `gocrud.ErrQueryMethod` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
+| `gocrud.ErrAliasedColumnsMigrate` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
+| `structinfo.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
 
 The `Field` of `UniqError` depends on what detected the duplicate:
 

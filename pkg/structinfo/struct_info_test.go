@@ -20,7 +20,7 @@ type tagsTestStruct struct {
 	Renamed         string `crud:"name:renamed_col"`
 	InvalidSettings string `crud:"type:blob name:Invalid-Name idx:Invalid-Name"`
 	Skipped         string `crud:"-"`
-	Status          int    `crud_val:"1"`
+	Status          int
 	Tags            []string
 	internal        string
 	CreatedAt       time.Time
@@ -45,7 +45,7 @@ func TestNew_FieldsFromTags(t *testing.T) {
 		"Renamed":         {OverrideColumnName: "renamed_col"},
 		"InvalidSettings": {Index: true},
 		"Skipped":         {Ignored: true},
-		"Status":          {Default: "1"},
+		"Status":          {},
 	}
 
 	for name, want := range tests {
@@ -113,16 +113,12 @@ func TestNew_CustomTagName(t *testing.T) {
 	type customTagStruct struct {
 		ID    uint64
 		Email string `db:"uniq" crud:"pass"`
-		Name  string `db_val:"anonymous"`
 	}
 
 	info := mustNew(t, &customTagStruct{}, "db")
 
 	if *info.Fields["Email"] != (FieldInfo{Unique: true}) {
 		t.Fatalf("New returned %+v for field Email, want only Unique set", *info.Fields["Email"])
-	}
-	if info.Fields["Name"].Default != "anonymous" {
-		t.Fatalf("New returned default %q for field Name, want %q", info.Fields["Name"].Default, "anonymous")
 	}
 }
 
@@ -208,15 +204,15 @@ func TestNew_InvalidStruct(t *testing.T) {
 		obj  interface{}
 		want error
 	}{
-		"nil":                 {nil, NotStructPointerError},
-		"nil pointer":         {nilPointer, NotStructPointerError},
-		"struct value":        {idOnly{}, NotStructPointerError},
-		"pointer to a string": {new(string), NotStructPointerError},
-		"ID not first":        {&idNotFirst{}, IDFieldError},
-		"ID of wrong type":    {&idOfWrongType{}, IDFieldError},
-		"without ID":          {&withoutID{}, IDFieldError},
-		"ID only":             {&idOnly{}, NoColumnsError},
-		"only ignored fields": {&onlyIgnoredFields{}, NoColumnsError},
+		"nil":                 {nil, ErrNotStructPointer},
+		"nil pointer":         {nilPointer, ErrNotStructPointer},
+		"struct value":        {idOnly{}, ErrNotStructPointer},
+		"pointer to a string": {new(string), ErrNotStructPointer},
+		"ID not first":        {&idNotFirst{}, ErrIDField},
+		"ID of wrong type":    {&idOfWrongType{}, ErrIDField},
+		"without ID":          {&withoutID{}, ErrIDField},
+		"ID only":             {&idOnly{}, ErrNoColumns},
+		"only ignored fields": {&onlyIgnoredFields{}, ErrNoColumns},
 	}
 
 	for name, test := range tests {
@@ -304,8 +300,8 @@ func TestNew_PasswordFieldOfWrongType(t *testing.T) {
 			PIN int `crud:"pass"`
 		}{},
 	} {
-		if _, err := New(obj, "crud"); !errors.Is(err, PasswordFieldError) {
-			t.Fatalf("New returned err %v for %T, want %v", err, obj, PasswordFieldError)
+		if _, err := New(obj, "crud"); !errors.Is(err, ErrPasswordField) {
+			t.Fatalf("New returned err %v for %T, want %v", err, obj, ErrPasswordField)
 		}
 	}
 }

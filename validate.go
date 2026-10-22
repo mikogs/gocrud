@@ -319,28 +319,107 @@ func getCompiledRegexp(pattern string) (*regexp.Regexp, error) {
 // convertFiltersFromString returns a filter with the string values of its conditions converted to the types of obj
 // fields. Raw filters, and IS NULL and IS NOT NULL conditions, which have a nil value, are not converted.
 func convertFiltersFromString(obj interface{}, filter sqlfilters.Filter) (sqlfilters.Filter, error) {
+	return mapFilters(filter, func(filters sqlfilters.Filters) (sqlfilters.Filters, error) {
+		return convertFilterValuesFromString(obj, filters)
+	})
+}
+
+// normalizeUUIDFilters returns a filter with the UUIDs in the conditions on fields with UUIDs in their standard form,
+// as SQLite compares them as text. A value that is not a UUID is a type violation. LIKE and regular expressions are
+// not changed.
+func normalizeUUIDFilters(filter sqlfilters.Filter, uuidFields []string) (sqlfilters.Filter, error) {
+	return mapFilters(filter, func(filters sqlfilters.Filters) (sqlfilters.Filters, error) {
+		normalized := sqlfilters.Filters{}
+		for name, opVal := range filters {
+			normalized[name] = opVal
+		}
+
+		violations := map[string]string{}
+		for _, field := range uuidFields {
+			condition, ok := filters[field]
+			if !ok || condition.IsNull() || condition.Op == sqlfilters.OpLike || condition.Op == sqlfilters.OpMatch {
+				continue
+			}
+
+			value, err := uuidConditionValue(condition)
+			if err != nil {
+				violations[field] = ViolationType
+				continue
+			}
+			normalized[field] = sqlfilters.OpVal{Op: condition.Op, Val: value}
+		}
+
+		if len(violations) > 0 {
+			return nil, getObjInvalidCRUDError(violations)
+		}
+		return normalized, nil
+	})
+}
+
+// uuidConditionValue returns the value of a condition with the UUIDs in their standard form: a list for OpIn.
+func uuidConditionValue(condition sqlfilters.OpVal) (interface{}, error) {
+	if condition.Op != sqlfilters.OpIn {
+		return idValue(true, condition.Val)
+	}
+
+	ids, ok := condition.InValues()
+	if !ok {
+		return nil, ErrInvalidID
+	}
+	for i, id := range ids {
+		var err error
+		if ids[i], err = idValue(true, id); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
+}
+
+// mapFilters returns a filter with each of the Filters maps in it replaced with the result of mapFunc.
+func mapFilters(filter sqlfilters.Filter, mapFunc func(sqlfilters.Filters) (sqlfilters.Filters, error)) (sqlfilters.Filter, error) {
 	switch f := filter.(type) {
 	case *sqlfilters.Filters:
 		if f == nil {
 			return f, nil
 		}
-		converted, err := convertFilterValuesFromString(obj, *f)
-		return &converted, err
+		mapped, err := mapFunc(*f)
+		return &mapped, err
 	case sqlfilters.Filters:
-		return convertFilterValuesFromString(obj, f)
+		return mapFunc(f)
 	case sqlfilters.Group:
-		converted := sqlfilters.Group{Or: f.Or, Filters: make([]sqlfilters.Filter, len(f.Filters))}
+		mapped := sqlfilters.Group{Or: f.Or, Filters: make([]sqlfilters.Filter, len(f.Filters))}
 		for i, child := range f.Filters {
 			var err error
-			converted.Filters[i], err = convertFiltersFromString(obj, child)
+			mapped.Filters[i], err = mapFilters(child, mapFunc)
 			if err != nil {
 				return nil, err
 			}
 		}
-		return converted, nil
+		return mapped, nil
 	default:
 		return filter, nil
 	}
+}
+
+// prepareFilters returns a filter ready for a query of obj: with the values converted from strings when convert is
+// true, and with the UUIDs in their standard form, and validates it.
+func prepareFilters(obj interface{}, builder *sqlbuilder.Builder, filter sqlfilters.Filter, convert bool, tagName string) (sqlfilters.Filter, error) {
+	var err error
+	if convert {
+		filter, err = convertFiltersFromString(obj, filter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(builder.UUIDFields()) > 0 {
+		filter, err = normalizeUUIDFilters(filter, builder.UUIDFields())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return filter, ValidateFilters(obj, filter, tagName)
 }
 
 func convertFilterValuesFromString(obj interface{}, filters sqlfilters.Filters) (sqlfilters.Filters, error) {

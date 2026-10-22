@@ -2,21 +2,27 @@ package gocrud
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type SaveOptions struct {
+	// NoInsert updates the object without trying to insert it. When there is no object with the ID, Save returns an
+	// error that matches ErrNotFound.
 	NoInsert bool
 	// ModifiedBy is the ID of the user who saves the object. It is stored in the ModifiedBy field, and in the
-	// CreatedBy field when the object is created.
-	ModifiedBy uint64
+	// CreatedBy field when the object is created: a non-negative integer for fields of type uint64, and a string
+	// for fields of type string. nil stores the zero value.
+	ModifiedBy interface{}
 	// ModifiedAt is the time of the change, stored like ModifiedBy. When it is zero, the current time is used.
 	ModifiedAt time.Time
 }
@@ -39,6 +45,15 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		return getObjInvalidCRUDError(violations)
 	}
 
+	isNew := ObjIDIsZero(obj)
+	if builder.HasUUID() {
+		if err := setObjUUID(obj, isNew); err != nil {
+			return err
+		}
+	}
+	if err := normalizeObjUUIDs(obj, builder.UUIDFields()); err != nil {
+		return err
+	}
 	objID := ObjIDValue(obj)
 
 	if builder.HasModificationFields() {
@@ -49,12 +64,16 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		}
 		modifiedAt = modifiedAt.UTC()
 
-		SetObjModified(obj, modifiedAt, options.ModifiedBy)
+		if err := SetObjModified(obj, modifiedAt, options.ModifiedBy); err != nil {
+			return getCRUDFuncCRUDError("set modification fields", err)
+		}
 
 		// Creation fields are never updated in the database. They are set when the object is inserted, and when
 		// they are empty, as "upsert" inserts the object when it does not exist in the database.
-		if objID == 0 || ObjFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
-			SetObjCreated(obj, modifiedAt, options.ModifiedBy)
+		if isNew || ObjFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
+			if err := SetObjCreated(obj, modifiedAt, options.ModifiedBy); err != nil {
+				return getCRUDFuncCRUDError("set creation fields", err)
+			}
 		}
 	}
 
@@ -115,9 +134,10 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 	updateFieldNames := builder.UpdateFieldNames()
 
 	// update
-	if objID != 0 {
+	if !isNew {
+		var result sql.Result
+
 		// do no try to insert if NoInsert is set
-		// TODO: error handling, we should check if object exists - for now nothing happens, UPDATE gets executed and updates nothing
 		if options.NoInsert {
 			var query string
 
@@ -130,7 +150,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			} else {
 				query = builder.UpdateByID()
 			}
-			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), objIDInterface))...)
+			result, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), objIDInterface))...)
 		} else {
 			// try to insert - if ID already exists then try to update it
 
@@ -155,6 +175,16 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 			return getDBFuncCRUDError("query row", err)
 		}
 
+		if options.NoInsert {
+			updated, err := result.RowsAffected()
+			if err != nil {
+				return getDBFuncCRUDError("rows affected", err)
+			}
+			if updated == 0 {
+				return getCRUDFuncCRUDError("update", ErrNotFound)
+			}
+		}
+
 		return nil
 	}
 
@@ -170,7 +200,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		query = builder.Insert()
 	}
 
-	err = c.conn.QueryRowContext(ctx, query, c.args(objColumnInterfaces(obj, columnFieldNames, false))...).Scan(objIDInterface)
+	// a UUID is generated before the insert, and inserted with the other columns
+	err = c.conn.QueryRowContext(ctx, query, c.args(objColumnInterfaces(obj, columnFieldNames, builder.HasUUID()))...).Scan(objIDInterface)
 	if err != nil {
 		if uniqErr := checkUniqueErr(err); uniqErr != nil {
 			return uniqErr
@@ -178,6 +209,59 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		return getDBFuncCRUDError("query row", err)
 	}
 
+	return nil
+}
+
+// setObjUUID sets the ID of a new object to a new UUIDv7, which starts with the time, so that new rows are added at
+// the end of the index. The ID of an existing object has to be a UUID, and is set to its standard form, as SQLite
+// compares UUIDs as text.
+func setObjUUID(obj interface{}, isNew bool) error {
+	idField := reflect.ValueOf(obj).Elem().FieldByName(IDField)
+
+	if isNew {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return getCRUDFuncCRUDError("generate uuid", err)
+		}
+		idField.SetString(id.String())
+		return nil
+	}
+
+	id, err := uuid.Parse(idField.String())
+	if err != nil {
+		return getObjInvalidCRUDError(map[string]string{IDField: ViolationType})
+	}
+	idField.SetString(id.String())
+
+	return nil
+}
+
+// normalizeObjUUIDs sets the UUIDs in the foreign keys of obj to their standard form, as SQLite compares them as text.
+// A value that is not a UUID, e.g. an empty string, is a type violation. Use a *string for a key that can be empty.
+func normalizeObjUUIDs(obj interface{}, uuidFields []string) error {
+	objValue := reflect.ValueOf(obj).Elem()
+
+	violations := map[string]string{}
+	for _, name := range uuidFields {
+		field := objValue.FieldByName(name)
+		if name == IDField || (field.Kind() == reflect.Pointer && field.IsNil()) {
+			continue
+		}
+		if field.Kind() == reflect.Pointer {
+			field = field.Elem()
+		}
+
+		id, err := idValue(true, field.String())
+		if err != nil {
+			violations[name] = ViolationType
+			continue
+		}
+		field.SetString(id.(string))
+	}
+
+	if len(violations) > 0 {
+		return getObjInvalidCRUDError(violations)
+	}
 	return nil
 }
 

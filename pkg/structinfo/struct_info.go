@@ -9,10 +9,12 @@ import (
 )
 
 var (
-	NotStructPointerError = errors.New("obj must be a non-nil pointer to a struct")
-	IDFieldError          = errors.New(`first field must be "ID" of type uint64`)
-	NoColumnsError        = errors.New(`struct must have at least one field other than "ID"`)
-	PasswordFieldError    = errors.New(`field tagged with "pass" must be of type string`)
+	ErrNotStructPointer = errors.New("obj must be a non-nil pointer to a struct")
+	ErrIDField          = errors.New(`first field must be "ID" of type uint64 or string`)
+	ErrNoColumns        = errors.New(`struct must have at least one field other than "ID"`)
+	ErrPasswordField    = errors.New(`field tagged with "pass" must be of type string`)
+	// ErrModificationFields is returned for a struct whose CreatedBy and ModifiedBy fields are of different types.
+	ErrModificationFields = errors.New(`fields "CreatedBy" and "ModifiedBy" must be of the same type, uint64 or string`)
 )
 
 var (
@@ -24,8 +26,10 @@ var (
 type StructInfo struct {
 	// Name of the struct.
 	Name string
+	// UUID indicates that the ID field is a string with a UUID, instead of a uint64 assigned by the database.
+	UUID bool
 	// ModificationFields indicates whether the struct has the following fields: CreatedAt and ModifiedAt of type time.Time,
-	// CreatedBy and ModifiedBy of type uint64.
+	// CreatedBy and ModifiedBy of type uint64, or of type string, e.g. for the IDs of users in another system.
 	ModificationFields bool
 	// TableName is the name of the table in the database.
 	TableName string
@@ -52,16 +56,19 @@ type StructInfo struct {
 	Relations []*RelationInfo
 	// ForeignKeyFields contains the names of the fields that are foreign keys, declared with 'fk' tags.
 	ForeignKeyFields []string
+	// UUIDFields contains the names of the fields that hold UUIDs: the ID field when UUID is set, and the foreign
+	// keys of type string or *string.
+	UUIDFields []string
 }
 
 // New returns information on the obj struct fields, read from their tagName tags.
-// The first field that is stored in the database must be "ID" of type uint64.
+// The first field that is stored in the database must be "ID" of type uint64 or string.
 func New(obj interface{}, tagName string) (*StructInfo, error) {
 	structInfo := &StructInfo{}
 
 	objValue := reflect.ValueOf(obj)
 	if objValue.Kind() != reflect.Pointer || objValue.IsNil() || objValue.Elem().Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %T", NotStructPointerError, obj)
+		return nil, fmt.Errorf("%w, got %T", ErrNotStructPointer, obj)
 	}
 
 	objType := objValue.Elem().Type()
@@ -82,7 +89,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 		if _, isRelation := relationTagKey(field.Tag.Get(tagName)); isRelation {
 			// a field stored in a column cannot hold related objects
 			if field.IsExported() && IsFieldTypeSupported(field.Type) {
-				return nil, fmt.Errorf("struct %s: %w: field %s: the rel option is for a field that holds related objects, e.g. Customer *Customer, not for a column", objType.Name(), RelationError, field.Name)
+				return nil, fmt.Errorf("struct %s: %w: field %s: the rel option is for a field that holds related objects, e.g. Customer *Customer, not for a column", objType.Name(), ErrRelation, field.Name)
 			}
 
 			relation, err := newRelationInfo(field, tagName)
@@ -104,16 +111,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 			Nullable: IsNullableType(field.Type),
 		}
 
-		// Get value of a field's 'sql' and 'sql_val' tags (unless different when TagName provided in options).
-		tagValue := field.Tag.Get(tagName)
-		valTagValue := field.Tag.Get(tagName + "_val")
-
-		// Go through tag values and parse out the ones we're interested in.
-		structInfo.setFieldFromTag(tagValue, field.Name)
-
-		if valTagValue != "" {
-			structInfo.Fields[field.Name].Default = valTagValue
-		}
+		structInfo.setFieldFromTag(field.Tag.Get(tagName), field.Name)
 
 		if IsFieldModification(field.Name, field.Type) {
 			modificationFields++
@@ -122,6 +120,12 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 
 	if modificationFields == 4 {
 		structInfo.ModificationFields = true
+
+		createdBy, _ := objType.FieldByName("CreatedBy")
+		modifiedBy, _ := objType.FieldByName("ModifiedBy")
+		if createdBy.Type.Kind() != modifiedBy.Type.Kind() {
+			return nil, fmt.Errorf("struct %s: %w", objType.Name(), ErrModificationFields)
+		}
 	}
 
 	err := structInfo.checkColumns(objType)
@@ -129,7 +133,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
 	}
 
-	err = structInfo.checkBelongsToKeys(objType)
+	err = structInfo.checkRelationKeys(objType)
 	if err != nil {
 		return nil, fmt.Errorf("struct %s: %w", objType.Name(), err)
 	}
@@ -144,7 +148,7 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 	return structInfo, nil
 }
 
-// checkColumns checks if the fields stored in the database start with "ID" of type uint64 and are
+// checkColumns checks if the fields stored in the database start with "ID" of type uint64 or string, and are
 // followed by at least one other field, as the generated queries rely on it.
 func (s *StructInfo) checkColumns(objType reflect.Type) error {
 	columns := make([]string, 0, len(s.FieldNames))
@@ -155,16 +159,21 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 	}
 
 	if len(columns) == 0 || columns[0] != "ID" {
-		return IDFieldError
+		return ErrIDField
 	}
 
 	idField, _ := objType.FieldByName("ID")
-	if idField.Type.Kind() != reflect.Uint64 {
-		return IDFieldError
+	switch idField.Type.Kind() {
+	case reflect.Uint64:
+	case reflect.String:
+		s.UUID = true
+		s.UUIDFields = append(s.UUIDFields, "ID")
+	default:
+		return ErrIDField
 	}
 
 	if len(columns) == 1 {
-		return NoColumnsError
+		return ErrNoColumns
 	}
 
 	s.ColumnFieldNames = columns
@@ -183,7 +192,7 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 		}
 
 		if s.Fields[column].Password && field.Type.Kind() != reflect.String {
-			return fmt.Errorf("%w: %s", PasswordFieldError, column)
+			return fmt.Errorf("%w: %s", ErrPasswordField, column)
 		}
 	}
 

@@ -30,10 +30,10 @@ func TestOperations_InvalidStruct(t *testing.T) {
 		obj  interface{}
 		want error
 	}{
-		"nil":          {nil, structinfo.NotStructPointerError},
-		"nil pointer":  {nilPointer, structinfo.NotStructPointerError},
-		"struct value": {StructWithoutID{}, structinfo.NotStructPointerError},
-		"without ID":   {&StructWithoutID{}, structinfo.IDFieldError},
+		"nil":          {nil, structinfo.ErrNotStructPointer},
+		"nil pointer":  {nilPointer, structinfo.ErrNotStructPointer},
+		"struct value": {StructWithoutID{}, structinfo.ErrNotStructPointer},
+		"without ID":   {&StructWithoutID{}, structinfo.ErrIDField},
 	}
 
 	for name, test := range objs {
@@ -41,12 +41,13 @@ func TestOperations_InvalidStruct(t *testing.T) {
 			_, _, getErr := testCRUDSQLite.Get(ctx, func() interface{} { return test.obj }, GetOptions{})
 			_, getCountErr := testCRUDSQLite.GetCount(ctx, test.obj, GetCountOptions{})
 			_, deleteMultipleErr := testCRUDSQLite.DeleteMultiple(ctx, test.obj, DeleteMultipleOptions{})
+			_, loadErr := testCRUDSQLite.Load(ctx, test.obj, 1, LoadOptions{})
 
 			errs := map[string]error{
 				"CreateTable":    testCRUDSQLite.CreateTable(ctx, test.obj),
 				"DropTable":      testCRUDSQLite.DropTable(ctx, test.obj),
 				"Save":           testCRUDSQLite.Save(ctx, test.obj, SaveOptions{}),
-				"Load":           testCRUDSQLite.Load(ctx, test.obj, "1", LoadOptions{}).Error,
+				"Load":           loadErr,
 				"Delete":         testCRUDSQLite.Delete(ctx, test.obj, DeleteOptions{}),
 				"DeleteMultiple": deleteMultipleErr,
 				"UpdateMultiple": testCRUDSQLite.UpdateMultiple(ctx, test.obj, map[string]interface{}{"Name": "x"}, UpdateMultipleOptions{}),
@@ -85,7 +86,7 @@ func testSkippedFields(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &StructWithSkippedFields{}
-	if err := crud.Load(ctx, loaded, "1", LoadOptions{}).Error; err != nil {
+	if _, err := crud.Load(ctx, loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	want := StructWithSkippedFields{ID: 1, Name: "Apple", Price: 20}

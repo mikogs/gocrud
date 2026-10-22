@@ -14,10 +14,10 @@ They are functions and not methods, because methods in Go cannot have type param
 | Function | Instead of |
 |---|---|
 | `Get[T](ctx, crud, GetOptions) ([]*T, error)` | `crud.Get(ctx, func() interface{} { return &T{} }, options)` |
-| `Load[T](ctx, crud, id uint64, preload ...string) (*T, error)` | `crud.Load(ctx, &T{}, strconv.FormatUint(id, 10), LoadOptions{Preload: preload})` |
+| `Load[T](ctx, crud, id, preload ...string) (*T, error)` | `crud.Load(ctx, &T{}, id, LoadOptions{Preload: preload})` |
 | `GetCount[T](ctx, crud, GetCountOptions) (uint64, error)` | `crud.GetCount(ctx, &T{}, options)` |
 | `UpdateMultiple[T](ctx, crud, values, UpdateMultipleOptions) error` | `crud.UpdateMultiple(ctx, &T{}, values, options)` |
-| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]uint64, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
+| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]interface{}, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
 | `CreateTable[T](ctx, crud) error` | `crud.CreateTable(ctx, &T{})` |
 | `DropTable[T](ctx, crud) error` | `crud.DropTable(ctx, &T{})` |
 
@@ -45,23 +45,19 @@ All the options of `GetOptions` work the same way as in [`CRUD.Get`](ops.md#get)
 * `RowObjTransformFunc` changes the type of the results.
 * `VerifyPasswordFields` returns the result of the verification next to the objects.
 
-`Get` returns an error that matches `gocrud.UnsupportedOptionError` when one of them is set. Use `CRUD.Get` for them.
+`Get` returns an error that matches `gocrud.ErrUnsupportedOption` when one of them is set. Use `CRUD.Get` for them.
 
 ## Load
 
-`Load` returns the object with the given ID. When there is no such object, it returns `gocrud.NotFoundError`, instead of an empty object:
+`Load` returns the object with the given ID. When there is no such object, it returns `gocrud.ErrNotFound`, instead of an empty object.
+
+The ID is a number, e.g. `Load[Order](ctx, crud, 5)`, or a UUID for a struct with a `string` ID. A string from a URL can be passed as it is for both, and an ID of the wrong type, e.g. `abc` for a numeric ID, returns `gocrud.ErrInvalidID`:
 
 ```go
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
-    id, err := strconv.ParseUint(r.PathValue("id"), 10, 64)
-    if err != nil {
-        http.Error(w, "invalid id", http.StatusBadRequest)
-        return
-    }
-
-    user, err := gocrud.Load[User](r.Context(), h.crud, id)
+    user, err := gocrud.Load[User](r.Context(), h.crud, r.PathValue("id"))
     switch {
-    case errors.Is(err, gocrud.NotFoundError):
+    case errors.Is(err, gocrud.ErrNotFound), errors.Is(err, gocrud.ErrInvalidID):
         http.Error(w, "user not found", http.StatusNotFound)
     case err != nil:
         http.Error(w, "internal error", http.StatusInternalServerError)
@@ -71,7 +67,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-`service.NotFoundError` is the same error, so `errors.Is` works with either of them.
+`service.ErrNotFound` is the same error, so `errors.Is` works with either of them.
 
 The names of relation fields after the ID load their related objects, see [Relations](relations.md#loading-related-objects):
 
@@ -97,7 +93,7 @@ err = gocrud.UpdateMultiple[Order](ctx, crud, map[string]interface{}{"Status": "
     },
 })
 
-// remove the items of an order, and get the IDs of the removed items
+// remove the items of an order, and get the IDs of the removed items, as uint64 or string, like the ID field
 removedIDs, err := gocrud.DeleteMultiple[OrderItem](ctx, crud, gocrud.DeleteMultipleOptions{
     Filters: &sqlfilters.Filters{"OrderID": {Op: sqlfilters.OpEqual, Val: orderID}},
 })

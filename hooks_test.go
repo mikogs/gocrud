@@ -154,7 +154,7 @@ func (n *HookWithOldSelectQuery) SelectQuery([]string, int, int, *sqlfilters.Fil
 
 func TestQueryMethodWithOtherSignature(t *testing.T) {
 	_, err := Get[HookWithOldSelectQuery](context.Background(), testCRUDSQLite, GetOptions{})
-	if !errors.Is(err, QueryMethodError) || !strings.Contains(err.Error(), "SelectQuery is func([]string, int, int, *filters.Filters)") {
-		t.Fatalf("Get returned err %v, want %v naming the method", err, QueryMethodError)
+	if !errors.Is(err, ErrQueryMethod) || !strings.Contains(err.Error(), "SelectQuery is func([]string, int, int, *filters.Filters)") {
+		t.Fatalf("Get returned err %v, want %v naming the method", err, ErrQueryMethod)
 	}
 }

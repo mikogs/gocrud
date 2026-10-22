@@ -6,9 +6,27 @@ To utilize the library's automatic CRUD capabilities, your Go structs must adher
 
 ### 1. The ID Field
 
-Every struct intended for CRUD operations must have an `ID` field of type `uint64` as its first field, followed by at least one other field. This serves as the primary key for database operations. Structs are always passed as pointers, e.g. `&User{}`.
+Every struct intended for CRUD operations must have an `ID` field as its first field, followed by at least one other field. This serves as the primary key for database operations. Structs are always passed as pointers, e.g. `&User{}`.
 
-If a struct does not meet these requirements, every operation returns an error that can be checked with `errors.Is`, e.g. `errors.Is(err, structinfo.IDFieldError)`.
+The `ID` is one of:
+
+| Type | Column | Assigned |
+|---|---|---|
+| `uint64` | `SERIAL` in PostgreSQL, `INTEGER` in SQLite | by the database, 1, 2, 3, … |
+| `string` | `UUID` in PostgreSQL, `TEXT` in SQLite | by gocrud, a [UUIDv7](https://www.rfc-editor.org/rfc/rfc9562#name-uuid-version-7), e.g. `0190f5c3-6d1e-7b3a-9c4d-2e5f6a7b8c9d` |
+
+```go
+type Order struct {
+    ID     string `json:"id"`
+    Status string `json:"status"`
+}
+```
+
+Use a UUID when IDs are visible to users, e.g. in URLs: numbers reveal how many records there are, and invite guessing the IDs of other records. A UUID can also be set before the object is saved, e.g. by a client that works offline. A UUIDv7 starts with the time, so new rows are added at the end of the index, as with numbers, and sorting by `ID` sorts by the time of creation.
+
+`Save` generates the UUID of a new object, i.e. one with an empty `ID`. An `ID` that is set has to be a UUID, otherwise the validation fails with the `type` violation for `ID`. gocrud stores UUIDs in their standard lowercase form, and converts the UUIDs it gets, e.g. in `Load` or in filters, to it too.
+
+If a struct does not meet these requirements, every operation returns an error that can be checked with `errors.Is`, e.g. `errors.Is(err, structinfo.ErrIDField)`.
 
 ### 2. Supported Data Types
 
@@ -100,7 +118,8 @@ type Note struct {
 }
 ```
 
-* `ModifiedAt` and `ModifiedBy` are set on every save, to the time of the save and to the user from `SaveOptions.ModifiedBy`. The time is the current time unless `SaveOptions.ModifiedAt` is set, e.g. when importing data. Without a user, e.g. in a background job, `ModifiedBy` is `0`.
+* `CreatedBy` and `ModifiedBy` hold the ID of a user: a `uint64`, or a `string`, e.g. the UUID of a user, or the ID from an external identity provider such as `auth0|42`. Both have to be of the same type, otherwise the struct cannot be used, see `structinfo.ErrModificationFields`.
+* `ModifiedAt` and `ModifiedBy` are set on every save, to the time of the save and to the user from `SaveOptions.ModifiedBy`. The time is the current time unless `SaveOptions.ModifiedAt` is set, e.g. when importing data. Without a user, e.g. in a background job, `ModifiedBy` is `0` or `""`.
 * `CreatedAt` and `CreatedBy` are set when the object is inserted, to the same values. Values set on the object are ignored, so a client cannot choose them, e.g. by sending `created_at` in JSON.
 * `CreatedAt` and `CreatedBy` are **never changed by an update**. An object decoded from an HTTP request usually does not have them, and saving it does not erase them from the database.
 

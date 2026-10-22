@@ -13,8 +13,8 @@ import (
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
-// PreloadError is returned when a name in the Preload option is not a relation field of the struct.
-var PreloadError = errors.New("invalid preload")
+// ErrPreload is returned when a name in the Preload option is not a relation field of the struct.
+var ErrPreload = errors.New("invalid preload")
 
 // preloadChunkSize is the maximum number of keys in a query that loads related objects. Databases limit
 // the number of parameters of a query.
@@ -34,7 +34,7 @@ func newPreloadTree(names []string, prefix string) (*preloadTree, error) {
 	for _, name := range names {
 		relation, path, isNested := strings.Cut(name, ".")
 		if relation == "" || (isNested && path == "") {
-			return nil, fmt.Errorf("%w: %s: the path has an empty relation name", PreloadError, prefix+name)
+			return nil, fmt.Errorf("%w: %s: the path has an empty relation name", ErrPreload, prefix+name)
 		}
 
 		if _, ok := tree.paths[relation]; !ok {
@@ -59,7 +59,7 @@ func (c *CRUD) checkPreload(builder *sqlbuilder.Builder, names []string, prefix 
 	for _, name := range tree.relations {
 		relation := findRelation(builder, name)
 		if relation == nil {
-			return fmt.Errorf("%w: %s: %s is not a relation field of %s", PreloadError, prefix+name, name, builder.StructName())
+			return fmt.Errorf("%w: %s: %s is not a relation field of %s", ErrPreload, prefix+name, name, builder.StructName())
 		}
 
 		if len(tree.paths[name]) == 0 {
@@ -137,7 +137,7 @@ func findRelation(builder *sqlbuilder.Builder, name string) *structinfo.Relation
 // or to nil when the key field is empty or there is no such object. Objects with the same key share the
 // related object.
 func (c *CRUD) preloadBelongsTo(ctx context.Context, relation *structinfo.RelationInfo, objs []interface{}, paths []string) error {
-	keys := map[uint64]bool{}
+	keys := map[interface{}]bool{}
 	for _, obj := range objs {
 		if key, ok := keyValue(reflect.ValueOf(obj).Elem().FieldByName(relation.KeyField)); ok {
 			keys[key] = true
@@ -153,7 +153,7 @@ func (c *CRUD) preloadBelongsTo(ctx context.Context, relation *structinfo.Relati
 		return err
 	}
 
-	byID := make(map[uint64]reflect.Value, len(related))
+	byID := make(map[interface{}]reflect.Value, len(related))
 	for _, relatedObj := range related {
 		byID[ObjIDValue(relatedObj)] = reflect.ValueOf(relatedObj)
 	}
@@ -176,10 +176,10 @@ func (c *CRUD) preloadBelongsTo(ctx context.Context, relation *structinfo.Relati
 // preloadHasMany sets the slice field of each object to the related objects that have its ID in their key field,
 // ordered by ID. Objects without related objects get an empty slice.
 func (c *CRUD) preloadHasMany(ctx context.Context, relation *structinfo.RelationInfo, objs []interface{}, paths []string) error {
-	keys := map[uint64]bool{}
+	keys := map[interface{}]bool{}
 	for _, obj := range objs {
-		if id := ObjIDValue(obj); id != 0 {
-			keys[id] = true
+		if !ObjIDIsZero(obj) {
+			keys[ObjIDValue(obj)] = true
 		}
 	}
 
@@ -192,7 +192,7 @@ func (c *CRUD) preloadHasMany(ctx context.Context, relation *structinfo.Relation
 		return err
 	}
 
-	byKey := map[uint64][]reflect.Value{}
+	byKey := map[interface{}][]reflect.Value{}
 	for _, relatedObj := range related {
 		relatedValue := reflect.ValueOf(relatedObj)
 		key, _ := keyValue(relatedValue.Elem().FieldByName(relation.KeyField))
@@ -215,12 +215,18 @@ func (c *CRUD) preloadHasMany(ctx context.Context, relation *structinfo.Relation
 }
 
 // getRelated returns the objects of type t whose field has one of the keys, ordered by ID.
-func (c *CRUD) getRelated(ctx context.Context, t reflect.Type, field string, keys map[uint64]bool) ([]interface{}, error) {
-	sortedKeys := make([]uint64, 0, len(keys))
+// The keys are all uint64 or all strings.
+func (c *CRUD) getRelated(ctx context.Context, t reflect.Type, field string, keys map[interface{}]bool) ([]interface{}, error) {
+	sortedKeys := make([]interface{}, 0, len(keys))
 	for key := range keys {
 		sortedKeys = append(sortedKeys, key)
 	}
-	sort.Slice(sortedKeys, func(i, j int) bool { return sortedKeys[i] < sortedKeys[j] })
+	sort.Slice(sortedKeys, func(i, j int) bool {
+		if key, ok := sortedKeys[i].(uint64); ok {
+			return key < sortedKeys[j].(uint64)
+		}
+		return sortedKeys[i].(string) < sortedKeys[j].(string)
+	})
 
 	var related []interface{}
 	for start := 0; start < len(sortedKeys); start += preloadChunkSize {
@@ -239,15 +245,21 @@ func (c *CRUD) getRelated(ctx context.Context, t reflect.Type, field string, key
 	return related, nil
 }
 
-// keyValue returns the ID in a key field of type uint64 or *uint64, and false when it is empty.
-func keyValue(field reflect.Value) (uint64, bool) {
+// keyValue returns the ID in a key field of type uint64 or string, or a pointer to it, and false when it is empty.
+func keyValue(field reflect.Value) (interface{}, bool) {
 	if field.Kind() == reflect.Pointer {
 		if field.IsNil() {
-			return 0, false
+			return nil, false
 		}
 		field = field.Elem()
 	}
 
-	key := field.Uint()
-	return key, key != 0
+	if field.Kind() == reflect.String {
+		// a key without a foreign key is not normalized when it is saved
+		if id, err := idValue(true, field.String()); err == nil {
+			return id, true
+		}
+	}
+
+	return field.Interface(), !field.IsZero()
 }

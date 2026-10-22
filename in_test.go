@@ -91,11 +91,11 @@ func testInFilters(t *testing.T, crud *CRUD) {
 			time.Date(2024, 5, 1, 11, 0, 0, 0, time.UTC),
 		}}}, []uint64{1, 2}},
 		"with other filters": {sqlfilters.Filters{
-			"Carrier":      {Op: sqlfilters.OpNotEqual, Val: nil},
-			"ID":           {Op: sqlfilters.OpIn, Val: []uint64{1, 2, 3}},
-			"Status":       {Op: sqlfilters.OpIn, Val: []string{"new", "paid", "shipped"}},
-			"Weight":       {Op: sqlfilters.OpGreater, Val: 2},
-			sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{".Weight IN (?) OR .Status = ?", []int{3, 4}, "new"}},
+			"Carrier":         {Op: sqlfilters.OpNotEqual, Val: nil},
+			"ID":              {Op: sqlfilters.OpIn, Val: []uint64{1, 2, 3}},
+			"Status":          {Op: sqlfilters.OpIn, Val: []string{"new", "paid", "shipped"}},
+			"Weight":          {Op: sqlfilters.OpGreater, Val: 2},
+			sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".Weight IN (?) OR .Status = ?", []int{3, 4}, "new"}},
 		}, []uint64{3}},
 	}
 

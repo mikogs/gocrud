@@ -206,7 +206,7 @@ func ValidateFilters(obj interface{}, filters *sqlfilters.Filters, tagName strin
 	for name, filter := range *filters {
 		field, isField := objType.FieldByName(name)
 
-		if filter.Op == sqlfilters.OpIn && name != sqlfilters.Raw {
+		if filter.Op == sqlfilters.OpIn && name != sqlfilters.RawKey {
 			inFilters[name] = filter
 			continue
 		}
@@ -332,7 +332,7 @@ func convertFiltersFromString(obj interface{}, filters *sqlfilters.Filters) (*sq
 
 	newFilters := &sqlfilters.Filters{}
 	for filterName, filterOpVal := range *filters {
-		if filterName == sqlfilters.Raw || filterOpVal.IsNull() {
+		if filterName == sqlfilters.RawKey || filterOpVal.IsNull() {
 			newFilters.Add(filterName, filterOpVal)
 			continue
 		}

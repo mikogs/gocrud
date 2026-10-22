@@ -70,7 +70,7 @@ func TestGetCount_WithRawQuery(t *testing.T) {
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					".PrimaryEmail = ? AND .Age IN (?)",

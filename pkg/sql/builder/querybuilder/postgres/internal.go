@@ -98,7 +98,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 
 	for _, name := range sortedNames {
 		// _raw is a special entry that allows an almost-raw SQL query
-		if name == pkgfilters.Raw {
+		if name == pkgfilters.RawKey {
 			continue
 		}
 
@@ -166,7 +166,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, firstValueNum i
 	}
 
 	// _raw
-	rawQueryArr, ok := (*filters)[pkgfilters.Raw]
+	rawQueryArr, ok := (*filters)[pkgfilters.RawKey]
 	if !ok {
 		return queryWhere, nil
 	}

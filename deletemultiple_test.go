@@ -87,7 +87,7 @@ func TestDeleteMultiple_WithRawQuery(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)",
@@ -133,7 +133,7 @@ func TestDeleteMultiple_WithRawQueryOnly(t *testing.T) {
 	// Delete multiple rows from the database
 	_, err := testCRUD.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					"(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))",

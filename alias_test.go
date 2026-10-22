@@ -113,7 +113,7 @@ func testAliasedColumnNames(t *testing.T, crud *CRUD) {
 
 	fatalIfNotAliasProductsWithPrice(t, crud, &sqlfilters.Filters{
 		"PriceName": {Op: sqlfilters.OpEqual, Val: "small"},
-		sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{
+		sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{
 			".Price > ?",
 			8,
 		}},

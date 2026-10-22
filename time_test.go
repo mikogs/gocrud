@@ -164,7 +164,7 @@ func testTimeFiltersAndOrder(t *testing.T, crud *CRUD) {
 	}, []string{"Event 2"})
 
 	cnt, err := crud.GetCount(context.Background(), &Event{}, GetCountOptions{
-		Filters: &sqlfilters.Filters{sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{
+		Filters: &sqlfilters.Filters{sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{
 			".StartsAt >= ? AND .StartsAt < ?", elevenUTC, &tenThirtyUTC,
 		}}},
 	})

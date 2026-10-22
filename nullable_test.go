@@ -145,7 +145,7 @@ func testNullableFilters(t *testing.T, crud *CRUD) {
 			"Verified": {Op: sqlfilters.OpNotEqual, Val: nil},
 			"Score":    {Op: sqlfilters.OpLower, Val: 100.0},
 		}, []string{"Bob"}},
-		"raw": {&sqlfilters.Filters{sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{".BirthDate IS NULL AND .Age > ?", int64(26)}}}, []string{"Alice"}},
+		"raw": {&sqlfilters.Filters{sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".BirthDate IS NULL AND .Age > ?", int64(26)}}}, []string{"Alice"}},
 	}
 
 	for name, test := range tests {
@@ -217,8 +217,8 @@ func testNullableRawFilterWithStringFilters(t *testing.T, crud *CRUD) {
 	fatalIfNotProfiles(t, crud, GetOptions{
 		Order: []string{"Name", "asc"},
 		Filters: &sqlfilters.Filters{
-			"Verified":     {Op: sqlfilters.OpNotEqual, Val: ""},
-			sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: []interface{}{".Name != ?", "Alice"}},
+			"Verified":        {Op: sqlfilters.OpNotEqual, Val: ""},
+			sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".Name != ?", "Alice"}},
 		},
 		ConvertFiltersFromString: true,
 	}, []string{"Bob"})

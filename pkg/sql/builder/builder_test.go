@@ -161,7 +161,7 @@ func TestSQLSelectQueries(t *testing.T) {
 	got, err = h.Select([]string{"EmailSecondary", "asc", "Age", "desc"}, 1, 3, &filters.Filters{
 		"Price":     {Op: filters.OpEqual, Val: 33},
 		"PostCode2": {Op: filters.OpEqual, Val: "11-111"},
-		filters.Raw: {
+		filters.RawKey: {
 			Op: filters.OpOR,
 			Val: []interface{}{
 				".Price=? OR (.EmailSecondary=? AND .Age IN (?)) OR (.Age IN (?)) OR (.EmailSecondary IN (?))",
@@ -238,7 +238,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 	got, err = h.Delete(
 		&filters.Filters{
 			"Price": {Op: filters.OpEqual, Val: 4444},
-			filters.Raw: {
+			filters.RawKey: {
 				Op: filters.OpAND,
 				Val: []interface{}{
 					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
@@ -259,7 +259,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 
 	got, err = h.Delete(
 		&filters.Filters{
-			filters.Raw: {
+			filters.RawKey: {
 				Val: []interface{}{
 					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
 					0,
@@ -278,7 +278,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 
 	got, err = h.DeleteReturningID(
 		&filters.Filters{
-			filters.Raw: {
+			filters.RawKey: {
 				Val: []interface{}{
 					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
 					0,
@@ -392,9 +392,9 @@ type TestStructWithAliasesWithoutCustomSelect struct {
 }
 
 var aliasesTestFilters = &filters.Filters{
-	"Name":      {Op: filters.OpLike, Val: "a%"},
-	"Price":     {Op: filters.OpGreater, Val: 1},
-	filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Price < ?", 100}},
+	"Name":         {Op: filters.OpLike, Val: "a%"},
+	"Price":        {Op: filters.OpGreater, Val: 1},
+	filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Price < ?", 100}},
 }
 
 func TestSQLAliasedColumnQueries(t *testing.T) {
@@ -552,7 +552,7 @@ func TestSQLInvalidRawFilters(t *testing.T) {
 
 		for name, rawValue := range tests {
 			t.Run(dialect+"/"+name, func(t *testing.T) {
-				f := &filters.Filters{filters.Raw: {Op: filters.OpAND, Val: rawValue}}
+				f := &filters.Filters{filters.RawKey: {Op: filters.OpAND, Val: rawValue}}
 
 				if _, err := h.Select(nil, 0, 0, f); err == nil {
 					t.Fatal("Select did not return an err for an invalid raw filter")
@@ -572,7 +572,7 @@ func TestSQLInvalidRawFilters(t *testing.T) {
 }
 
 func TestSQLRawFilterWithNilValue(t *testing.T) {
-	f := &filters.Filters{filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Price = ? OR .Age = ?", nil, 5}}}
+	f := &filters.Filters{filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Price = ? OR .Age = ?", nil, 5}}}
 
 	wants := map[string]string{
 		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE ("price" = $1 OR "age" = $2);`,
@@ -696,11 +696,11 @@ func TestSQLNullableColumns(t *testing.T) {
 
 func TestSQLNullConditions(t *testing.T) {
 	f := &filters.Filters{
-		"Age":       {Op: filters.OpEqual, Val: nil},
-		"BirthDate": {Op: filters.OpNotEqual, Val: (*time.Time)(nil)},
-		"Name":      {Op: filters.OpEqual, Val: "Alice"},
-		"Score":     {Op: filters.OpGreater, Val: 1.5},
-		filters.Raw: {Op: filters.OpAND, Val: []interface{}{".Rate < ?", 5}},
+		"Age":          {Op: filters.OpEqual, Val: nil},
+		"BirthDate":    {Op: filters.OpNotEqual, Val: (*time.Time)(nil)},
+		"Name":         {Op: filters.OpEqual, Val: "Alice"},
+		"Score":        {Op: filters.OpGreater, Val: 1.5},
+		filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Rate < ?", 5}},
 	}
 
 	wants := map[string]string{
@@ -730,11 +730,11 @@ func TestSQLNullConditions(t *testing.T) {
 
 func TestSQLInConditions(t *testing.T) {
 	f := &filters.Filters{
-		"Age":       {Op: filters.OpEqual, Val: nil},
-		"Name":      {Op: filters.OpIn, Val: []string{"Alice", "Bob"}},
-		"Rate":      {Op: filters.OpIn, Val: []float32{}},
-		"Score":     {Op: filters.OpGreater, Val: 1.5},
-		filters.Raw: {Op: filters.OpAND, Val: []interface{}{".ID IN (?)", []uint64{1, 2}}},
+		"Age":          {Op: filters.OpEqual, Val: nil},
+		"Name":         {Op: filters.OpIn, Val: []string{"Alice", "Bob"}},
+		"Rate":         {Op: filters.OpIn, Val: []float32{}},
+		"Score":        {Op: filters.OpGreater, Val: 1.5},
+		filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".ID IN (?)", []uint64{1, 2}}},
 	}
 
 	wants := map[string]string{

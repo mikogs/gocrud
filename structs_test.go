@@ -120,7 +120,7 @@ func TestGet_BuilderErrorChain(t *testing.T) {
 	for name, crud := range map[string]*CRUD{"postgres": testCRUD, "sqlite": testCRUDSQLite} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := crud.Get(context.Background(), func() interface{} { return &StructWithSkippedFields{} }, GetOptions{
-				Filters: &sqlfilters.Filters{sqlfilters.Raw: {Op: sqlfilters.OpAND, Val: ".Name = ?"}},
+				Filters: &sqlfilters.Filters{sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: ".Name = ?"}},
 			})
 
 			var builderErr *sqlbuilder.BuilderError

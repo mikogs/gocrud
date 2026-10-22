@@ -50,7 +50,7 @@ func TestGet_WithFilters(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpAND,
 				Val: []interface{}{
 					".Price > ? AND .Price NOT IN (?)",
@@ -109,7 +109,7 @@ func TestGet_WithStringFilters(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpAND,
 				Val: []interface{}{
 					".Price > ? AND .Price NOT IN (?)",

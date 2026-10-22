@@ -240,7 +240,7 @@ func TestSQLite_DeleteMultiple_WithRawQuery(t *testing.T) {
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)",
@@ -281,7 +281,7 @@ func TestSQLite_DeleteMultiple_WithRawQueryOnly(t *testing.T) {
 
 	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					"(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))",
@@ -334,7 +334,7 @@ func TestSQLite_Get_WithFilters(t *testing.T) {
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpAND,
 				Val: []interface{}{
 					".Price > ? AND .Price NOT IN (?)",
@@ -382,7 +382,7 @@ func TestSQLite_Get_WithStringFilters(t *testing.T) {
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: "444"},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpAND,
 				Val: []interface{}{
 					".Price > ? AND .Price NOT IN (?)",
@@ -488,7 +488,7 @@ func TestSQLite_GetCount_WithRawQuery(t *testing.T) {
 		Filters: &sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.Raw: {
+			sqlfilters.RawKey: {
 				Op: sqlfilters.OpOR,
 				Val: []interface{}{
 					".PrimaryEmail = ? AND .Age IN (?)",

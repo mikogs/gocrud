@@ -86,7 +86,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 	parts := make([]string, 0, len(sortedNames))
 
 	for _, name := range sortedNames {
-		if name == pkgfilters.Raw {
+		if name == pkgfilters.RawKey {
 			continue
 		}
 
@@ -147,7 +147,7 @@ func (b *QueryBuilder) queryFilters(filters *pkgfilters.Filters, withAlias bool)
 	queryWhere := strings.Join(parts, " AND ")
 
 	// _raw
-	rawQueryArr, ok := (*filters)[pkgfilters.Raw]
+	rawQueryArr, ok := (*filters)[pkgfilters.RawKey]
 	if !ok {
 		return queryWhere, nil
 	}

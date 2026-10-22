@@ -30,7 +30,7 @@ func TestFiltersInterfaces(t *testing.T) {
 		"Name":  {Op: OpEqual, Val: "John"},
 		"Age":   {Op: OpGreater, Val: 30},
 		"Price": {Op: OpLower, Val: 9.99},
-		Raw: {Op: OpAND, Val: []interface{}{
+		RawKey: {Op: OpAND, Val: []interface{}{
 			".Age < ? AND .ID IN (?) AND .Name IN (?)",
 			100,
 			[]int{1, 2},
@@ -62,7 +62,7 @@ func TestSetObjFields(t *testing.T) {
 		"Tags":     {Val: []string{"a"}},
 		"internal": {Val: "x"},
 		"Unknown":  {Val: "x"},
-		Raw:        {Val: []interface{}{".Age > ?", 1}},
+		RawKey:     {Val: []interface{}{".Age > ?", 1}},
 	})
 	if err != nil {
 		t.Fatalf("SetObjFields failed with an err: %s", err.Error())
@@ -121,7 +121,7 @@ func TestFiltersInterfaces_InvalidRaw(t *testing.T) {
 	for _, rawValue := range []interface{}{nil, ".Age > ?", []string{".Age > ?", "1"}, []interface{}{}} {
 		f := &Filters{
 			"Name": {Op: OpEqual, Val: "John"},
-			Raw:    {Op: OpAND, Val: rawValue},
+			RawKey: {Op: OpAND, Val: rawValue},
 		}
 		if got := FiltersInterfaces(f); !reflect.DeepEqual(got, []interface{}{"John"}) {
 			t.Fatalf("FiltersInterfaces returned %v for raw filter %#v, want [John]", got, rawValue)
@@ -130,7 +130,7 @@ func TestFiltersInterfaces_InvalidRaw(t *testing.T) {
 }
 
 func TestFiltersInterfaces_RawNilValue(t *testing.T) {
-	f := &Filters{Raw: {Op: OpAND, Val: []interface{}{".Age = ? OR .Name = ?", nil, "John"}}}
+	f := &Filters{RawKey: {Op: OpAND, Val: []interface{}{".Age = ? OR .Name = ?", nil, "John"}}}
 
 	want := []interface{}{nil, "John"}
 	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {

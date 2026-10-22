@@ -76,7 +76,7 @@ func testInFilters(t *testing.T, crud *CRUD) {
 	tokyo := mustLoadLocation(t, "Asia/Tokyo")
 
 	tests := map[string]struct {
-		filters sqlfilters.Filters
+		filters sqlfilters.Filter
 		want    []uint64
 	}{
 		"strings":            {sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{"paid", "shipped"}}}, []uint64{2, 3}},
@@ -90,18 +90,17 @@ func testInFilters(t *testing.T, crud *CRUD) {
 			time.Date(2024, 5, 1, 19, 0, 0, 0, tokyo),
 			time.Date(2024, 5, 1, 11, 0, 0, 0, time.UTC),
 		}}}, []uint64{1, 2}},
-		"with other filters": {sqlfilters.Filters{
-			"Carrier":         {Op: sqlfilters.OpNotEqual, Val: nil},
-			"ID":              {Op: sqlfilters.OpIn, Val: []uint64{1, 2, 3}},
-			"Status":          {Op: sqlfilters.OpIn, Val: []string{"new", "paid", "shipped"}},
-			"Weight":          {Op: sqlfilters.OpGreater, Val: 2},
-			sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".Weight IN (?) OR .Status = ?", []int{3, 4}, "new"}},
-		}, []uint64{3}},
+		"with other filters": {sqlfilters.And(sqlfilters.Filters{
+			"Carrier": {Op: sqlfilters.OpNotEqual, Val: nil},
+			"ID":      {Op: sqlfilters.OpIn, Val: []uint64{1, 2, 3}},
+			"Status":  {Op: sqlfilters.OpIn, Val: []string{"new", "paid", "shipped"}},
+			"Weight":  {Op: sqlfilters.OpGreater, Val: 2},
+		}, sqlfilters.Raw(".Weight IN (?) OR .Status = ?", []int{3, 4}, "new")), []uint64{3}},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			fatalIfNotShipments(t, crud, GetOptions{Filters: &test.filters}, test.want)
+			fatalIfNotShipments(t, crud, GetOptions{Filters: test.filters}, test.want)
 		})
 	}
 }

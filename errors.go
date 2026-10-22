@@ -45,6 +45,10 @@ var getBuilderObjectCRUDError = func(err error) *CRUDError {
 	}
 }
 
+// QueryMethodError is matched by the error of an operation on a struct that has a query method, e.g. SelectQuery,
+// with a signature other than the one that gocrud calls.
+var QueryMethodError = errors.New("invalid query method")
+
 // ForeignKeyViolationError is matched by the errors of queries that violate a foreign key, e.g. a save of an object
 // that references an object that does not exist, or a delete of an object that is referenced.
 var ForeignKeyViolationError = errors.New("foreign key violation")

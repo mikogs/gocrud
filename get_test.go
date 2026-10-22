@@ -41,7 +41,7 @@ func TestGet_WithFilters(t *testing.T) {
 		Order:  []string{"Age", "asc", "Price", "asc"},
 		Limit:  10,
 		Offset: 20,
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.And(sqlfilters.Filters{
 			"Price": {
 				Op:  sqlfilters.OpEqual,
 				Val: 444,
@@ -50,15 +50,7 @@ func TestGet_WithFilters(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Price > ? AND .Price NOT IN (?)", -200, []int{9999, 9998, 9997})),
 	})
 	if err != nil {
 		t.Fatalf("Get failed to return list of objects: %s", err.(*CRUDError).Op)
@@ -100,7 +92,7 @@ func TestGet_WithStringFilters(t *testing.T) {
 		Order:  []string{"Age", "asc", "Price", "asc"},
 		Limit:  10,
 		Offset: 20,
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.And(sqlfilters.Filters{
 			"Price": {
 				Op:  sqlfilters.OpEqual,
 				Val: "444",
@@ -109,15 +101,7 @@ func TestGet_WithStringFilters(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Price > ? AND .Price NOT IN (?)", -200, []int{9999, 9998, 9997})),
 		ConvertFiltersFromString: true,
 	})
 	if err != nil {

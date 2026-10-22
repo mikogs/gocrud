@@ -2,6 +2,8 @@ package gocrud
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -20,10 +22,10 @@ func (n *HookNote) DeleteByIDQuery() (string, error) {
 func (n *HookNote) DeleteReturningIDQuery() (string, error) {
 	return `UPDATE "hook_note" SET "hidden" = 1 RETURNING "id"`, nil
 }
-func (n *HookNote) SelectQuery([]string, int, int, *sqlfilters.Filters) (string, error) {
+func (n *HookNote) SelectQuery([]string, int, int, sqlfilters.Filter) (string, error) {
 	return `SELECT "id","text","hidden" FROM "hook_note" WHERE "hidden" = 0 ORDER BY "id"`, nil
 }
-func (n *HookNote) SelectCountQuery(*sqlfilters.Filters) (string, error) {
+func (n *HookNote) SelectCountQuery(sqlfilters.Filter) (string, error) {
 	return `SELECT COUNT(*) FROM "hook_note" WHERE "hidden" = 0`, nil
 }
 
@@ -87,7 +89,7 @@ func (t *HookTag) InsertOnConflictUpdateQuery() (string, error) {
 func (t *HookTag) UpdateByIDQuery() (string, error) {
 	return `UPDATE "hook_tag" SET "name"=? || '!' WHERE "id" = ?`, nil
 }
-func (t *HookTag) UpdateQuery(map[string]interface{}, *sqlfilters.Filters) (string, error) {
+func (t *HookTag) UpdateQuery(map[string]interface{}, sqlfilters.Filter) (string, error) {
 	return `UPDATE "hook_tag" SET "name"=? || '#'`, nil
 }
 func (t *HookTag) SelectByIDQuery() (string, error) {
@@ -138,5 +140,21 @@ func TestSQLite_ObjectQueryHooksForSaving(t *testing.T) {
 		if err := crud.conn.QueryRowContext(ctx, `SELECT "name" FROM "hook_tag" WHERE "id" = ?`, tag.ID).Scan(&name); err != nil || name != step.want {
 			t.Fatalf("own query stored %q, %v, want %q", name, err, step.want)
 		}
+	}
+}
+
+type HookWithOldSelectQuery struct {
+	ID   uint64
+	Text string
+}
+
+func (n *HookWithOldSelectQuery) SelectQuery([]string, int, int, *sqlfilters.Filters) (string, error) {
+	return `SELECT "id","text" FROM "hook_with_old_select_query"`, nil
+}
+
+func TestQueryMethodWithOtherSignature(t *testing.T) {
+	_, err := Get[HookWithOldSelectQuery](context.Background(), testCRUDSQLite, GetOptions{})
+	if !errors.Is(err, QueryMethodError) || !strings.Contains(err.Error(), "SelectQuery is func([]string, int, int, *filters.Filters)") {
+		t.Fatalf("Get returned err %v, want %v naming the method", err, QueryMethodError)
 	}
 }

@@ -30,11 +30,6 @@ func (o OpVal) InValues() ([]interface{}, bool) {
 }
 
 const (
-	OpOR = iota * 1
-	OpAND
-)
-
-const (
 	OpEqual = iota * 1
 	OpNotEqual
 	OpLike

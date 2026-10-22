@@ -69,18 +69,12 @@ func walk(f Filter, condFunc func(Condition), rawFunc func(RawFilter)) {
 	case Filters:
 		names := make([]string, 0, len(f))
 		for name := range f {
-			if name != RawKey {
-				names = append(names, name)
-			}
+			names = append(names, name)
 		}
 		sort.Strings(names)
 
 		for _, name := range names {
 			condFunc(Condition{Field: name, OpVal: f[name]})
-		}
-
-		if raw, ok := legacyRawFilter(f); ok {
-			rawFunc(raw)
 		}
 	case Group:
 		for _, filter := range f.Filters {
@@ -89,21 +83,6 @@ func walk(f Filter, condFunc func(Condition), rawFunc func(RawFilter)) {
 	case RawFilter:
 		rawFunc(f)
 	}
-}
-
-// legacyRawFilter returns the raw filter of the RawKey entry. Invalid entries are rejected when the query is built.
-func legacyRawFilter(f Filters) (RawFilter, bool) {
-	rawValues, ok := f[RawKey].Val.([]interface{})
-	if !ok || len(rawValues) == 0 {
-		return RawFilter{}, false
-	}
-
-	sql, ok := rawValues[0].(string)
-	if !ok {
-		return RawFilter{}, false
-	}
-
-	return Raw(sql, rawValues[1:]...), true
 }
 
 // FiltersInterfaces returns the values of a filter, in the order of the placeholders in the query: one value for each

@@ -128,7 +128,7 @@ func testNullableFilters(t *testing.T, crud *CRUD) {
 
 	byName := []string{"Name", "asc"}
 	tests := map[string]struct {
-		filters *sqlfilters.Filters
+		filters sqlfilters.Filter
 		want    []string
 	}{
 		"IS NULL":               {&sqlfilters.Filters{"Nickname": {Op: sqlfilters.OpEqual, Val: nil}}, []string{"Bob", "Carol"}},
@@ -145,7 +145,7 @@ func testNullableFilters(t *testing.T, crud *CRUD) {
 			"Verified": {Op: sqlfilters.OpNotEqual, Val: nil},
 			"Score":    {Op: sqlfilters.OpLower, Val: 100.0},
 		}, []string{"Bob"}},
-		"raw": {&sqlfilters.Filters{sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".BirthDate IS NULL AND .Age > ?", int64(26)}}}, []string{"Alice"}},
+		"raw": {sqlfilters.Raw(".BirthDate IS NULL AND .Age > ?", int64(26)), []string{"Alice"}},
 	}
 
 	for name, test := range tests {
@@ -216,10 +216,10 @@ func testNullableRawFilterWithStringFilters(t *testing.T, crud *CRUD) {
 
 	fatalIfNotProfiles(t, crud, GetOptions{
 		Order: []string{"Name", "asc"},
-		Filters: &sqlfilters.Filters{
-			"Verified":        {Op: sqlfilters.OpNotEqual, Val: ""},
-			sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{".Name != ?", "Alice"}},
-		},
+		Filters: sqlfilters.And(
+			sqlfilters.Filters{"Verified": {Op: sqlfilters.OpNotEqual, Val: ""}},
+			sqlfilters.Raw(".Name != ?", "Alice"),
+		),
 		ConvertFiltersFromString: true,
 	}, []string{"Bob"})
 }

@@ -158,23 +158,10 @@ func TestSQLSelectQueries(t *testing.T) {
 		t.Fatalf("\nwant %v\ngot  %v", want, got)
 	}
 
-	got, err = h.Select([]string{"EmailSecondary", "asc", "Age", "desc"}, 1, 3, &filters.Filters{
+	got, err = h.Select([]string{"EmailSecondary", "asc", "Age", "desc"}, 1, 3, filters.Or(filters.Filters{
 		"Price":     {Op: filters.OpEqual, Val: 33},
 		"PostCode2": {Op: filters.OpEqual, Val: "11-111"},
-		filters.RawKey: {
-			Op: filters.OpOR,
-			Val: []interface{}{
-				".Price=? OR (.EmailSecondary=? AND .Age IN (?)) OR (.Age IN (?)) OR (.EmailSecondary IN (?))",
-				// We do not really care about the values, the query contains $x only symbols
-				// However, we need to pass either value or an array so that an array can be extracted into multiple $x's
-				0,
-				0,
-				[]int{0, 0, 0, 0},
-				[]int{0, 0, 0},
-				[]int{0, 0},
-			},
-		},
-	})
+	}, filters.Raw(".Price=? OR (.EmailSecondary=? AND .Age IN (?)) OR (.Age IN (?)) OR (.EmailSecondary IN (?))", 0, 0, []int{0, 0, 0, 0}, []int{0, 0, 0}, []int{0, 0})))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -236,18 +223,9 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 	}
 
 	got, err = h.Delete(
-		&filters.Filters{
+		filters.And(filters.Filters{
 			"Price": {Op: filters.OpEqual, Val: 4444},
-			filters.RawKey: {
-				Op: filters.OpAND,
-				Val: []interface{}{
-					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
-					0,
-					0,
-					[]int{0, 0, 0},
-				},
-			},
-		})
+		}, filters.Raw(".Price=? OR .EmailSecondary=? OR .Age IN (?)", 0, 0, []int{0, 0, 0})))
 	want = `DELETE FROM "test_struct" WHERE "price"=$1 AND ` +
 		`("price"=$2 OR "email_secondary"=$3 OR "age" IN ($4,$5,$6));`
 	if err != nil {
@@ -258,16 +236,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 	}
 
 	got, err = h.Delete(
-		&filters.Filters{
-			filters.RawKey: {
-				Val: []interface{}{
-					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
-					0,
-					0,
-					[]int{0, 0, 0},
-				},
-			},
-		})
+		filters.Raw(".Price=? OR .EmailSecondary=? OR .Age IN (?)", 0, 0, []int{0, 0, 0}))
 	want = `DELETE FROM "test_struct" WHERE "price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5);`
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -277,16 +246,7 @@ func TestSQLDeleteWithFiltersQueries(t *testing.T) {
 	}
 
 	got, err = h.DeleteReturningID(
-		&filters.Filters{
-			filters.RawKey: {
-				Val: []interface{}{
-					".Price=? OR .EmailSecondary=? OR .Age IN (?)",
-					0,
-					0,
-					[]int{0, 0, 0},
-				},
-			},
-		})
+		filters.Raw(".Price=? OR .EmailSecondary=? OR .Age IN (?)", 0, 0, []int{0, 0, 0}))
 	want = `DELETE FROM "test_struct" WHERE "price"=$1 OR "email_secondary"=$2 OR "age" IN ($3,$4,$5) RETURNING "id";`
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -391,11 +351,10 @@ type TestStructWithAliasesWithoutCustomSelect struct {
 	Price int64  `sql:"name:t2.price"`
 }
 
-var aliasesTestFilters = &filters.Filters{
-	"Name":         {Op: filters.OpLike, Val: "a%"},
-	"Price":        {Op: filters.OpGreater, Val: 1},
-	filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Price < ?", 100}},
-}
+var aliasesTestFilters = filters.And(filters.Filters{
+	"Name":  {Op: filters.OpLike, Val: "a%"},
+	"Price": {Op: filters.OpGreater, Val: 1},
+}, filters.Raw(".Price < ?", 100))
 
 func TestSQLAliasedColumnQueries(t *testing.T) {
 	h := mustNew(t, &TestStructWithAliases{}, Options{})
@@ -539,20 +498,17 @@ func TestNew_InvalidStruct(t *testing.T) {
 }
 
 func TestSQLInvalidRawFilters(t *testing.T) {
-	tests := map[string]interface{}{
-		"not a slice":                 ".Price > ?",
-		"slice of strings":            []string{".Price > ?"},
-		"query is not a string":       []interface{}{1, 2},
-		"query is nil":                []interface{}{nil},
-		"slice of strings with value": []string{".Price > ?", "1"},
+	tests := map[string]filters.Filter{
+		"too few values":  filters.Raw(".Price > ? AND .Age < ?", 1),
+		"too many values": filters.Raw(".Price > ?", 1, 2),
+		"unknown field":   filters.Raw(".Unknown > ?", 1),
 	}
 
 	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
 		h := mustNew(t, testStructObj, Options{Dialect: dialect})
 
-		for name, rawValue := range tests {
+		for name, f := range tests {
 			t.Run(dialect+"/"+name, func(t *testing.T) {
-				f := &filters.Filters{filters.RawKey: {Op: filters.OpAND, Val: rawValue}}
 
 				if _, err := h.Select(nil, 0, 0, f); err == nil {
 					t.Fatal("Select did not return an err for an invalid raw filter")
@@ -572,7 +528,7 @@ func TestSQLInvalidRawFilters(t *testing.T) {
 }
 
 func TestSQLRawFilterWithNilValue(t *testing.T) {
-	f := &filters.Filters{filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Price = ? OR .Age = ?", nil, 5}}}
+	f := filters.Raw(".Price = ? OR .Age = ?", nil, 5)
 
 	wants := map[string]string{
 		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct" WHERE "price" = $1 OR "age" = $2;`,
@@ -695,13 +651,12 @@ func TestSQLNullableColumns(t *testing.T) {
 }
 
 func TestSQLNullConditions(t *testing.T) {
-	f := &filters.Filters{
-		"Age":          {Op: filters.OpEqual, Val: nil},
-		"BirthDate":    {Op: filters.OpNotEqual, Val: (*time.Time)(nil)},
-		"Name":         {Op: filters.OpEqual, Val: "Alice"},
-		"Score":        {Op: filters.OpGreater, Val: 1.5},
-		filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".Rate < ?", 5}},
-	}
+	f := filters.And(filters.Filters{
+		"Age":       {Op: filters.OpEqual, Val: nil},
+		"BirthDate": {Op: filters.OpNotEqual, Val: (*time.Time)(nil)},
+		"Name":      {Op: filters.OpEqual, Val: "Alice"},
+		"Score":     {Op: filters.OpGreater, Val: 1.5},
+	}, filters.Raw(".Rate < ?", 5))
 
 	wants := map[string]string{
 		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "birth_date" IS NOT NULL ` +
@@ -729,13 +684,12 @@ func TestSQLNullConditions(t *testing.T) {
 }
 
 func TestSQLInConditions(t *testing.T) {
-	f := &filters.Filters{
-		"Age":          {Op: filters.OpEqual, Val: nil},
-		"Name":         {Op: filters.OpIn, Val: []string{"Alice", "Bob"}},
-		"Rate":         {Op: filters.OpIn, Val: []float32{}},
-		"Score":        {Op: filters.OpGreater, Val: 1.5},
-		filters.RawKey: {Op: filters.OpAND, Val: []interface{}{".ID IN (?)", []uint64{1, 2}}},
-	}
+	f := filters.And(filters.Filters{
+		"Age":   {Op: filters.OpEqual, Val: nil},
+		"Name":  {Op: filters.OpIn, Val: []string{"Alice", "Bob"}},
+		"Rate":  {Op: filters.OpIn, Val: []float32{}},
+		"Score": {Op: filters.OpGreater, Val: 1.5},
+	}, filters.Raw(".ID IN (?)", []uint64{1, 2}))
 
 	wants := map[string]string{
 		DialectPostgres: `SELECT COUNT(*) AS cnt FROM "test_struct_with_nullable_fields" WHERE ("age" IS NULL AND "name" IN ($1,$2) ` +

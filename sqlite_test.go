@@ -237,20 +237,10 @@ func TestSQLite_DeleteMultiple_WithRawQuery(t *testing.T) {
 	}
 
 	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.Or(sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)",
-					31,
-					[]int{32, 33, 34},
-					35,
-					"miko@example.com",
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)", 31, []int{32, 33, 34}, 35, "miko@example.com")),
 	})
 	if err != nil {
 		t.Fatalf("SQLite DeleteMultiple with raw query failed: %s", err.Error())
@@ -280,20 +270,7 @@ func TestSQLite_DeleteMultiple_WithRawQueryOnly(t *testing.T) {
 	}
 
 	_, err := testCRUDSQLite.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
-		Filters: &sqlfilters.Filters{
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					"(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))",
-					444,
-					"primary@example.com",
-					31,
-					[]int{32, 33, 34},
-					35,
-					"miko@example.com",
-				},
-			},
-		},
+		Filters: sqlfilters.Raw("(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))", 444, "primary@example.com", 31, []int{32, 33, 34}, 35, "miko@example.com"),
 	})
 	if err != nil {
 		t.Fatalf("SQLite DeleteMultiple with raw-query-only failed: %s", err.Error())
@@ -331,18 +308,10 @@ func TestSQLite_Get_WithFilters(t *testing.T) {
 		Order:  []string{"Age", "asc", "Price", "asc"},
 		Limit:  10,
 		Offset: 20,
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.And(sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Price > ? AND .Price NOT IN (?)", -200, []int{9999, 9998, 9997})),
 	})
 	if err != nil {
 		t.Fatalf("SQLite Get with filters failed: %s", err.Error())
@@ -379,18 +348,10 @@ func TestSQLite_Get_WithStringFilters(t *testing.T) {
 		Order:  []string{"Age", "asc", "Price", "asc"},
 		Limit:  10,
 		Offset: 20,
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.And(sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: "444"},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Price > ? AND .Price NOT IN (?)", -200, []int{9999, 9998, 9997})),
 		ConvertFiltersFromString: true,
 	})
 	if err != nil {
@@ -485,18 +446,10 @@ func TestSQLite_GetCount_WithRawQuery(t *testing.T) {
 	}
 
 	cnt, err := testCRUDSQLite.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.Or(sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					".PrimaryEmail = ? AND .Age IN (?)",
-					"another@example.com",
-					[]int{32, 33, 34},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".PrimaryEmail = ? AND .Age IN (?)", "another@example.com", []int{32, 33, 34})),
 	})
 	if err != nil {
 		t.Fatalf("SQLite GetCount with raw query failed: %s", err.Error())

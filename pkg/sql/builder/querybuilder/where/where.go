@@ -48,14 +48,6 @@ func build(f filters.Filter, d Dialect) (string, bool, error) {
 		}
 		return build(*f, d)
 	case filters.Filters:
-		if _, ok := f[filters.RawKey]; ok {
-			group, err := legacyRawGroup(f)
-			if err != nil {
-				return "", false, err
-			}
-			return build(group, d)
-		}
-
 		parts := []string{}
 		for _, c := range filters.Conditions(f) {
 			part, err := condition(c, d)
@@ -211,36 +203,4 @@ func placeholders(num int, d Dialect) string {
 		list[i] = d.Placeholder()
 	}
 	return strings.Join(list, ",")
-}
-
-// legacyRawGroup returns the conditions of Filters with a RawKey entry joined with its raw filter, with AND, or with OR
-// when its Op is OpOR.
-func legacyRawGroup(f filters.Filters) (filters.Filter, error) {
-	rawValues, ok := f[filters.RawKey].Val.([]interface{})
-	if !ok {
-		return nil, RawFilterError
-	}
-
-	conditions := filters.Filters{}
-	for name, opVal := range f {
-		if name != filters.RawKey {
-			conditions[name] = opVal
-		}
-	}
-
-	if len(rawValues) == 0 {
-		return conditions, nil
-	}
-
-	sql, ok := rawValues[0].(string)
-	if !ok {
-		return nil, RawFilterError
-	}
-	if len(conditions) == 0 {
-		return filters.Raw(sql, rawValues[1:]...), nil
-	}
-
-	g := filters.And(conditions, filters.Raw(sql, rawValues[1:]...))
-	g.Or = f[filters.RawKey].Op == filters.OpOR
-	return g, nil
 }

@@ -193,69 +193,58 @@ func ValidateValues(obj interface{}, values map[string]interface{}, tagName stri
 	return len(violations) == 0, violations, nil
 }
 
-func ValidateFilters(obj interface{}, filters *sqlfilters.Filters, tagName string) error {
-	if filters == nil || len(*filters) == 0 {
-		return nil
-	}
-
-	// IS NULL and IS NOT NULL conditions do not have a value to validate, but they are valid only for nullable fields
-	valueFilters := sqlfilters.Filters{}
-	inFilters := sqlfilters.Filters{}
-	nullViolations := map[string]string{}
+// ValidateFilters validates the values of the conditions of a filter as if they were the values of the fields. A nil
+// value is valid only for a nullable field, with OpEqual or OpNotEqual. Raw filters are not validated.
+func ValidateFilters(obj interface{}, filter sqlfilters.Filter, tagName string) error {
 	objType := reflect.Indirect(reflect.ValueOf(obj)).Type()
-	for name, filter := range *filters {
-		field, isField := objType.FieldByName(name)
 
-		if filter.Op == sqlfilters.OpIn && name != sqlfilters.RawKey {
-			inFilters[name] = filter
+	violations := map[string]string{}
+	for _, c := range sqlfilters.Conditions(filter) {
+		if _, ok := violations[c.Field]; ok {
 			continue
 		}
 
-		if !filter.IsNull() {
-			// nil is valid only with OpEqual and OpNotEqual, as IS NULL and IS NOT NULL
-			if isField && isNilValue(filter.Val) {
-				nullViolations[name] = ViolationType
-				continue
+		field, isField := objType.FieldByName(c.Field)
+
+		if c.Op == sqlfilters.OpIn {
+			err := validateInFilter(obj, c.Field, c.OpVal, tagName)
+			if err != nil {
+				return err
 			}
-			valueFilters[name] = filter
 			continue
 		}
 
-		if isField && !structinfo.IsNullableType(field.Type) {
-			nullViolations[name] = ViolationType
+		if c.IsNull() {
+			if isField && !structinfo.IsNullableType(field.Type) {
+				violations[c.Field] = ViolationType
+			}
+			continue
 		}
-	}
 
-	if len(nullViolations) > 0 {
-		return getObjInvalidCRUDError(nullViolations)
-	}
+		// nil is valid only with OpEqual and OpNotEqual, as IS NULL and IS NOT NULL
+		if isField && isNilValue(c.Val) {
+			violations[c.Field] = ViolationType
+			continue
+		}
 
-	if len(valueFilters) > 0 {
-		err := sqlfilters.SetObjFields(obj, &valueFilters)
+		err := sqlfilters.SetObjFields(obj, &sqlfilters.Filters{c.Field: c.OpVal})
 		if err != nil {
 			return getBuilderFuncCRUDError("set obj fields", err)
 		}
 
-		fieldsToValidate := map[string]bool{}
-		for filter := range valueFilters {
-			fieldsToValidate[filter] = true
-		}
-
-		ok, violations, err := Validate(obj, fieldsToValidate, tagName)
+		ok, fieldViolations, err := Validate(obj, map[string]bool{c.Field: true}, tagName)
 		if err != nil {
 			return getValidateObjCRUDError(err)
 		}
-
 		if !ok {
-			return getObjInvalidCRUDError(violations)
+			for name, violation := range fieldViolations {
+				violations[name] = violation
+			}
 		}
 	}
 
-	for name, filter := range inFilters {
-		err := validateInFilter(obj, name, filter, tagName)
-		if err != nil {
-			return err
-		}
+	if len(violations) > 0 {
+		return getObjInvalidCRUDError(violations)
 	}
 
 	return nil
@@ -323,16 +312,37 @@ func getCompiledRegexp(pattern string) (*regexp.Regexp, error) {
 	return compiled, nil
 }
 
-// convertFiltersFromString returns filters with string values converted to the types of obj fields. The raw filter,
-// and IS NULL and IS NOT NULL conditions, which have a nil value, are not converted.
-func convertFiltersFromString(obj interface{}, filters *sqlfilters.Filters) (*sqlfilters.Filters, error) {
-	if filters == nil {
-		return nil, nil
+// convertFiltersFromString returns a filter with the string values of its conditions converted to the types of obj
+// fields. Raw filters, and IS NULL and IS NOT NULL conditions, which have a nil value, are not converted.
+func convertFiltersFromString(obj interface{}, filter sqlfilters.Filter) (sqlfilters.Filter, error) {
+	switch f := filter.(type) {
+	case *sqlfilters.Filters:
+		if f == nil {
+			return f, nil
+		}
+		converted, err := convertFilterValuesFromString(obj, *f)
+		return &converted, err
+	case sqlfilters.Filters:
+		return convertFilterValuesFromString(obj, f)
+	case sqlfilters.Group:
+		converted := sqlfilters.Group{Or: f.Or, Filters: make([]sqlfilters.Filter, len(f.Filters))}
+		for i, child := range f.Filters {
+			var err error
+			converted.Filters[i], err = convertFiltersFromString(obj, child)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return converted, nil
+	default:
+		return filter, nil
 	}
+}
 
-	newFilters := &sqlfilters.Filters{}
-	for filterName, filterOpVal := range *filters {
-		if filterName == sqlfilters.RawKey || filterOpVal.IsNull() {
+func convertFilterValuesFromString(obj interface{}, filters sqlfilters.Filters) (sqlfilters.Filters, error) {
+	newFilters := sqlfilters.Filters{}
+	for filterName, filterOpVal := range filters {
+		if filterOpVal.IsNull() {
 			newFilters.Add(filterName, filterOpVal)
 			continue
 		}

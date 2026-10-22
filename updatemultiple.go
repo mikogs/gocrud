@@ -8,7 +8,7 @@ import (
 )
 
 type UpdateMultipleOptions struct {
-	Filters                 *sqlfilters.Filters
+	Filters                 sqlfilters.Filter
 	ConvertValuesFromString bool
 }
 

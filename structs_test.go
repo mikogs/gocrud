@@ -120,7 +120,7 @@ func TestGet_BuilderErrorChain(t *testing.T) {
 	for name, crud := range map[string]*CRUD{"postgres": testCRUD, "sqlite": testCRUDSQLite} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := crud.Get(context.Background(), func() interface{} { return &StructWithSkippedFields{} }, GetOptions{
-				Filters: &sqlfilters.Filters{sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: ".Name = ?"}},
+				Filters: sqlfilters.Raw(".Name = ?"),
 			})
 
 			var builderErr *sqlbuilder.BuilderError
@@ -128,7 +128,7 @@ func TestGet_BuilderErrorChain(t *testing.T) {
 				t.Fatalf("Get returned err %v, want a *builder.BuilderError of QueryBuilder.Select", err)
 			}
 
-			want := "builder select: QueryBuilder.Select: get where clause from filters: invalid raw filter"
+			want := "builder select: QueryBuilder.Select: get where clause from filters: invalid raw filter: 1 placeholders and 0 values in \".Name = ?\""
 			if err.Error() != want {
 				t.Fatalf("Get returned err %q, want %q", err.Error(), want)
 			}

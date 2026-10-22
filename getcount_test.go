@@ -67,18 +67,10 @@ func TestGetCount_WithRawQuery(t *testing.T) {
 
 	// Get the data from the database
 	cnt, err := testCRUD.GetCount(context.Background(), &test.TestStruct{}, GetCountOptions{
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.Or(sqlfilters.Filters{
 			"Price":        {Op: sqlfilters.OpEqual, Val: 444},
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					".PrimaryEmail = ? AND .Age IN (?)",
-					"another@example.com",
-					[]int{32, 33, 34},
-				},
-			},
-		},
+		}, sqlfilters.Raw(".PrimaryEmail = ? AND .Age IN (?)", "another@example.com", []int{32, 33, 34})),
 	})
 	if err != nil {
 		t.Fatalf("Get failed to return list of objects: %s", err.(*CRUDError).Op)

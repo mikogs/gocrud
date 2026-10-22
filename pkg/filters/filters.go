@@ -13,9 +13,6 @@ func (f Filters) Add(name string, value OpVal) {
 	f[name] = value
 }
 
-// RawKey is the key of a raw filter in Filters, to be replaced by Raw.
-const RawKey = "_"
-
 func SetObjFields(obj interface{}, values *Filters) error {
 	if values == nil || len(*values) == 0 {
 		return nil

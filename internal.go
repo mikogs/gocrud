@@ -27,6 +27,10 @@ func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {
 		return nil, err
 	}
 
+	if err := checkQueryMethods(obj); err != nil {
+		return nil, err
+	}
+
 	c.builders.mu.Lock()
 	c.builders.builders[objType] = builder
 	c.builders.mu.Unlock()

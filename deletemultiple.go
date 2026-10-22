@@ -7,7 +7,7 @@ import (
 )
 
 type DeleteMultipleOptions struct {
-	Filters *sqlfilters.Filters
+	Filters sqlfilters.Filter
 }
 
 // DeleteMultiple removes objects from the database based on specified filters, and returns the IDs of the

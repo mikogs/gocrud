@@ -78,7 +78,7 @@ func TestDeleteMultiple_WithRawQuery(t *testing.T) {
 
 	// Delete multiple rows from the database
 	_, err := testCRUD.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
-		Filters: &sqlfilters.Filters{
+		Filters: sqlfilters.Or(sqlfilters.Filters{
 			"Price": {
 				Op:  sqlfilters.OpEqual,
 				Val: 444,
@@ -87,17 +87,7 @@ func TestDeleteMultiple_WithRawQuery(t *testing.T) {
 				Op:  sqlfilters.OpEqual,
 				Val: "primary@example.com",
 			},
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)",
-					31,
-					[]int{32, 33, 34},
-					35,
-					"miko@example.com",
-				},
-			},
-		},
+		}, sqlfilters.Raw(".Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?)", 31, []int{32, 33, 34}, 35, "miko@example.com")),
 	})
 	if err != nil {
 		t.Fatalf("DeleteMultiple failed to delete objects: %s", err.(*CRUDError).Op)
@@ -132,20 +122,7 @@ func TestDeleteMultiple_WithRawQueryOnly(t *testing.T) {
 
 	// Delete multiple rows from the database
 	_, err := testCRUD.DeleteMultiple(context.Background(), &test.TestStruct{}, DeleteMultipleOptions{
-		Filters: &sqlfilters.Filters{
-			sqlfilters.RawKey: {
-				Op: sqlfilters.OpOR,
-				Val: []interface{}{
-					"(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))",
-					444,
-					"primary@example.com",
-					31,
-					[]int{32, 33, 34},
-					35,
-					"miko@example.com",
-				},
-			},
-		},
+		Filters: sqlfilters.Raw("(.Price = ? AND .PrimaryEmail = ?) OR (.Age = ? OR .Age IN (?) OR (.Age = ? AND .PrimaryEmail = ?))", 444, "primary@example.com", 31, []int{32, 33, 34}, 35, "miko@example.com"),
 	})
 	if err != nil {
 		t.Fatalf("DeleteMultiple failed to delete objects: %s", err.(*CRUDError).Op)

@@ -68,7 +68,7 @@ func createAliasTestData(t *testing.T, crud *CRUD) {
 	}
 }
 
-func fatalIfNotAliasProductsWithPrice(t *testing.T, crud *CRUD, filters *sqlfilters.Filters, want []string) {
+func fatalIfNotAliasProductsWithPrice(t *testing.T, crud *CRUD, filters sqlfilters.Filter, want []string) {
 	t.Helper()
 
 	objs, _, err := crud.Get(context.Background(), func() interface{} {
@@ -111,13 +111,9 @@ func testAliasedColumnNames(t *testing.T, crud *CRUD) {
 		"PriceName": {Op: sqlfilters.OpEqual, Val: "small"},
 	}, []string{"Apple small"})
 
-	fatalIfNotAliasProductsWithPrice(t, crud, &sqlfilters.Filters{
+	fatalIfNotAliasProductsWithPrice(t, crud, sqlfilters.And(sqlfilters.Filters{
 		"PriceName": {Op: sqlfilters.OpEqual, Val: "small"},
-		sqlfilters.RawKey: {Op: sqlfilters.OpAND, Val: []interface{}{
-			".Price > ?",
-			8,
-		}},
-	}, []string{"Banana small", "Apple small"})
+	}, sqlfilters.Raw(".Price > ?", 8)), []string{"Banana small", "Apple small"})
 }
 
 func TestGet_AliasedColumnNames(t *testing.T) {

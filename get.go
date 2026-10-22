@@ -11,7 +11,7 @@ type GetOptions struct {
 	Order                    []string
 	Limit                    int
 	Offset                   int
-	Filters                  *sqlfilters.Filters
+	Filters                  sqlfilters.Filter
 	RowObjTransformFunc      func(interface{}) interface{}
 	ConvertFiltersFromString bool
 

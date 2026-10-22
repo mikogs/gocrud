@@ -7,7 +7,7 @@ import (
 )
 
 type GetCountOptions struct {
-	Filters                  *sqlfilters.Filters
+	Filters                  sqlfilters.Filter
 	ConvertFiltersFromString bool
 }
 

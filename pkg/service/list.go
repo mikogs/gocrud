@@ -15,7 +15,7 @@ import (
 // passFieldsToVerify maps a struct field name to a plaintext password to
 // verify against the stored hash; verification only happens when the query
 // matches exactly one record, see gocrud.PassOK / gocrud.PassInvalid.
-func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, orderDirection string, filterVals, filterOps map[string]string, rowFunc func(interface{}) interface{}, constructor func() interface{}, passFieldsToVerify map[string]string) ([]interface{}, map[string]int, error) {
+func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, orderDirection string, filters Filters, rowFunc func(interface{}) interface{}, constructor func() interface{}, passFieldsToVerify map[string]string) ([]interface{}, map[string]int, error) {
 	logAttrService := logger.AttrService(c, "List")
 
 	if constructor == nil {
@@ -27,7 +27,7 @@ func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, o
 		}
 	}
 
-	filters, err := buildFilters(filterVals, filterOps, logAttrService)
+	filter, err := buildFilter(filters, logAttrService)
 	if err != nil {
 		return nil, map[string]int{}, err
 	}
@@ -41,7 +41,7 @@ func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, o
 		Limit:                    limit,
 		Offset:                   offset,
 		Order:                    getOrder,
-		Filters:                  filters,
+		Filters:                  filter,
 		ConvertFiltersFromString: true,
 		RowObjTransformFunc:      rowFunc,
 		VerifyPasswordFields:     passFieldsToVerify,

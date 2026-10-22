@@ -30,7 +30,7 @@ func TestRunInTx(t *testing.T) {
 			return err
 		}
 
-		num, err := tx.Num(ctx, "teststruct", nil, nil)
+		num, err := tx.Num(ctx, "teststruct", Filters{})
 		if err != nil {
 			return err
 		}
@@ -43,7 +43,7 @@ func TestRunInTx(t *testing.T) {
 		t.Fatalf("RunInTx returned err %v, want %v", err, errAbort)
 	}
 
-	num, _ := testService.Num(ctx, "teststruct", nil, nil)
+	num, _ := testService.Num(ctx, "teststruct", Filters{})
 	if num != 2 {
 		t.Fatalf("Num returned %d, want 2", num)
 	}
@@ -69,7 +69,7 @@ func TestWithTx(t *testing.T) {
 		t.Fatalf("Rollback failed: %s", err.Error())
 	}
 
-	num, _ := testService.Num(ctx, "teststruct", nil, nil)
+	num, _ := testService.Num(ctx, "teststruct", Filters{})
 	if num != 0 {
 		t.Fatalf("Num returned %d after a rollback, want 0", num)
 	}

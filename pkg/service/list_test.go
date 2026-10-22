@@ -34,13 +34,13 @@ func TestList_WithFilters(t *testing.T) {
 	}
 
 	// Get the data from the database
-	testStructs, _, err := testService.List(context.Background(), "teststruct", 10, 20, "Age", "asc", map[string]string{
+	testStructs, _, err := testService.List(context.Background(), "teststruct", 10, 20, "Age", "asc", Filters{Vals: map[string]string{
 		"Price":        "444",
 		"PrimaryEmail": "primary@example.com",
-	}, map[string]string{
+	}, Ops: map[string]string{
 		"Price":        "eq",
 		"PrimaryEmail": "eq",
-	}, nil, nil, nil)
+	}}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("List failed to return list of objects: %s", err.Error())
 	}
@@ -64,7 +64,7 @@ func TestList_WithoutFilters(t *testing.T) {
 	}
 
 	// Get the data
-	testStructs, _, err := testService.List(context.Background(), "teststruct", 13, 14, "Age", "asc", nil, nil, nil, nil, nil)
+	testStructs, _, err := testService.List(context.Background(), "teststruct", 13, 14, "Age", "asc", Filters{}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Get failed to return list of objects: %s", err.Error())
 	}
@@ -89,7 +89,7 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 	}
 
 	// Get the data
-	testCustomList, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc", nil, nil, func(obj interface{}) interface{} {
+	testCustomList, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc", Filters{}, func(obj interface{}) interface{} {
 		out := "<tr>"
 
 		v := reflect.ValueOf(obj)
@@ -139,16 +139,14 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 
 func TestList_InvalidFilterOp(t *testing.T) {
 	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
-		map[string]string{"Price": "444"},
-		map[string]string{"Price": "bogus"},
+		Filters{Vals: map[string]string{"Price": "444"}, Ops: map[string]string{"Price": "bogus"}},
 		nil, nil, nil)
 	fatalIfNotFilterViolations(t, err, map[string]string{"Price": gocrud.ViolationType})
 }
 
 func TestList_InvalidFilterValue(t *testing.T) {
 	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
-		map[string]string{"Age": "500"},
-		map[string]string{"Age": "eq"},
+		Filters{Vals: map[string]string{"Age": "500"}, Ops: map[string]string{"Age": "eq"}},
 		nil, nil, nil)
 	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
 }
@@ -163,8 +161,7 @@ func TestList_InFilter(t *testing.T) {
 	}
 
 	objs, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc",
-		map[string]string{"Age": "20,40"},
-		map[string]string{"Age": "in"},
+		Filters{Vals: map[string]string{"Age": "20,40"}, Ops: map[string]string{"Age": "in"}},
 		nil, nil, nil)
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
@@ -173,7 +170,7 @@ func TestList_InFilter(t *testing.T) {
 		t.Fatalf("List returned %+v, want the objects with Age 20 and 40", objs)
 	}
 
-	num, err := testService.Num(context.Background(), "teststruct", map[string]string{"Age": "30,200"}, map[string]string{"Age": "in"})
+	num, err := testService.Num(context.Background(), "teststruct", Filters{Vals: map[string]string{"Age": "30,200"}, Ops: map[string]string{"Age": "in"}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
 	if num != 0 {
 		t.Fatalf("Num returned %d for an invalid value, want 0", num)

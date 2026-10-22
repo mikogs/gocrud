@@ -66,7 +66,7 @@ func TestSave_ModelValidationError(t *testing.T) {
 		t.Fatalf("Save returned violations %v, want %v", modelErr.Violations, want)
 	}
 
-	num, _ := testService.Num(context.Background(), "teststruct", nil, nil)
+	num, _ := testService.Num(context.Background(), "teststruct", Filters{})
 	if num != 0 {
 		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", num)
 	}

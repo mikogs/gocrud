@@ -36,7 +36,7 @@ func TestList_VerifyPasswordFields(t *testing.T) {
 	}
 
 	results, passwordFields, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
-		map[string]string{"Name": "erin"}, nil, nil, nil,
+		Filters{Vals: map[string]string{"Name": "erin"}}, nil, nil,
 		map[string]string{
 			"Password": "correct-horse",
 			"Name":     "erin",
@@ -58,7 +58,7 @@ func TestList_VerifyPasswordFields(t *testing.T) {
 	}
 
 	_, passwordFields2, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
-		map[string]string{"Name": "erin"}, nil, nil, nil,
+		Filters{Vals: map[string]string{"Name": "erin"}}, nil, nil,
 		map[string]string{"Password": "wrong-password"})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())

@@ -36,8 +36,7 @@ func TestList_TimeFilters(t *testing.T) {
 	}
 
 	objs, _, err := svc.List(ctx, "events", 10, 0, "StartsAt", "asc",
-		map[string]string{"StartsAt": "2024-05-01"},
-		map[string]string{"StartsAt": "ge"},
+		Filters{Vals: map[string]string{"StartsAt": "2024-05-01"}, Ops: map[string]string{"StartsAt": "ge"}},
 		nil, nil, nil)
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
@@ -47,8 +46,7 @@ func TestList_TimeFilters(t *testing.T) {
 	}
 
 	_, _, err = svc.List(ctx, "events", 10, 0, "", "",
-		map[string]string{"StartsAt": "May 1st"},
-		map[string]string{"StartsAt": "ge"},
+		Filters{Vals: map[string]string{"StartsAt": "May 1st"}, Ops: map[string]string{"StartsAt": "ge"}},
 		nil, nil, nil)
 	fatalIfNotFilterViolations(t, err, map[string]string{"StartsAt": gocrud.ViolationType})
 }

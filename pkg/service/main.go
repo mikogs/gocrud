@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"sort"
+	"strings"
 
 	"github.com/mikogs/gocrud"
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
@@ -90,23 +92,55 @@ func (c *CRUD) Registry() []string {
 	return keys
 }
 
-// buildFilters converts the string-keyed filter maps coming from HTTP layers
-// into a sqlfilters.Filters value ready for the CRUD layer.
-func buildFilters(filterVals, filterOps map[string]string, logAttr slog.Attr) (*sqlfilters.Filters, error) {
-	filters := sqlfilters.Filters{}
+// Filters are the filters of List and Num, as strings, e.g. from the query of a request. The values are converted to
+// the types of the fields, and the operators are the names that Op accepts, with "eq" when an operator is not set.
+type Filters struct {
+	// Vals and Ops are keyed by field name. A key can also name a group, after a dot, e.g. "Name.q". The conditions
+	// of a group are joined with OR, and the groups and the conditions without a group are joined with AND. A group
+	// with one condition is a condition joined with AND, so e.g. "Price.min" and "Price.max" are a range.
+	Vals map[string]string
+	Ops  map[string]string
+
+	// ScopeVals and ScopeOps are conditions that every record has to match, e.g. that it belongs to the user. They
+	// are keyed by field name, and joined with AND with all the other conditions, which cannot match other records.
+	ScopeVals map[string]string
+	ScopeOps  map[string]string
+}
+
+// buildFilter returns the filter of Filters for the CRUD layer.
+func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) {
 	violations := map[string]string{}
 
-	for name, value := range filterVals {
-		op := sqlfilters.OpEqual
-		if filterOp, ok := filterOps[name]; ok {
-			var err error
-			op, err = Op(filterOp)
-			if err != nil {
-				slog.Error("invalid filter op", logAttr, slog.String("op", filterOp))
-				violations[name] = gocrud.ViolationType
-			}
+	scope := sqlfilters.Filters{}
+	for name, value := range filters.ScopeVals {
+		addCondition(scope, name, value, filters.ScopeOps[name], violations, logAttr)
+	}
+
+	keys := make([]string, 0, len(filters.Vals))
+	for key := range filters.Vals {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	conditions := sqlfilters.Filters{}
+	groups := map[string][]sqlfilters.Filter{}
+	for _, key := range keys {
+		value := filters.Vals[key]
+		name, group, hasGroup := strings.Cut(key, ".")
+		if name == "" || (hasGroup && (group == "" || strings.Contains(group, "."))) {
+			slog.Error("invalid filter name", logAttr, slog.String("name", key))
+			violations[key] = gocrud.ViolationType
+			continue
 		}
-		filters[name] = sqlfilters.OpVal{Op: op, Val: value}
+
+		if !hasGroup {
+			addCondition(conditions, name, value, filters.Ops[key], violations, logAttr)
+			continue
+		}
+
+		condition := sqlfilters.Filters{}
+		addCondition(condition, name, value, filters.Ops[key], violations, logAttr)
+		groups[group] = append(groups[group], condition)
 	}
 
 	if len(violations) > 0 {
@@ -117,7 +151,32 @@ func buildFilters(filterVals, filterOps map[string]string, logAttr slog.Attr) (*
 		}
 	}
 
-	return &filters, nil
+	groupNames := make([]string, 0, len(groups))
+	for group := range groups {
+		groupNames = append(groupNames, group)
+	}
+	sort.Strings(groupNames)
+
+	filter := sqlfilters.And(scope, conditions)
+	for _, group := range groupNames {
+		filter.Filters = append(filter.Filters, sqlfilters.Or(groups[group]...))
+	}
+
+	return filter, nil
+}
+
+// addCondition adds the condition on the field name to filters, or a violation when the operator is invalid.
+func addCondition(filters sqlfilters.Filters, name string, value string, filterOp string, violations map[string]string, logAttr slog.Attr) {
+	op := sqlfilters.OpEqual
+	if filterOp != "" {
+		var err error
+		op, err = Op(filterOp)
+		if err != nil {
+			slog.Error("invalid filter op", logAttr, slog.String("op", filterOp))
+			violations[name] = gocrud.ViolationType
+		}
+	}
+	filters[name] = sqlfilters.OpVal{Op: op, Val: value}
 }
 
 func Op(op string) (int, error) {

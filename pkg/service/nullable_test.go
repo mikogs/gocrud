@@ -34,8 +34,7 @@ func TestList_NullFilters(t *testing.T) {
 
 	for op, want := range map[string]string{"eq": "Open", "ne": "Done"} {
 		objs, _, err := svc.List(ctx, "tasks", 10, 0, "", "",
-			map[string]string{"DoneAt": ""},
-			map[string]string{"DoneAt": op},
+			Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}},
 			nil, nil, nil)
 		if err != nil {
 			t.Fatalf("List failed: %s", err.Error())
@@ -44,14 +43,14 @@ func TestList_NullFilters(t *testing.T) {
 			t.Fatalf("List with %s and an empty value returned %+v, want %s", op, objs, want)
 		}
 
-		num, err := svc.Num(ctx, "tasks", map[string]string{"DoneAt": ""}, map[string]string{"DoneAt": op})
+		num, err := svc.Num(ctx, "tasks", Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}})
 		if err != nil || num != 1 {
 			t.Fatalf("Num with %s and an empty value returned %d, %v, want 1", op, num, err)
 		}
 	}
 
 	_, _, err := svc.List(ctx, "tasks", 10, 0, "", "",
-		map[string]string{"Title": ""}, map[string]string{"Title": "eq"}, nil, nil, nil)
+		Filters{Vals: map[string]string{"Title": ""}, Ops: map[string]string{"Title": "eq"}}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("List failed for an empty value of a field that is not nullable: %s", err.Error())
 	}

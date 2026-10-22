@@ -9,7 +9,7 @@ import (
 	"github.com/mikogs/gocrud/pkg/logger"
 )
 
-func (c *CRUD) Num(ctx context.Context, key string, filterVals, filterOps map[string]string) (uint64, error) {
+func (c *CRUD) Num(ctx context.Context, key string, filters Filters) (uint64, error) {
 	logAttrService := logger.AttrService(c, "Num")
 
 	constructor, ok := c.registry[key]
@@ -18,13 +18,13 @@ func (c *CRUD) Num(ctx context.Context, key string, filterVals, filterOps map[st
 		return 0, InvalidKeyError
 	}
 
-	filters, err := buildFilters(filterVals, filterOps, logAttrService)
+	filter, err := buildFilter(filters, logAttrService)
 	if err != nil {
 		return 0, err
 	}
 
 	numObjs, err := c.crud.GetCount(ctx, constructor(), gocrud.GetCountOptions{
-		Filters:                  filters,
+		Filters:                  filter,
 		ConvertFiltersFromString: true,
 	})
 

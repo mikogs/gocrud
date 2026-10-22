@@ -30,13 +30,13 @@ func TestNum(t *testing.T) {
 	}
 
 	// Get the data from the database
-	num, err := testService.Num(context.Background(), "teststruct", map[string]string{
+	num, err := testService.Num(context.Background(), "teststruct", Filters{Vals: map[string]string{
 		"Price":        "444",
 		"PrimaryEmail": "primary@example.com",
-	}, map[string]string{
+	}, Ops: map[string]string{
 		"Price":        "eq",
 		"PrimaryEmail": "eq",
-	})
+	}})
 	if err != nil {
 		t.Fatalf("Num failed to return list of objects: %s", err.Error())
 	}
@@ -47,7 +47,6 @@ func TestNum(t *testing.T) {
 
 func TestNum_InvalidFilterOp(t *testing.T) {
 	_, err := testService.Num(context.Background(), "teststruct",
-		map[string]string{"Price": "444"},
-		map[string]string{"Price": "bogus"})
+		Filters{Vals: map[string]string{"Price": "444"}, Ops: map[string]string{"Price": "bogus"}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"Price": gocrud.ViolationType})
 }

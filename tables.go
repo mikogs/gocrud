@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
 )
 
 // CreateTable creates a database table for the specified object, along with any

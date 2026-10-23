@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the tests of gocrud and of its bench module with the race detector, which needs cgo, and checks that no
-# goroutines are still running after the tests of each package, see pkg/test/leaks.go. The benchmarks run once, to
+# goroutines are still running after the tests of each package, see pkg/gocrudtest/leaks.go. The benchmarks run once, to
 # check their code too. The tests start PostgreSQL in docker.
 set -euo pipefail
 

@@ -82,7 +82,7 @@ for _, statement := range plan.Statements {
 `MigrationSQL` formats migrations as an SQL script, e.g. for the file of a migration tool. The differences, which have to be resolved by hand, are added as `-- TODO:` comments, and migrations without changes are left out:
 
 ```go
-plans, err := svc.PlanMigrations(ctx)
+plans, err := reg.PlanMigrations(ctx)
 if err != nil {
     return err
 }
@@ -221,18 +221,18 @@ CREATE UNIQUE INDEX uniq_customer_code ON customer (code);
 * **A unique field** added in SQLite gets a unique index named `uniq_<table>_<column>` instead of a `UNIQUE` constraint, because SQLite cannot add a column with a constraint. Both reject duplicates in the same way.
 * **Custom queries.** When the struct builds its own `CREATE TABLE` with `CreateTableQuery`, `Migrate` uses it to create a missing table, but compares and adds columns based on the struct fields.
 
-## Service layer
+## Registry
 
-The [service](../pkgs/service.md) has a `Migrate` method that migrates the tables of all the structs in the registry, in a single transaction, and logs the differences as warnings. Like `CreateTables`, it skips projections.
+The [registry](../pkgs/registry.md) has a `Migrate` method that migrates the tables of all the structs in the registry, in a single transaction, and logs the differences as warnings. Like `CreateTables`, it skips projections.
 
 ```go
-migrations, err := svc.Migrate(ctx)
+migrations, err := reg.Migrate(ctx)
 ```
 
 `PlanMigrations` returns the migrations that `Migrate` would make, in the same order, without changing anything, and `CheckSchema` checks the tables of all the structs:
 
 ```go
-plans, err := svc.PlanMigrations(ctx)
+plans, err := reg.PlanMigrations(ctx)
 
-err = svc.CheckSchema(ctx)
+err = reg.CheckSchema(ctx)
 ```

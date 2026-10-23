@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type Ticket struct {

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type AliasProduct struct {

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
-	"github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where"
-	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/dialect"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
+	"github.com/mikogs/gocrud/internal/sqlbuilder/where"
+	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 // ErrAggregate is matched by the error of Aggregate with a result struct or options that cannot be used.
@@ -81,7 +81,7 @@ func Aggregate[T any, R any](ctx context.Context, c *CRUD, options AggregateOpti
 	results := []*R{}
 	for rows.Next() {
 		result := new(R)
-		if err := scanAggregateRow(rows, reflect.ValueOf(result).Elem(), fields, c.dialect); err != nil {
+		if err := scanAggregateRow(rows, reflect.ValueOf(result).Elem(), fields, c.sqlDialect.TimeFormat()); err != nil {
 			return nil, getDBFuncCRUDError("rows scan", err)
 		}
 		results = append(results, result)
@@ -103,10 +103,7 @@ func (c *CRUD) aggregateQuery(builder *sqlbuilder.Builder, objType reflect.Type,
 	valueNum := 0
 	placeholder := func() string {
 		valueNum++
-		if c.dialect == DialectSQLite {
-			return "?"
-		}
-		return fmt.Sprintf("$%d", valueNum)
+		return c.sqlDialect.Placeholder(valueNum)
 	}
 
 	table := builder.QuotedTableName()
@@ -154,7 +151,7 @@ func (c *CRUD) aggregateQuery(builder *sqlbuilder.Builder, objType reflect.Type,
 		query += " GROUP BY " + strings.Join(groups, ",")
 	}
 
-	having, err := where.Build(options.Having, havingDialect(byName, placeholder, c.dialect))
+	having, err := where.Build(options.Having, havingDialect(byName, placeholder, c.sqlDialect))
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("having: %w", err)
 	}
@@ -182,8 +179,9 @@ func (c *CRUD) aggregateQuery(builder *sqlbuilder.Builder, objType reflect.Type,
 }
 
 // havingDialect returns the dialect of the conditions of Having, on the fields of the result struct.
-func havingDialect(fields map[string]aggregateField, placeholder func() string, dialect string) where.Dialect {
-	d := where.Dialect{
+// The aggregated values can be of any type, so they are cast to text for LIKE in a database that needs it.
+func havingDialect(fields map[string]aggregateField, placeholder func() string, sqlDialect dialect.Dialect) where.Dialect {
+	return where.Dialect{
 		Column: func(name string) (string, error) {
 			field, ok := fields[name]
 			if !ok {
@@ -191,14 +189,10 @@ func havingDialect(fields map[string]aggregateField, placeholder func() string, 
 			}
 			return field.expression, nil
 		},
-		TextColumn:  func(_ string, column string) string { return column },
-		Placeholder: placeholder,
+		TextColumn:    func(_ string, column string) string { return sqlDialect.TextColumn(column, true) },
+		Placeholder:   placeholder,
+		MatchOperator: sqlDialect.MatchOperator(),
 	}
-	if dialect != DialectSQLite {
-		d.MatchOperator = "~"
-		d.TextColumn = func(_ string, column string) string { return "CAST(" + column + " AS TEXT)" }
-	}
-	return d
 }
 
 func aggregateOrder(order []string, fields map[string]aggregateField) (string, error) {
@@ -343,23 +337,9 @@ func (c *CRUD) aggregateColumn(builder *sqlbuilder.Builder, joins *aggregateJoin
 
 // truncateTime returns the expression of a time column truncated to a unit, as a time in UTC.
 func (c *CRUD) truncateTime(column string, unit string) (string, error) {
-	if c.dialect == DialectSQLite {
-		// SQLite stores times as text in UTC, with a fixed length, see sqliteQueryContainer.TimeFormat
-		switch unit {
-		case "day":
-			return "substr(" + column + ",1,10)||' 00:00:00.000000000+00:00'", nil
-		case "month":
-			return "substr(" + column + ",1,7)||'-01 00:00:00.000000000+00:00'", nil
-		case "year":
-			return "substr(" + column + ",1,4)||'-01-01 00:00:00.000000000+00:00'", nil
-		}
-	} else {
-		switch unit {
-		case "day", "month", "year":
-			return "date_trunc('" + unit + "'," + column + " AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'", nil
-		}
+	if expression, ok := c.sqlDialect.TruncateTime(column, unit); ok {
+		return expression, nil
 	}
-
 	return "", fmt.Errorf("unknown unit %q, want day, month or year", unit)
 }
 
@@ -382,12 +362,13 @@ func coalesce(expression string, fieldType reflect.Type, nullable bool) string {
 	}
 }
 
-// scanAggregateRow scans a row of Aggregate into result. SQLite returns the times of expressions as text.
-func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateField, dialect string) error {
+// scanAggregateRow scans a row of Aggregate into result. A database that stores times as text in timeFormat, SQLite,
+// returns the times of expressions as text.
+func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateField, timeFormat string) error {
 	destinations := make([]interface{}, len(fields))
 	texts := make([]sql.NullString, len(fields))
 	for i, field := range fields {
-		if field.isTime && dialect == DialectSQLite {
+		if field.isTime && timeFormat != "" {
 			destinations[i] = &texts[i]
 			continue
 		}
@@ -404,14 +385,14 @@ func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateFi
 			continue
 		}
 
-		if dialect == DialectSQLite {
+		if timeFormat != "" {
 			if !texts[i].Valid {
 				if value.Kind() != reflect.Pointer {
 					return fmt.Errorf("%s is NULL, use a *time.Time field", field.name)
 				}
 				continue
 			}
-			t, err := time.Parse(sqliteQueryContainer.TimeFormat, texts[i].String)
+			t, err := time.Parse(timeFormat, texts[i].String)
 			if err != nil {
 				return fmt.Errorf("%s: %w", field.name, err)
 			}

@@ -20,7 +20,7 @@ Package `gocrud` uses reflection to create CRUD operations for structs.
     * [Reports](docs/crud/reports.md)
     * [Custom queries](docs/crud/custom-queries.md)
 * Additional packages
-    * [Service](docs/pkgs/service.md)
+    * [Registry](docs/pkgs/registry.md)
 * [Helper functions](docs/helper-functions.md)
 
 ## Development

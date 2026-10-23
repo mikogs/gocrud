@@ -5,18 +5,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/gocrudtest"
 )
 
 func testSave(t *testing.T, crud *CRUD) {
 	recreateTestStructs(t, crud, 0, nil)
 	ctx := context.Background()
 
-	saved := test.TestStructWithData()
+	saved := gocrudtest.TestStructWithData()
 	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil || saved.ID == 0 {
 		t.Fatalf("Save returned %v and ID %d, want the object inserted", err, saved.ID)
 	}
-	if loaded := loadTestStruct(t, crud, saved.ID); !test.AreTestStructObjectsSame(saved, loaded) {
+	if loaded := loadTestStruct(t, crud, saved.ID); !gocrudtest.AreTestStructObjectsSame(saved, loaded) {
 		t.Fatalf("Save inserted %+v, want %+v", loaded, saved)
 	}
 
@@ -25,7 +25,7 @@ func testSave(t *testing.T, crud *CRUD) {
 	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil {
 		t.Fatalf("Save failed to update: %s", err.Error())
 	}
-	if loaded := loadTestStruct(t, crud, saved.ID); !test.AreTestStructObjectsSame(saved, loaded) {
+	if loaded := loadTestStruct(t, crud, saved.ID); !gocrudtest.AreTestStructObjectsSame(saved, loaded) {
 		t.Fatalf("Save updated %+v, want %+v", loaded, saved)
 	}
 }
@@ -34,7 +34,7 @@ func testSaveWithID(t *testing.T, crud *CRUD) {
 	recreateTestStructs(t, crud, 0, nil)
 	ctx := context.Background()
 
-	saved := test.TestStructWithData()
+	saved := gocrudtest.TestStructWithData()
 	saved.ID = 99999
 	if err := crud.Save(ctx, saved, SaveOptions{}); err != nil {
 		t.Fatalf("Save failed to insert an object with an ID: %s", err.Error())
@@ -59,23 +59,23 @@ func testSaveWithID(t *testing.T, crud *CRUD) {
 		t.Fatalf("Save with NoInsert and the same values failed: %s", err.Error())
 	}
 
-	missing := test.TestStructWithData()
+	missing := gocrudtest.TestStructWithData()
 	missing.ID = 88888
 	if err := crud.Save(ctx, missing, SaveOptions{NoInsert: true}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Save with NoInsert of an object that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-	if cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
+	if cnt, _ := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
 		t.Fatalf("Save with NoInsert inserted an object, got %d rows, want 1", cnt)
 	}
 }
 
-func duplicateKeyTestStruct(t *testing.T, crud *CRUD) *test.TestStruct {
+func duplicateKeyTestStruct(t *testing.T, crud *CRUD) *gocrudtest.TestStruct {
 	t.Helper()
 
-	saved := test.TestStructWithData()
-	recreateTestStructs(t, crud, 1, func(int) *test.TestStruct { return saved })
+	saved := gocrudtest.TestStructWithData()
+	recreateTestStructs(t, crud, 1, func(int) *gocrudtest.TestStruct { return saved })
 
-	duplicate := test.TestStructWithData()
+	duplicate := gocrudtest.TestStructWithData()
 	duplicate.Key = saved.Key
 	return duplicate
 }
@@ -95,7 +95,7 @@ func testSaveInvalid(t *testing.T, crud *CRUD) {
 	err := crud.Save(context.Background(), obj, SaveOptions{})
 	fatalIfNotViolations(t, err, wantViolations)
 
-	if cnt, _ := GetCount[test.TestStruct](context.Background(), crud, GetCountOptions{}); cnt != 0 {
+	if cnt, _ := GetCount[gocrudtest.TestStruct](context.Background(), crud, GetCountOptions{}); cnt != 0 {
 		t.Fatalf("Save inserted an invalid object, got %d rows, want 0", cnt)
 	}
 }

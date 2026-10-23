@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type RelCustomer struct {

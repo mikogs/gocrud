@@ -51,7 +51,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objColumnInterfaces(obj, builder.ColumnFieldNames(), true)...)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		ZeroObjFields(obj)
+		zeroObjFields(obj)
 		verifyWithoutObject(builder.PasswordFields(), options.VerifyPasswordFields)
 		return passwordFields, nil
 	case err != nil:
@@ -66,7 +66,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 			continue
 		}
 
-		hash, _ := ObjFieldValue(obj, fieldName).(string)
+		hash, _ := objFieldValue(obj, fieldName).(string)
 		passwordFields[fieldName] = verifyPassword(hash, password)
 	}
 

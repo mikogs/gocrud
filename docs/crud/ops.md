@@ -301,7 +301,7 @@ type UpdateMultipleOptions struct {
 
 ## Filters
 
-`Get`, `GetCount`, `UpdateMultiple` and `DeleteMultiple` select the rows with the `Filters` option, a `sqlfilters.Filter` from the package `github.com/mikogs/gocrud/pkg/filters`. A filter is one of:
+`Get`, `GetCount`, `UpdateMultiple` and `DeleteMultiple` select the rows with the `Filters` option, a `sqlfilters.Filter` from the package `github.com/mikogs/gocrud/pkg/sqlfilters`. A filter is one of:
 
 | Filter | Matches the rows for which |
 |---|---|
@@ -463,7 +463,7 @@ users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
 ```
 
 * **Fields** are written as `.FieldName`, and replaced with their columns. A dot after a letter, a digit or a quote is left as it is, e.g. in `t1.price` or `1.5`.
-* **Each `?`** is replaced with a parameter of the query for one of the values, in order. A slice or an array is a list of parameters, e.g. for `IN (?)`. The number of `?` has to be the number of values, otherwise the operation fails with an error that matches `where.ErrRawFilter`, from `github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where`.
+* **Each `?`** is replaced with a parameter of the query for one of the values, in order. A slice or an array is a list of parameters, e.g. for `IN (?)`. The number of `?` has to be the number of values, otherwise the operation fails with an error that matches `gocrud.ErrRawFilter`.
 * **The SQL** is used as it is, so never build it from user input. Pass the input as values.
 
 The values of a raw filter are not validated, and not converted from strings.
@@ -527,7 +527,11 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `gocrud.ErrQueryMethod` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
 | `*gocrud.SchemaError`, `gocrud.ErrSchemaDiffers` | `CheckSchema` found tables that do not match the structs, see [Migrations](migrations.md#checking-the-schema) |
 | `gocrud.ErrAliasedColumnsMigrate` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
-| `structinfo.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
+| `gocrud.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
+| `gocrud.ErrRawFilter` | a [raw filter](#raw-sql) has another number of `?` than of values |
+| `gocrud.ErrInFilter` | the value of an `OpIn` condition is not a slice, an array or a [subquery](#subqueries) |
+| `gocrud.ErrMatchFilter` | `OpMatch` with SQLite, which does not support it |
+| `gocrud.ErrPasswordFilter` | a raw filter or `Order` with a password field, e.g. `.Password`, see [Validation](#validation) |
 
 The `Field` of `UniqError` depends on what detected the duplicate:
 

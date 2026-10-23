@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"github.com/mikogs/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type Product struct {
@@ -290,15 +290,15 @@ func testWithTx(t *testing.T, crud *CRUD, db *sql.DB) {
 
 func testRunInTxGetCountOnUniq(t *testing.T, db *sql.DB, dialect string) {
 	crud := New(db, Options{Dialect: dialect, Flags: GetCountOnUniq})
-	_ = crud.DropTable(context.Background(), &test.TestStruct{})
-	_ = crud.CreateTable(context.Background(), &test.TestStruct{})
+	_ = crud.DropTable(context.Background(), &gocrudtest.TestStruct{})
+	_ = crud.CreateTable(context.Background(), &gocrudtest.TestStruct{})
 
 	err := crud.RunInTx(context.Background(), func(tx *CRUD) error {
-		if err := tx.Save(context.Background(), test.TestStructWithData(), SaveOptions{}); err != nil {
+		if err := tx.Save(context.Background(), gocrudtest.TestStructWithData(), SaveOptions{}); err != nil {
 			return err
 		}
 
-		duplicate := test.TestStructWithData()
+		duplicate := gocrudtest.TestStructWithData()
 		duplicate.Key = "123456789012345678901234567890duplicate"
 		if err := tx.Save(context.Background(), duplicate, SaveOptions{}); err != nil {
 			return err
@@ -312,7 +312,7 @@ func testRunInTxGetCountOnUniq(t *testing.T, db *sql.DB, dialect string) {
 	if !errors.As(err, &uniqErr) || uniqErr.Field != "Key" {
 		t.Fatalf("RunInTx returned err %v, want an uniq error for Key", err)
 	}
-	fatalIfCount(t, crud, &test.TestStruct{}, 0)
+	fatalIfCount(t, crud, &gocrudtest.TestStruct{}, 0)
 }
 
 func TestRunInTx_Commit(t *testing.T)        { testRunInTxCommit(t, testCRUD) }

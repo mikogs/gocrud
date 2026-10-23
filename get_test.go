@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"github.com/mikogs/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 func testGet(t *testing.T, crud *CRUD) {
@@ -43,14 +43,14 @@ func testGet(t *testing.T, crud *CRUD) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			objs, err := Get[test.TestStruct](ctx, crud, tc.options)
+			objs, err := Get[gocrudtest.TestStruct](ctx, crud, tc.options)
 			if got := testStructAges(objs); err != nil || !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("Get returned ages %v, %v, want %v", got, err, tc.want)
 			}
 		})
 	}
 
-	cnt, err := GetCount[test.TestStruct](ctx, crud, GetCountOptions{
+	cnt, err := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{
 		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"}},
 	})
 	if err != nil || cnt != 10 {
@@ -59,12 +59,12 @@ func testGet(t *testing.T, crud *CRUD) {
 }
 
 func testGetRowObjTransformFunc(t *testing.T, crud *CRUD) {
-	recreateTestStructs(t, crud, 2, func(int) *test.TestStruct { return test.TestStructWithData() })
+	recreateTestStructs(t, crud, 2, func(int) *gocrudtest.TestStruct { return gocrudtest.TestStructWithData() })
 
-	rows, _, err := crud.Get(context.Background(), func() interface{} { return &test.TestStruct{} }, GetOptions{
+	rows, _, err := crud.Get(context.Background(), func() interface{} { return &gocrudtest.TestStruct{} }, GetOptions{
 		Order: []string{"ID", "asc"},
 		RowObjTransformFunc: func(obj interface{}) interface{} {
-			return fmt.Sprintf("%d:%s", obj.(*test.TestStruct).ID, obj.(*test.TestStruct).FirstName)
+			return fmt.Sprintf("%d:%s", obj.(*gocrudtest.TestStruct).ID, obj.(*gocrudtest.TestStruct).FirstName)
 		},
 	})
 	if err != nil || !reflect.DeepEqual(rows, []interface{}{"1:John", "2:John"}) {
@@ -87,10 +87,10 @@ func testGetInvalidFilters(t *testing.T, crud *CRUD) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := Get[test.TestStruct](ctx, crud, GetOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
+			_, err := Get[gocrudtest.TestStruct](ctx, crud, GetOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
 			fatalIfNotViolations(t, err, map[string]string{"Age": tc.want})
 
-			_, err = GetCount[test.TestStruct](ctx, crud, GetCountOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
+			_, err = GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
 			fatalIfNotViolations(t, err, map[string]string{"Age": tc.want})
 		})
 	}
@@ -100,24 +100,24 @@ func testUpdateMultiple(t *testing.T, crud *CRUD) {
 	recreateTwentyTestStructs(t, crud)
 	ctx := context.Background()
 
-	err := UpdateMultiple[test.TestStruct](ctx, crud, map[string]interface{}{"PrimaryEmail": "new@example.com", "Age": 98}, UpdateMultipleOptions{
+	err := UpdateMultiple[gocrudtest.TestStruct](ctx, crud, map[string]interface{}{"PrimaryEmail": "new@example.com", "Age": 98}, UpdateMultipleOptions{
 		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "another@example.com"}},
 	})
 	if err != nil {
 		t.Fatalf("UpdateMultiple failed: %s", err.Error())
 	}
 
-	cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{
+	cnt, _ := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{
 		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "new@example.com"}, "Age": {Op: sqlfilters.OpEqual, Val: 98}},
 	})
 	if cnt != 10 {
 		t.Fatalf("UpdateMultiple updated %d objects, want 10", cnt)
 	}
 
-	err = UpdateMultiple[test.TestStruct](ctx, crud, map[string]interface{}{"FirstName": "x", "Age": "notanint"}, UpdateMultipleOptions{})
+	err = UpdateMultiple[gocrudtest.TestStruct](ctx, crud, map[string]interface{}{"FirstName": "x", "Age": "notanint"}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"FirstName": "min", "Age": ViolationType})
 
-	if cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{Filters: sqlfilters.Filters{"FirstName": {Op: sqlfilters.OpEqual, Val: "John"}}}); cnt != 20 {
+	if cnt, _ := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{Filters: sqlfilters.Filters{"FirstName": {Op: sqlfilters.OpEqual, Val: "John"}}}); cnt != 20 {
 		t.Fatalf("UpdateMultiple with invalid values changed objects, %d are unchanged, want 20", cnt)
 	}
 }

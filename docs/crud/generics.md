@@ -68,7 +68,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-`service.ErrNotFound` is the same error, so `errors.Is` works with either of them.
+`registry.ErrNotFound` is the same error, so `errors.Is` works with either of them.
 
 The names of relation fields after the ID load their related objects, see [Relations](relations.md#loading-related-objects):
 

@@ -36,7 +36,7 @@ func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOption
 	if err != nil {
 		return getDBFuncCRUDError("exec", err)
 	}
-	ZeroObjFields(obj)
+	zeroObjFields(obj)
 
 	return nil
 }

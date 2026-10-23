@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
 type MigAuthor struct {

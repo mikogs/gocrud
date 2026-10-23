@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
+	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type GetOptions struct {
@@ -96,7 +96,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 				if _, ok := options.VerifyPasswordFields[fieldName]; !ok {
 					continue
 				}
-				hashes[fieldName], _ = ObjFieldValue(newObj, fieldName).(string)
+				hashes[fieldName], _ = objFieldValue(newObj, fieldName).(string)
 			}
 			passwordHashesByRow = append(passwordHashesByRow, hashes)
 		}

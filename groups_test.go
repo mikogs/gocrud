@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 func testFilterGroups(t *testing.T, crud *CRUD) {

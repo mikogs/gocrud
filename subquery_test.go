@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 func customerIDs(t *testing.T, crud *CRUD, filter sqlfilters.Filter) []uint64 {

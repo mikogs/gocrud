@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 // PasswordStruct is a minimal struct with a field tagged crud:"pass".

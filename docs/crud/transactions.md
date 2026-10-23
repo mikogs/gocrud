@@ -267,9 +267,9 @@ func CancelOrder(ctx context.Context, db *sql.DB, crud *gocrud.CRUD, order *Orde
 }
 ```
 
-## Service layer
+## Registry
 
-The [service](../pkgs/service.md) package has the same `RunInTx`, `RunInTxWithOptions`, `WithTx` and `Tx` methods. The `tx` passed to `fn` is a `*service.CRUD` with the same registry.
+The [registry](../pkgs/registry.md) package has the same `RunInTx`, `RunInTxWithOptions`, `WithTx` and `Tx` methods. The `tx` passed to `fn` is a `*registry.CRUD` with the same registry.
 
 For example, an HTTP handler that moves a task to another project and records it in the task's activity log:
 
@@ -280,7 +280,7 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
     projectID, _ := strconv.ParseUint(r.FormValue("project_id"), 10, 64)
     userID := currentUserID(r)
 
-    err := h.svc.RunInTx(ctx, func(tx *svccrud.CRUD) error {
+    err := h.reg.RunInTx(ctx, func(tx *registry.CRUD) error {
         obj, _, err := tx.Read(ctx, "tasks", taskID, nil, nil)
         if err != nil {
             return err
@@ -300,9 +300,9 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
         return tx.Save(ctx, entry, userID)
     })
 
-    var validationErr *svccrud.ModelValidationError
+    var validationErr *registry.ModelValidationError
     switch {
-    case errors.Is(err, svccrud.ErrNotFound):
+    case errors.Is(err, registry.ErrNotFound):
         http.Error(w, "task not found", http.StatusNotFound)
     case errors.As(err, &validationErr):
         http.Error(w, fmt.Sprintf("invalid fields: %v", validationErr.Violations), http.StatusUnprocessableEntity)

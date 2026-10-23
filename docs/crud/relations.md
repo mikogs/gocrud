@@ -48,7 +48,7 @@ There are two kinds of relations:
 | a pointer, e.g. `Customer *Customer` | belongs to | is in this struct, e.g. `Order.CustomerID` |
 | a slice, e.g. `Items []OrderItem` or `Items []*OrderItem` | has many | is in the related struct, e.g. `OrderItem.OrderID` |
 
-The key field holds the `ID` of the related object, and has its type: `uint64` or `string` for a [UUID](../struct.md#1-the-id-field), or a pointer to it, `*uint64` or `*string`, when the relation is optional. The declarations are checked when the struct is used for the first time, and a mistake, e.g. a key field that does not exist, or a `string` key of a struct with a `uint64` ID, is an error that matches `structinfo.ErrRelation`.
+The key field holds the `ID` of the related object, and has its type: `uint64` or `string` for a [UUID](../struct.md#1-the-id-field), or a pointer to it, `*uint64` or `*string`, when the relation is optional. The declarations are checked when the struct is used for the first time, and a mistake, e.g. a key field that does not exist, or a `string` key of a struct with a `uint64` ID, is an error that matches `gocrud.ErrRelation`.
 
 Use `omitempty` in the `json` tag of relation fields, so that they are not encoded when they are not loaded.
 
@@ -161,7 +161,7 @@ type Order struct {
 
 The database applies the actions, also to rows deleted with `DeleteMultiple`, by other applications, or with your own SQL.
 
-A mistake in the tags, e.g. `on_delete:set_null` on a field that cannot be `NULL`, is an error that matches `structinfo.ErrForeignKey`.
+A mistake in the tags, e.g. `on_delete:set_null` on a field that cannot be `NULL`, is an error that matches `gocrud.ErrForeignKey`.
 
 ### Violations
 
@@ -210,7 +210,7 @@ Without it, foreign keys are created, but ignored. `Migrate` reports it in the d
 
 ### Creating and migrating tables
 
-A table can be created only after the tables it references. The [service](../pkgs/service.md) `CreateTables` and `Migrate` create and migrate the tables in that order. To order the tables yourself, `crud.TableName(obj)` returns the name of the table of a struct, and `crud.ReferencedTables(obj)` the names of the tables its foreign keys reference. A table that references itself, e.g. a category with a parent category, is fine. Tables that reference each other in a cycle cannot be created one after another, and are an error that matches `service.ErrForeignKeyCycle`.
+A table can be created only after the tables it references. The [registry](../pkgs/registry.md) `CreateTables` and `Migrate` create and migrate the tables in that order. To order the tables yourself, `crud.TableName(obj)` returns the name of the table of a struct, and `crud.ReferencedTables(obj)` the names of the tables its foreign keys reference. A table that references itself, e.g. a category with a parent category, is fine. Tables that reference each other in a cycle cannot be created one after another, and are an error that matches `registry.ErrForeignKeyCycle`.
 
 `Migrate` adds new foreign key columns with their foreign keys. In a table that already has rows, a new foreign key column has to be a pointer, so that the existing rows get `NULL`: a column that cannot be `NULL` would get `0`, which does not reference any row, and the migration fails.
 

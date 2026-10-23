@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type deleteByIDQueryBuilder interface {

@@ -26,7 +26,7 @@ Use a UUID when IDs are visible to users, e.g. in URLs: numbers reveal how many 
 
 `Save` generates the UUID of a new object, i.e. one with an empty `ID`. An `ID` that is set has to be a UUID, otherwise the validation fails with the `type` violation for `ID`. gocrud stores UUIDs in their standard lowercase form, and converts the UUIDs it gets, e.g. in `Load` or in filters, to it too.
 
-If a struct does not meet these requirements, every operation returns an error that can be checked with `errors.Is`, e.g. `errors.Is(err, structinfo.ErrIDField)`.
+If a struct does not meet these requirements, every operation returns an error that can be checked with `errors.Is`, e.g. `errors.Is(err, gocrud.ErrIDField)`.
 
 ### 2. Supported Data Types
 
@@ -96,7 +96,7 @@ meetings, err := gocrud.Get[Meeting](ctx, crud, gocrud.GetOptions{
 })
 ```
 
-When filter values are strings, e.g. with `ConvertFiltersFromString` or in the service layer, a time can be written as:
+When filter values are strings, e.g. with `ConvertFiltersFromString` or in the [registry](pkgs/registry.md), a time can be written as:
 
 | Format | Example | Source |
 |---|---|---|
@@ -130,7 +130,7 @@ type Note struct {
 }
 ```
 
-* `CreatedBy` and `ModifiedBy` hold the ID of a user: a `uint64`, or a `string`, e.g. the UUID of a user, or the ID from an external identity provider such as `auth0|42`. Both have to be of the same type, otherwise the struct cannot be used, see `structinfo.ErrModificationFields`.
+* `CreatedBy` and `ModifiedBy` hold the ID of a user: a `uint64`, or a `string`, e.g. the UUID of a user, or the ID from an external identity provider such as `auth0|42`. Both have to be of the same type, otherwise the struct cannot be used, see `gocrud.ErrModificationFields`.
 * `ModifiedAt` and `ModifiedBy` are set on every save, to the time of the save and to the user from `SaveOptions.ModifiedBy`. The time is the current time unless `SaveOptions.ModifiedAt` is set, e.g. when importing data. Without a user, e.g. in a background job, `ModifiedBy` is `0` or `""`.
 * `CreatedAt` and `CreatedBy` are set when the object is inserted, to the same values. Values set on the object are ignored, so a client cannot choose them, e.g. by sending `created_at` in JSON.
 * `CreatedAt` and `CreatedBy` are **never changed by an update**. An object decoded from an HTTP request usually does not have them, and saving it does not erase them from the database.
@@ -181,7 +181,7 @@ sqlfilters.Or(
 )
 ```
 
-**Values as strings.** An empty string is `NULL` for a pointer field, when values are converted from strings: with `ConvertFiltersFromString`, `UpdateMultiple` with `ConvertValuesFromString`, and in the [service](pkgs/service.md) layer. This matches an empty optional input in an HTML form. For a `*string` field, it means that an empty string cannot be set this way, only `NULL`.
+**Values as strings.** An empty string is `NULL` for a pointer field, when values are converted from strings: with `ConvertFiltersFromString`, `UpdateMultiple` with `ConvertValuesFromString`, and in the [registry](pkgs/registry.md). This matches an empty optional input in an HTML form. For a `*string` field, it means that an empty string cannot be set this way, only `NULL`.
 
 **Unique fields.** A unique pointer field can be `NULL` in many rows, because `NULL` is not equal to another `NULL`. This is also how the `GetCountOnUniq` check treats it.
 

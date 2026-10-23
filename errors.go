@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
+	"github.com/mikogs/gocrud/internal/sqlbuilder/where"
+	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
 type CRUDError struct {
@@ -55,11 +57,43 @@ var ErrInvalidOrder = errors.New("invalid order")
 
 // ErrFilterPath is matched by the error of an operation with a filter on a path through a field that is not a relation
 // field, e.g. Status.Name.
-var ErrFilterPath = errors.New("invalid filter path")
+var ErrFilterPath = where.ErrRelationPath
 
 // ErrSubquery is matched by the error of an operation with a filter that has a subquery that cannot be used, e.g. on a
 // field that is not stored, or with an operator other than OpIn.
-var ErrSubquery = errors.New("invalid subquery")
+var ErrSubquery = where.ErrSubquery
+
+// The errors of filters that cannot be built, e.g. a raw filter with a wrong number of values.
+var (
+	// ErrInFilter is matched by the error of an OpIn condition whose value is not a slice, an array or a subquery.
+	ErrInFilter = where.ErrInFilter
+	// ErrMatchFilter is matched by the error of an OpMatch condition with a database that does not support it, SQLite.
+	ErrMatchFilter = where.ErrMatchFilter
+	// ErrRawFilter is matched by the error of a raw filter whose number of ? is not its number of values.
+	ErrRawFilter = where.ErrRawFilter
+	// ErrPasswordFilter is matched by the error of a raw filter or an order with a password field, e.g. .Password,
+	// whose hashes it would reveal. A condition on a password field is a validation error, see ViolationPassword.
+	ErrPasswordFilter = where.ErrPasswordField
+)
+
+// The errors of structs that cannot be used, which every operation on such a struct returns, see Struct in the docs.
+var (
+	// ErrNotStructPointer is matched by the error of an operation with an obj that is not a pointer to a struct.
+	ErrNotStructPointer = structinfo.ErrNotStructPointer
+	// ErrIDField is matched by the error of a struct whose first field is not ID, of type uint64 or string.
+	ErrIDField = structinfo.ErrIDField
+	// ErrNoColumns is matched by the error of a struct without a stored field other than ID.
+	ErrNoColumns = structinfo.ErrNoColumns
+	// ErrPasswordField is matched by the error of a struct with a field tagged with "pass" that is not a string.
+	ErrPasswordField = structinfo.ErrPasswordField
+	// ErrModificationFields is matched by the error of a struct whose CreatedBy and ModifiedBy are of different types.
+	ErrModificationFields = structinfo.ErrModificationFields
+	// ErrRelation is matched by the error of a struct with a relation field that cannot be used, e.g. with a key field
+	// that does not exist.
+	ErrRelation = structinfo.ErrRelation
+	// ErrForeignKey is matched by the error of a struct with an fk or on_delete tag that cannot be used.
+	ErrForeignKey = structinfo.ErrForeignKey
+)
 
 // ErrQueryMethod is matched by the error of an operation on a struct that has a query method, e.g. SelectQuery,
 // with a signature other than the one that gocrud calls.

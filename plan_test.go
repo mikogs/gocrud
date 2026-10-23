@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
 func mustPlanMigration(t *testing.T, crud *CRUD, obj interface{}) *Migration {

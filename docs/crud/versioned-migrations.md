@@ -28,7 +28,7 @@ The example below uses goose with SQLite. With PostgreSQL, use `goose.DialectPos
 
 ## Setting up
 
-The structs and the service are in a package of the application, with the migration files embedded in it:
+The structs and the registry are in a package of the application, with the migration files embedded in it:
 
 ```
 notes/
@@ -52,7 +52,7 @@ import (
     "time"
 
     "github.com/mikogs/gocrud"
-    svccrud "github.com/mikogs/gocrud/pkg/service"
+    "github.com/mikogs/gocrud/pkg/registry"
 )
 
 // Migrations contains the migration files, which are applied with goose. "all:" embeds the directory also when it
@@ -77,8 +77,8 @@ type Note struct {
     ModifiedBy uint64    `json:"modified_by"`
 }
 
-func NewService(db *sql.DB) *svccrud.CRUD {
-    return svccrud.New(map[string]func() interface{}{
+func NewService(db *sql.DB) *registry.CRUD {
+    return registry.New(map[string]func() interface{}{
         "users": func() interface{} { return &User{} },
         "notes": func() interface{} { return &Note{} },
     }, db, gocrud.DialectSQLite)
@@ -326,12 +326,12 @@ func main() {
         log.Fatalf("applying the migrations: %v", err)
     }
 
-    svc := notes.NewService(db)
-    if err := svc.CheckSchema(ctx); err != nil {
+    reg := notes.NewService(db)
+    if err := reg.CheckSchema(ctx); err != nil {
         log.Fatalf("the migrations do not match the structs: %v", err)
     }
 
-    // serve requests with svc
+    // serve requests with reg
 }
 ```
 

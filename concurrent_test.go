@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type ConcCustomer struct {

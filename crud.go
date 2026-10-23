@@ -6,7 +6,8 @@ import (
 	"regexp"
 	"sync"
 
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"github.com/mikogs/gocrud/internal/dialect"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
 )
 
 type CRUD struct {
@@ -19,7 +20,9 @@ type CRUD struct {
 	tagName         string
 	tableNamePrefix string
 	dialect         string
-	flags           uint64
+	// sqlDialect is the SQL of the dialect
+	sqlDialect dialect.Dialect
+	flags      uint64
 }
 
 // builderCache is shared between a CRUD and its copies running in transactions.
@@ -58,6 +61,7 @@ func New(db *sql.DB, options Options) *CRUD {
 	}
 
 	crud.dialect = options.Dialect
+	crud.sqlDialect = dialect.For(options.Dialect)
 	crud.flags = options.Flags
 
 	return crud

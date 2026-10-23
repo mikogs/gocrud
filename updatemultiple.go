@@ -4,8 +4,8 @@ import (
 	"context"
 	"maps"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 	"golang.org/x/crypto/bcrypt"
 )
 

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/sqlbuilder"
+	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type StructWithoutID struct {

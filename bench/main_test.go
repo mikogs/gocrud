@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/gocrudtest"
 )
 
 func TestMain(m *testing.M) {
@@ -18,5 +18,5 @@ func TestMain(m *testing.M) {
 	for _, db := range fakeDBs {
 		_ = db.Close()
 	}
-	os.Exit(test.CheckLeaks(code))
+	os.Exit(gocrudtest.CheckLeaks(code))
 }

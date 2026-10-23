@@ -6,28 +6,28 @@ import (
 	"sort"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"github.com/mikogs/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 func testDeleteMultiple(t *testing.T, crud *CRUD) {
 	recreateTwentyTestStructs(t, crud)
 	ctx := context.Background()
 
-	_, err := DeleteMultiple[test.TestStruct](ctx, crud, DeleteMultipleOptions{
+	_, err := DeleteMultiple[gocrudtest.TestStruct](ctx, crud, DeleteMultipleOptions{
 		Filters: sqlfilters.Filters{"Age": {Op: sqlfilters.OpEqual, Val: 500}},
 	})
 	fatalIfNotViolations(t, err, map[string]string{"Age": "max"})
 
-	ids, err := DeleteMultiple[test.TestStruct](ctx, crud, DeleteMultipleOptions{
+	ids, err := DeleteMultiple[gocrudtest.TestStruct](ctx, crud, DeleteMultipleOptions{
 		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "another@example.com"}},
 	})
 	if err != nil || len(ids) != 10 {
 		t.Fatalf("DeleteMultiple returned %v, %v, want 10 IDs", ids, err)
 	}
 
-	objs, _ := Get[test.TestStruct](ctx, crud, GetOptions{Order: []string{"Age", "asc"}, Limit: 1})
-	if cnt, _ := GetCount[test.TestStruct](ctx, crud, GetCountOptions{}); cnt != 10 || testStructAges(objs)[0] != 31 {
+	objs, _ := Get[gocrudtest.TestStruct](ctx, crud, GetOptions{Order: []string{"Age", "asc"}, Limit: 1})
+	if cnt, _ := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{}); cnt != 10 || testStructAges(objs)[0] != 31 {
 		t.Fatalf("DeleteMultiple left %d objects, the youngest of %v, want 10 aged 31 and more", cnt, testStructAges(objs))
 	}
 }

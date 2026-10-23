@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"github.com/mikogs/gocrud/pkg/structinfo"
+	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type Article struct {

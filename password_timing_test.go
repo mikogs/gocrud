@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 // countComparisons replaces compareHashAndPassword with a function that counts the comparisons with the dummy hash and

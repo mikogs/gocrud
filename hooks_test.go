@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 // HookNote uses its own queries for a soft delete: deleted notes are hidden instead of removed.
@@ -154,7 +154,7 @@ func (n *HookWithOldSelectQuery) SelectQuery([]string, int, int, *sqlfilters.Fil
 
 func TestQueryMethodWithOtherSignature(t *testing.T) {
 	_, err := Get[HookWithOldSelectQuery](context.Background(), testCRUDSQLite, GetOptions{})
-	if !errors.Is(err, ErrQueryMethod) || !strings.Contains(err.Error(), "SelectQuery is func([]string, int, int, *filters.Filters)") {
+	if !errors.Is(err, ErrQueryMethod) || !strings.Contains(err.Error(), "SelectQuery is func([]string, int, int, *sqlfilters.Filters)") {
 		t.Fatalf("Get returned err %v, want %v naming the method", err, ErrQueryMethod)
 	}
 }

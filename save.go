@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -67,14 +67,14 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		}
 		modifiedAt = modifiedAt.UTC()
 
-		if err := SetObjModified(obj, modifiedAt, options.ModifiedBy); err != nil {
+		if err := setObjModified(obj, modifiedAt, options.ModifiedBy); err != nil {
 			return getCRUDFuncCRUDError("set modification fields", err)
 		}
 
 		// Creation fields are never updated in the database. They are set when the object is inserted, and when
 		// they are empty, as "upsert" inserts the object when it does not exist in the database.
-		if isNew || ObjFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
-			if err := SetObjCreated(obj, modifiedAt, options.ModifiedBy); err != nil {
+		if isNew || objFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
+			if err := setObjCreated(obj, modifiedAt, options.ModifiedBy); err != nil {
 				return getCRUDFuncCRUDError("set creation fields", err)
 			}
 		}
@@ -91,12 +91,12 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			return
 		}
 		for passField, password := range passwords {
-			SetObjStringField(obj, passField, password)
+			setObjStringField(obj, passField, password)
 		}
 	}()
 
 	for _, passField := range passFields {
-		password := ObjFieldValue(obj, passField).(string)
+		password := objFieldValue(obj, passField).(string)
 		// an empty password is not hashed: an update keeps the stored password, and a new object has no password
 		// that can be verified
 		if password == "" {
@@ -108,7 +108,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		}
 
 		passwords[passField] = password
-		SetObjStringField(obj, passField, string(hash))
+		setObjStringField(obj, passField, string(hash))
 	}
 
 	// run GetCount on unique fields
@@ -116,7 +116,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		uniqFields := builder.UniqueFields()
 		for _, uniqField := range uniqFields {
 			// NULL values are not equal to each other, so they are never duplicates
-			uniqValue := ObjFieldValue(obj, uniqField)
+			uniqValue := objFieldValue(obj, uniqField)
 			if uniqValue == nil {
 				continue
 			}
@@ -145,7 +145,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		}
 	}
 
-	objIDInterface := ObjIDInterface(obj)
+	idPointer := objIDInterface(obj)
 	columnFieldNames := builder.ColumnFieldNames()
 	updateFieldNames := builder.UpdateFieldNames()
 
@@ -166,7 +166,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			} else {
 				query = builder.UpdateByID()
 			}
-			result, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), objIDInterface))...)
+			result, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), idPointer))...)
 		} else {
 			// try to insert - if ID already exists then try to update it
 
@@ -217,7 +217,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	}
 
 	// a UUID is generated before the insert, and inserted with the other columns
-	err = c.conn.QueryRowContext(ctx, query, c.args(objColumnInterfaces(obj, columnFieldNames, builder.HasUUID()))...).Scan(objIDInterface)
+	err = c.conn.QueryRowContext(ctx, query, c.args(objColumnInterfaces(obj, columnFieldNames, builder.HasUUID()))...).Scan(idPointer)
 	if err != nil {
 		if uniqErr := checkUniqueErr(err); uniqErr != nil {
 			return uniqErr

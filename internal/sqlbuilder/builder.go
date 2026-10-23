@@ -34,6 +34,13 @@ type Builder struct {
 	updateByID             string
 	selectByID             string
 	deleteByID             string
+
+	// the indexes of the fields in the struct, so that the fields of objects are not found by name for every row: in
+	// the orders of ColumnFieldNames, UpdateFieldNames, TimeFields and PasswordFields
+	columnIndexes   []int
+	updateIndexes   []int
+	timeIndexes     []int
+	passwordIndexes []int
 }
 
 // New takes a pointer to a struct and returns a Builder instance.
@@ -72,6 +79,20 @@ func New(obj interface{}, options Options) (*Builder, error) {
 	b.updateByID = b.st.UpdateByID
 	b.selectByID = b.st.SelectByID
 	b.deleteByID = b.st.DeleteByID
+
+	objType := reflect.TypeOf(obj).Elem()
+	indexes := func(names []string) []int {
+		list := make([]int, len(names))
+		for i, name := range names {
+			field, _ := objType.FieldByName(name)
+			list[i] = field.Index[0]
+		}
+		return list
+	}
+	b.columnIndexes = indexes(b.structInfo.ColumnFieldNames)
+	b.updateIndexes = indexes(b.structInfo.UpdateFieldNames)
+	b.timeIndexes = indexes(b.structInfo.TimeFields)
+	b.passwordIndexes = indexes(b.structInfo.PasswordFields)
 
 	return b, nil
 }
@@ -196,6 +217,19 @@ func (b *Builder) HasAliasedColumnNames() bool { return b.structInfo.AliasedColu
 // ColumnFieldNames returns an ordered list of names of the fields that are stored in the database.
 // It is the order of columns in the generated queries.
 func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldNames }
+
+// ColumnIndexes returns the indexes of the fields of ColumnFieldNames in the struct, in the same order, for
+// reflect.Value.Field. The first one is the index of the ID.
+func (b *Builder) ColumnIndexes() []int { return b.columnIndexes }
+
+// UpdateIndexes returns the indexes of the fields of UpdateFieldNames in the struct, in the same order.
+func (b *Builder) UpdateIndexes() []int { return b.updateIndexes }
+
+// TimeIndexes returns the indexes of the fields of TimeFields in the struct, in the same order.
+func (b *Builder) TimeIndexes() []int { return b.timeIndexes }
+
+// PasswordIndexes returns the indexes of the fields of PasswordFields in the struct, in the same order.
+func (b *Builder) PasswordIndexes() []int { return b.passwordIndexes }
 
 // UpdateFieldNames returns an ordered list of names of the fields that are written when an object is updated.
 // It is the order of columns in the SET clause of the generated UPDATE BY ID and INSERT ON CONFLICT UPDATE queries.

@@ -217,6 +217,22 @@ func testUUIDInvalidFilters(t *testing.T, crud *CRUD) {
 	}
 }
 
+func testUUIDFiltersKept(t *testing.T, crud *CRUD) {
+	recreateTicketTable(t, crud)
+
+	id := strings.ToUpper(uuid.NewString())
+	filters := sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: id}}
+	if _, err := Get[Ticket](context.Background(), crud, GetOptions{Filters: filters}); err != nil {
+		t.Fatalf("Get failed: %s", err.Error())
+	}
+	if filters["ID"].Val != id {
+		t.Fatalf("Get changed the filters to %v", filters)
+	}
+}
+
+func TestUUID_FiltersKept(t *testing.T)        { testUUIDFiltersKept(t, testCRUD) }
+func TestSQLite_UUID_FiltersKept(t *testing.T) { testUUIDFiltersKept(t, testCRUDSQLite) }
+
 func TestUUID_Generated(t *testing.T)        { testUUIDGenerated(t, testCRUD) }
 func TestSQLite_UUID_Generated(t *testing.T) { testUUIDGenerated(t, testCRUDSQLite) }
 

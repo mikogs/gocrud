@@ -24,14 +24,30 @@ const (
 const validateTagName = "validate"
 
 var (
-	structValidator    = validator.New()
-	regexpCache        sync.Map
-	relationFieldCache sync.Map
+	structValidator     = validator.New()
+	regexpCache         sync.Map
+	validationRuleCache sync.Map
 )
 
-type relationFieldCacheKey struct {
+type validationRuleCacheKey struct {
 	typ     reflect.Type
 	tagName string
+}
+
+// validationRules are the rules of a struct type, so that its tags are not read for every validation
+type validationRules struct {
+	// related objects are validated when they are saved, and not as a part of the object that holds them
+	relationFields map[string]bool
+	// the fields that go-playground validates: with a `validate` tag, or with a struct that has them
+	validatedFields map[string]bool
+	regexpFields    []regexpRule
+}
+
+type regexpRule struct {
+	index     int
+	name      string
+	pattern   string
+	omitempty bool
 }
 
 // Validate validates obj field values against their go-playground `validate` tags and their
@@ -50,22 +66,24 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 		return false, nil, fmt.Errorf("obj is not a struct or pointer to struct, got %s", val.Kind())
 	}
 
-	// related objects are validated when they are saved, and not as a part of the object that holds them
-	relationFields := getRelationFieldNames(val.Type(), tagName)
+	rules := getValidationRules(val.Type(), tagName)
 
 	var err error
 	switch {
 	case len(restrictFields) > 0:
-		fields := make([]string, 0, len(restrictFields))
+		var fields []string
 		for name, ok := range restrictFields {
-			if ok && !relationFields[name] {
+			if ok && rules.validatedFields[name] {
 				fields = append(fields, name)
 			}
 		}
-		err = structValidator.StructPartial(obj, fields...)
-	case len(relationFields) > 0:
-		fields := make([]string, 0, len(relationFields))
-		for name := range relationFields {
+		if len(fields) > 0 {
+			err = structValidator.StructPartial(obj, fields...)
+		}
+	case len(rules.validatedFields) == 0:
+	case len(rules.relationFields) > 0:
+		fields := make([]string, 0, len(rules.relationFields))
+		for name := range rules.relationFields {
 			fields = append(fields, name)
 		}
 		err = structValidator.StructExcept(obj, fields...)
@@ -84,31 +102,12 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 		return false, nil, err
 	}
 
-	// regexp patterns are kept in a separate tag as they often contain characters
-	// that have a special meaning in the `validate` tag, such as ',' and '|'
-	regexpTagName := tagName + "_regexp"
-	typ := val.Type()
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		if !field.IsExported() || structinfo.BaseType(field.Type).Kind() != reflect.String || violations[field.Name] != "" {
+	for _, rule := range rules.regexpFields {
+		if violations[rule.name] != "" || (len(restrictFields) > 0 && !restrictFields[rule.name]) {
 			continue
 		}
 
-		if len(restrictFields) > 0 && !restrictFields[field.Name] {
-			continue
-		}
-
-		pattern := field.Tag.Get(regexpTagName)
-		if pattern == "" {
-			continue
-		}
-
-		validateTag := field.Tag.Get(validateTagName)
-		if validateTag == "-" {
-			continue
-		}
-
-		fieldValue := val.Field(i)
+		fieldValue := val.Field(rule.index)
 		if fieldValue.Kind() == reflect.Pointer {
 			// NULL does not have a value to match
 			if fieldValue.IsNil() {
@@ -118,14 +117,14 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 		}
 
 		value := fieldValue.String()
-		if value == "" && strings.Split(validateTag, ",")[0] == "omitempty" {
+		if value == "" && rule.omitempty {
 			continue
 		}
 
-		compiled, err := getCompiledRegexp(pattern)
+		compiled, err := getCompiledRegexp(rule.pattern)
 		// invalid pattern is considered a failed regexp
 		if err != nil || !compiled.MatchString(value) {
-			violations[field.Name] = ViolationRegExp
+			violations[rule.name] = ViolationRegExp
 		}
 	}
 
@@ -193,20 +192,88 @@ func ValidateValues(obj interface{}, values map[string]interface{}, tagName stri
 	return len(violations) == 0, violations, nil
 }
 
-// getRelationFieldNames returns the names of the relation fields of the struct type t, caching them for subsequent calls.
-func getRelationFieldNames(t reflect.Type, tagName string) map[string]bool {
-	key := relationFieldCacheKey{typ: t, tagName: tagName}
-	if v, ok := relationFieldCache.Load(key); ok {
-		return v.(map[string]bool)
+// getValidationRules returns the validation rules of the struct type t, caching them for subsequent calls.
+func getValidationRules(t reflect.Type, tagName string) *validationRules {
+	key := validationRuleCacheKey{typ: t, tagName: tagName}
+	if v, ok := validationRuleCache.Load(key); ok {
+		return v.(*validationRules)
 	}
 
-	names := map[string]bool{}
+	rules := &validationRules{relationFields: map[string]bool{}, validatedFields: map[string]bool{}}
 	for _, name := range structinfo.RelationFieldNames(t, tagName) {
-		names[name] = true
+		rules.relationFields[name] = true
 	}
 
-	relationFieldCache.Store(key, names)
-	return names
+	// regexp patterns are kept in a separate tag as they often contain characters
+	// that have a special meaning in the `validate` tag, such as ',' and '|'
+	regexpTagName := tagName + "_regexp"
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() || rules.relationFields[field.Name] {
+			continue
+		}
+
+		if hasValidateTags(field, map[reflect.Type]bool{t: true}) {
+			rules.validatedFields[field.Name] = true
+		}
+
+		validateTag := field.Tag.Get(validateTagName)
+		pattern := field.Tag.Get(regexpTagName)
+		if pattern == "" || validateTag == "-" || structinfo.BaseType(field.Type).Kind() != reflect.String {
+			continue
+		}
+		rules.regexpFields = append(rules.regexpFields, regexpRule{
+			index:     i,
+			name:      field.Name,
+			pattern:   pattern,
+			omitempty: strings.Split(validateTag, ",")[0] == "omitempty",
+		})
+	}
+
+	validationRuleCache.Store(key, rules)
+	return rules
+}
+
+// fieldHasValidationRules checks if Validate can return a violation of the field of obj, a pointer to a struct.
+func fieldHasValidationRules(obj interface{}, name string, tagName string) bool {
+	rules := getValidationRules(reflect.TypeOf(obj).Elem(), tagName)
+	if rules.validatedFields[name] {
+		return true
+	}
+	for _, rule := range rules.regexpFields {
+		if rule.name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// hasValidateTags checks if go-playground validates field: if it has a `validate` tag, or if it is a struct, which
+// go-playground validates as well, with fields that have them. seen are the struct types that are already checked.
+func hasValidateTags(field reflect.StructField, seen map[reflect.Type]bool) bool {
+	tag := field.Tag.Get(validateTagName)
+	if tag == "-" {
+		return false
+	}
+	if tag != "" {
+		return true
+	}
+
+	t := field.Type
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct || structinfo.IsTimeType(t) || seen[t] {
+		return false
+	}
+
+	seen[t] = true
+	for i := 0; i < t.NumField(); i++ {
+		if t.Field(i).IsExported() && hasValidateTags(t.Field(i), seen) {
+			return true
+		}
+	}
+	return false
 }
 
 // getCompiledRegexp returns a compiled regexp for the pattern, caching it for subsequent calls.

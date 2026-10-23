@@ -87,7 +87,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	passwords := map[string]string{}
 	defer func() {
 		if err == nil {
-			zeroPasswordFields(obj, passFields)
+			zeroPasswordFields(obj, builder.PasswordIndexes())
 			return
 		}
 		for passField, password := range passwords {
@@ -146,8 +146,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	}
 
 	idPointer := objIDInterface(obj)
-	columnFieldNames := builder.ColumnFieldNames()
-	updateFieldNames := builder.UpdateFieldNames()
+	columnIndexes := builder.ColumnIndexes()
+	updateIndexes := builder.UpdateIndexes()
 
 	// update
 	if !isNew {
@@ -166,7 +166,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			} else {
 				query = builder.UpdateByID()
 			}
-			result, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, updateFieldNames, false), idPointer))...)
+			result, err = c.conn.ExecContext(ctx, query, c.args(append(objFieldPointers(obj, updateIndexes, nil), idPointer))...)
 		} else {
 			// try to insert - if ID already exists then try to update it
 
@@ -181,7 +181,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			} else {
 				query = builder.InsertOnConflictUpdate()
 			}
-			_, err = c.conn.ExecContext(ctx, query, c.args(append(objColumnInterfaces(obj, columnFieldNames, true), objColumnInterfaces(obj, updateFieldNames, false)...))...)
+			_, err = c.conn.ExecContext(ctx, query, c.args(append(objFieldPointers(obj, columnIndexes, nil), objFieldPointers(obj, updateIndexes, nil)...))...)
 		}
 
 		if err != nil {
@@ -217,7 +217,12 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	}
 
 	// a UUID is generated before the insert, and inserted with the other columns
-	err = c.conn.QueryRowContext(ctx, query, c.args(objColumnInterfaces(obj, columnFieldNames, builder.HasUUID()))...).Scan(idPointer)
+	// the ID, the first column, is inserted only when it is a UUID, which is generated before
+	insertIndexes := columnIndexes
+	if !builder.HasUUID() {
+		insertIndexes = columnIndexes[1:]
+	}
+	err = c.conn.QueryRowContext(ctx, query, c.args(objFieldPointers(obj, insertIndexes, nil))...).Scan(idPointer)
 	if err != nil {
 		if uniqErr := checkUniqueErr(err); uniqErr != nil {
 			return uniqErr

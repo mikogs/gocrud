@@ -11,29 +11,26 @@ import (
 	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
-// objColumnInterfaces returns a list of interfaces to object's fields named in fieldNames, in the same order.
-// Argument includeID tells it to include or omit the ID field.
-func objColumnInterfaces(obj interface{}, fieldNames []string, includeID bool) []interface{} {
-	objValue := reflect.ValueOf(obj).Elem()
-
-	fieldInterfaces := make([]interface{}, 0, len(fieldNames))
-	for _, fieldName := range fieldNames {
-		if fieldName == IDField && !includeID {
-			continue
-		}
-
-		fieldInterfaces = append(fieldInterfaces, objValue.FieldByName(fieldName).Addr().Interface())
+// objFieldPointers returns pointers to the fields of obj at indexes, in the same order, e.g. for Scan and the values of
+// queries. The pointers are put in pointers when it has the length of indexes, so that it can be reused for every row.
+func objFieldPointers(obj interface{}, indexes []int, pointers []interface{}) []interface{} {
+	if len(pointers) != len(indexes) {
+		pointers = make([]interface{}, len(indexes))
 	}
 
-	return fieldInterfaces
+	objValue := reflect.ValueOf(obj).Elem()
+	for i, index := range indexes {
+		pointers[i] = objValue.Field(index).Addr().Interface()
+	}
+	return pointers
 }
 
-// timeFieldsToUTC converts the values of obj time fields named in fieldNames to UTC. Databases return times
-// in different time zones, such as the time zone of the database session.
-func timeFieldsToUTC(obj interface{}, fieldNames []string) {
+// timeFieldsToUTC converts the values of the time fields of obj at indexes to UTC. Databases return times in
+// different time zones, such as the time zone of the database session.
+func timeFieldsToUTC(obj interface{}, indexes []int) {
 	objValue := reflect.ValueOf(obj).Elem()
-	for _, fieldName := range fieldNames {
-		field := objValue.FieldByName(fieldName)
+	for _, index := range indexes {
+		field := objValue.Field(index)
 		if field.Kind() == reflect.Pointer {
 			if field.IsNil() {
 				continue
@@ -104,18 +101,15 @@ func idValue(isUUID bool, id interface{}) (interface{}, error) {
 	return nil, fmt.Errorf("%w: %v (%T) is not a number", ErrInvalidID, id, id)
 }
 
-// zeroPasswordFields clears the value of every password field on obj so that
-// bcrypt hashes are never returned from read operations.
-func zeroPasswordFields(obj interface{}, passwordFields []string) {
-	if len(passwordFields) == 0 {
+// zeroPasswordFields clears the password fields of obj at indexes, so that bcrypt hashes are never returned from
+// read operations.
+func zeroPasswordFields(obj interface{}, indexes []int) {
+	if len(indexes) == 0 {
 		return
 	}
 	v := reflect.ValueOf(obj).Elem()
-	for _, name := range passwordFields {
-		f := v.FieldByName(name)
-		if f.IsValid() && f.CanSet() {
-			f.SetString("")
-		}
+	for _, index := range indexes {
+		v.Field(index).SetString("")
 	}
 }
 

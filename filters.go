@@ -3,6 +3,7 @@ package gocrud
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -131,10 +132,9 @@ func convertFilterValuesFromString(targets func(string) (*filterTarget, error), 
 // condition.
 func (c *CRUD) prepareSubqueries(targets func(string) (*filterTarget, error), filter sqlfilters.Filter) (sqlfilters.Filter, error) {
 	return mapFilters(filter, func(filters sqlfilters.Filters) (sqlfilters.Filters, error) {
-		prepared := sqlfilters.Filters{}
+		// the filters are copied only when they are changed, and the filters of the callers are never changed
+		prepared, cloned := filters, false
 		for name, condition := range filters {
-			prepared[name] = condition
-
 			subquery, ok := condition.Val.(sqlfilters.SubqueryValue)
 			if !ok {
 				continue
@@ -148,6 +148,9 @@ func (c *CRUD) prepareSubqueries(targets func(string) (*filterTarget, error), fi
 			subquery.Filter, err = c.prepareSubquery(target, condition.Op, subquery)
 			if err != nil {
 				return nil, getCRUDFuncCRUDError("filters", fmt.Errorf("%w: %s: %w", ErrSubquery, name, err))
+			}
+			if !cloned {
+				prepared, cloned = maps.Clone(filters), true
 			}
 			prepared[name] = sqlfilters.OpVal{Op: condition.Op, Val: subquery}
 		}
@@ -211,11 +214,9 @@ func valueKind(t reflect.Type) string {
 // not changed.
 func normalizeUUIDFilters(targets func(string) (*filterTarget, error), filter sqlfilters.Filter) (sqlfilters.Filter, error) {
 	return mapFilters(filter, func(filters sqlfilters.Filters) (sqlfilters.Filters, error) {
-		normalized := sqlfilters.Filters{}
-		violations := map[string]string{}
+		normalized, cloned := filters, false
+		var violations map[string]string
 		for name, condition := range filters {
-			normalized[name] = condition
-
 			target, err := targets(name)
 			if err != nil {
 				return nil, err
@@ -229,8 +230,14 @@ func normalizeUUIDFilters(targets func(string) (*filterTarget, error), filter sq
 
 			value, err := uuidConditionValue(condition)
 			if err != nil {
+				if violations == nil {
+					violations = map[string]string{}
+				}
 				violations[name] = ViolationType
 				continue
+			}
+			if !cloned {
+				normalized, cloned = maps.Clone(filters), true
 			}
 			normalized[name] = sqlfilters.OpVal{Op: condition.Op, Val: value}
 		}
@@ -337,6 +344,10 @@ func validateCondition(target *filterTarget, condition sqlfilters.OpVal, tagName
 		return map[string]string{target.field: ViolationType}, nil
 	}
 
+	if !fieldHasValidationRules(target.obj, target.field, tagName) {
+		return nil, nil
+	}
+
 	_, violations, err := Validate(target.obj, map[string]bool{target.field: true}, tagName)
 	if err != nil {
 		return nil, getValidateObjCRUDError(err)
@@ -352,6 +363,7 @@ func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tag
 		return map[string]string{name: ViolationType}, nil
 	}
 
+	validated := fieldHasValidationRules(obj, name, tagName)
 	for _, value := range values {
 		// NULL is never IN a list
 		if isNilValue(value) {
@@ -361,6 +373,9 @@ func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tag
 		err := sqlfilters.SetObjFields(obj, &sqlfilters.Filters{name: {Op: sqlfilters.OpEqual, Val: value}})
 		if err != nil {
 			return map[string]string{name: ViolationType}, nil
+		}
+		if !validated {
+			continue
 		}
 
 		ok, violations, err := Validate(obj, map[string]bool{name: true}, tagName)

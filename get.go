@@ -83,9 +83,11 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	passwordFields := builder.PasswordFields()
 
 	var objs []interface{}
+	var pointers []interface{}
 	for rows.Next() {
 		newObj := newObjFunc()
-		err = rows.Scan(objColumnInterfaces(newObj, builder.ColumnFieldNames(), true)...)
+		pointers = objFieldPointers(newObj, builder.ColumnIndexes(), pointers)
+		err = rows.Scan(pointers...)
 		if err != nil {
 			return nil, nil, getDBFuncCRUDError("rows scan", err)
 		}
@@ -101,8 +103,8 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 			passwordHashesByRow = append(passwordHashesByRow, hashes)
 		}
 
-		timeFieldsToUTC(newObj, builder.TimeFields())
-		zeroPasswordFields(newObj, passwordFields)
+		timeFieldsToUTC(newObj, builder.TimeIndexes())
+		zeroPasswordFields(newObj, builder.PasswordIndexes())
 
 		objs = append(objs, newObj)
 	}

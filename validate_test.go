@@ -246,3 +246,30 @@ func TestValidate_InvalidObject(t *testing.T) {
 		}
 	}
 }
+
+type validationNestedTestStruct struct {
+	Name string `validate:"required"`
+}
+
+type validationOuterTestStruct struct {
+	Nested  validationNestedTestStruct
+	Pointer *validationNestedTestStruct
+	Skipped validationNestedTestStruct `validate:"-"`
+	Created time.Time
+}
+
+func TestValidate_NestedStruct(t *testing.T) {
+	obj := &validationOuterTestStruct{Pointer: &validationNestedTestStruct{}}
+	_, violations, err := Validate(obj, nil, "crud")
+	if err != nil {
+		t.Fatalf("Validate failed with an err: %s", err.Error())
+	}
+	if violations["Name"] != "required" || len(violations) != 1 {
+		t.Fatalf("Validate returned %v for nested structs with an empty required field, want Name: required", violations)
+	}
+
+	_, violations, _ = Validate(obj, map[string]bool{"Created": true}, "crud")
+	if len(violations) > 0 {
+		t.Fatalf("Validate returned violations %v for a field without rules", violations)
+	}
+}

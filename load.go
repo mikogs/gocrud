@@ -48,7 +48,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 		query = builder.SelectByID()
 	}
 
-	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objColumnInterfaces(obj, builder.ColumnFieldNames(), true)...)
+	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objFieldPointers(obj, builder.ColumnIndexes(), nil)...)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		zeroObjFields(obj)
@@ -58,7 +58,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 		return nil, getDBFuncCRUDError("query row", err)
 	}
 
-	timeFieldsToUTC(obj, builder.TimeFields())
+	timeFieldsToUTC(obj, builder.TimeIndexes())
 
 	for _, fieldName := range builder.PasswordFields() {
 		password, ok := options.VerifyPasswordFields[fieldName]
@@ -70,7 +70,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 		passwordFields[fieldName] = verifyPassword(hash, password)
 	}
 
-	zeroPasswordFields(obj, builder.PasswordFields())
+	zeroPasswordFields(obj, builder.PasswordIndexes())
 
 	if err := c.preload(ctx, builder, []interface{}{obj}, options.Preload); err != nil {
 		return nil, err

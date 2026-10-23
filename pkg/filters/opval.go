@@ -39,6 +39,7 @@ const (
 	OpGreaterOrEqual
 	OpLowerOrEqual
 	OpBit
-	// OpIn matches the values in a slice or an array, e.g. []string{"paid", "shipped"}. An empty slice matches nothing.
+	// OpIn matches the values in a slice or an array, e.g. []string{"paid", "shipped"}, or the values of a Subquery. An
+	// empty slice matches nothing.
 	OpIn
 )

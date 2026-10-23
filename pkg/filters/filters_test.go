@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ type setObjFieldsTestStruct struct {
 	Age      int
 	Price    float64
 	Tags     []string
-	internal string
+	internal string //nolint:unused // an unexported field, which SetObjFields does not set
 }
 
 func TestFilters_Add(t *testing.T) {
@@ -166,6 +167,55 @@ func TestOpVal_InValues(t *testing.T) {
 		got, ok := OpVal{Op: OpIn, Val: test.val}.InValues()
 		if ok != test.wantOK || !reflect.DeepEqual(got, test.want) {
 			t.Fatalf("%s: InValues returned %v, %v, want %v, %v", name, got, ok, test.want, test.wantOK)
+		}
+	}
+}
+
+type numbers struct {
+	Int8    int8
+	Int64   int64
+	Uint8   uint8
+	Uint64  uint64
+	Float32 float32
+	Float64 float64
+}
+
+func TestSetObjFields_NumbersThatDoNotFit(t *testing.T) {
+	tests := []struct {
+		field string
+		value interface{}
+		fits  bool
+	}{
+		{"Uint8", 255, true},
+		{"Uint8", 300, false},
+		{"Uint8", -1, false},
+		{"Int8", int64(-128), true},
+		{"Int8", int64(-129), false},
+		{"Int8", uint8(200), false},
+		{"Int64", uint64(math.MaxInt64), true},
+		{"Int64", uint64(math.MaxUint64), false},
+		{"Uint64", uint64(math.MaxUint64), true},
+		{"Uint64", -1, false},
+		{"Uint8", uint16(255), true},
+		{"Uint8", uint16(300), false},
+		{"Uint64", -1.0, false},
+		{"Int64", 2.0, true},
+		{"Int64", 1.5, false},
+		{"Int64", 1e19, false},
+		{"Int64", math.NaN(), false},
+		{"Int64", math.Inf(1), false},
+		{"Uint8", -1.0, false},
+		{"Uint64", 1e20, false},
+		{"Float32", 3.4e38, true},
+		{"Float32", 1e39, false},
+		{"Float64", int64(math.MaxInt64), true},
+		{"Float32", uint64(math.MaxUint64), true},
+	}
+
+	for _, test := range tests {
+		err := SetObjFields(&numbers{}, &Filters{test.field: {Val: test.value}})
+		if (err == nil) != test.fits {
+			t.Fatalf("SetObjFields of %v (%T) in %s returned %v, want the value to fit: %v", test.value, test.value, test.field, err, test.fits)
 		}
 	}
 }

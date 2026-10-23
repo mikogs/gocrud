@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/mikogs/gocrud"
@@ -86,5 +88,22 @@ func TestCreateTables_SkipsUnderscoreProjections(t *testing.T) {
 	obj := &PasswordStruct{Name: "table-check", Password: "whatever123"}
 	if err := testCRUD.Save(context.Background(), obj, gocrud.SaveOptions{}); err != nil {
 		t.Fatalf("Save failed, password_struct table is missing columns (projection likely won table creation): %s", err.Error())
+	}
+}
+
+func TestList_PasswordFilter(t *testing.T) {
+	recreatePasswordStructTable()
+
+	_, _, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
+		Filters{Vals: map[string]string{"Password": "$2a$%"}, Ops: map[string]string{"Password": "like"}}, nil, nil, nil)
+
+	var validationErr *FilterValidationError
+	if !errors.As(err, &validationErr) || !reflect.DeepEqual(validationErr.Violations, map[string]string{"Password": gocrud.ViolationPassword}) {
+		t.Fatalf("List with a filter on a password returned %v, want %v with the violation %s", err, &FilterValidationError{}, gocrud.ViolationPassword)
+	}
+
+	_, _, err = testService.List(context.Background(), "passwordstruct", 10, 0, "Password", "asc", Filters{}, nil, nil, nil)
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("List ordered by a password returned %v, want %v", err, &FilterValidationError{})
 	}
 }

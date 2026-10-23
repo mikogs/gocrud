@@ -17,7 +17,10 @@ type QueryContainer struct {
 	// UpdateColumnNames contains the quoted names of the columns that are written when an object is updated,
 	// see structinfo.StructInfo.UpdateFieldNames.
 	UpdateColumnNames []string
-	ColumnNotString   map[string]bool
+	// PasswordColumnNames contains the quoted names of the columns of the password fields. An update keeps the stored
+	// password when the value of such a column is empty.
+	PasswordColumnNames map[string]bool
+	ColumnNotString     map[string]bool
 
 	FieldColumnName map[string]string
 
@@ -135,6 +138,11 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		queryContainer.UpdateColumnNames = append(queryContainer.UpdateColumnNames, QuoteColumn(ColumnWithoutAlias(queryContainer.FieldColumnName[fieldName])))
 	}
 
+	queryContainer.PasswordColumnNames = make(map[string]bool, len(structInfo.PasswordFields))
+	for _, fieldName := range structInfo.PasswordFields {
+		queryContainer.PasswordColumnNames[QuoteColumn(ColumnWithoutAlias(queryContainer.FieldColumnName[fieldName]))] = true
+	}
+
 	queryContainer.IndexStatements, queryContainer.IndexNames = indexStatements(rawTableName, queryContainer.TableName, structInfo.Indexes, queryContainer.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
@@ -159,8 +167,8 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string, uui
 
 	// UPDATE BY ID takes the values of the updated columns followed by the ID, and INSERT ON CONFLICT UPDATE
 	// takes the values of all the columns followed by the values of the updated columns
-	updateSet := setClause(q.UpdateColumnNames, 1)
-	onConflictUpdateSet := setClause(q.UpdateColumnNames, numColumn+1)
+	updateSet := setClause(q.UpdateColumnNames, 1, q.TableName, q.PasswordColumnNames)
+	onConflictUpdateSet := setClause(q.UpdateColumnNames, numColumn+1, q.TableName, q.PasswordColumnNames)
 
 	idColumn := `"id"`
 

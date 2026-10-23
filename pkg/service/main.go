@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -84,6 +85,12 @@ func (c *CRUD) PasswordFieldNames(key string) []string {
 	return c.crud.PasswordFieldsFor(constructor())
 }
 
+// RelatedType returns the type of the related struct of the relation field of obj, and false when field is not a
+// relation field, see gocrud.CRUD.RelatedType.
+func (c *CRUD) RelatedType(obj interface{}, field string) (reflect.Type, bool) {
+	return c.crud.RelatedType(obj, field)
+}
+
 // Registry returns the registered path keys.
 func (c *CRUD) Registry() []string {
 	keys := make([]string, 0, len(c.registry))
@@ -96,14 +103,16 @@ func (c *CRUD) Registry() []string {
 // Filters are the filters of List and Num, as strings, e.g. from the query of a request. The values are converted to
 // the types of the fields, and the operators are the names that Op accepts, with "eq" when an operator is not set.
 type Filters struct {
-	// Vals and Ops are keyed by field name. A key can also name a group, after a dot, e.g. "Name.q". The conditions
-	// of a group are joined with OR, and the groups and the conditions without a group are joined with AND. A group
-	// with one condition is a condition joined with AND, so e.g. "Price.min" and "Price.max" are a range.
+	// Vals and Ops are keyed by field name, or by a path through relation fields, e.g. "Customer.Country". A key can
+	// also name a group, after a tilde, e.g. "Name~q". The conditions of a group are joined with OR, and the groups and
+	// the conditions without a group are joined with AND. A group with one condition is a condition joined with AND,
+	// so e.g. "Price~min" and "Price~max" are a range.
 	Vals map[string]string
 	Ops  map[string]string
 
 	// ScopeVals and ScopeOps are conditions that every record has to match, e.g. that it belongs to the user. They
-	// are keyed by field name, and joined with AND with all the other conditions, which cannot match other records.
+	// are keyed by field name, or by a path, and joined with AND with all the other conditions, which cannot match
+	// other records.
 	ScopeVals map[string]string
 	ScopeOps  map[string]string
 }
@@ -114,6 +123,11 @@ func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) 
 
 	scope := sqlfilters.Filters{}
 	for name, value := range filters.ScopeVals {
+		if !isFilterPath(name) {
+			slog.Error("invalid filter name", logAttr, slog.String("name", name))
+			violations[name] = gocrud.ViolationType
+			continue
+		}
 		addCondition(scope, name, value, filters.ScopeOps[name], violations, logAttr)
 	}
 
@@ -127,8 +141,8 @@ func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) 
 	groups := map[string][]sqlfilters.Filter{}
 	for _, key := range keys {
 		value := filters.Vals[key]
-		name, group, hasGroup := strings.Cut(key, ".")
-		if name == "" || (hasGroup && (group == "" || strings.Contains(group, "."))) {
+		name, group, hasGroup := strings.Cut(key, "~")
+		if !isFilterPath(name) || (hasGroup && (group == "" || strings.Contains(group, "~"))) {
 			slog.Error("invalid filter name", logAttr, slog.String("name", key))
 			violations[key] = gocrud.ViolationType
 			continue
@@ -164,6 +178,16 @@ func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) 
 	}
 
 	return filter, nil
+}
+
+// isFilterPath checks if name is a field name, or a path of field names separated with dots, e.g. Customer.Country.
+func isFilterPath(name string) bool {
+	for _, segment := range strings.Split(name, ".") {
+		if segment == "" || strings.Contains(segment, "~") {
+			return false
+		}
+	}
+	return true
 }
 
 // addCondition adds the condition on the field name to filters, or a violation when the operator is invalid.

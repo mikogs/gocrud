@@ -2,9 +2,14 @@ package gocrud
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"slices"
+	"strings"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
-	"golang.org/x/crypto/bcrypt"
+	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
 type GetOptions struct {
@@ -41,8 +46,12 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		return nil, nil, getCRUDFuncCRUDError("preload", err)
 	}
 
+	if err := c.checkOrder(builder, options.Order); err != nil {
+		return nil, nil, getCRUDFuncCRUDError("order", err)
+	}
+
 	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
-	options.Filters, err = prepareFilters(obj, builder, options.Filters, options.ConvertFiltersFromString, c.tagName)
+	options.Filters, err = c.prepareFilters(obj, options.Filters, options.ConvertFiltersFromString)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -69,7 +78,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	if err != nil {
 		return nil, nil, getDBFuncCRUDError("query", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	passwordFields := builder.PasswordFields()
 
@@ -103,7 +112,9 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	// Related objects are loaded with other queries, which cannot run on the same connection, e.g. in a transaction,
 	// while rows are open. Next closes the rows when it returns false, so this only makes sure they are closed.
-	rows.Close()
+	if err = rows.Close(); err != nil {
+		return nil, nil, getDBFuncCRUDError("rows close", err)
+	}
 
 	err = c.preload(ctx, builder, objs, options.Preload)
 	if err != nil {
@@ -120,16 +131,56 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		returnValue = append(returnValue, obj)
 	}
 
+	// the passwords are compared also when they are not verified, so that the time of Get does not show how many
+	// objects match the filters, e.g. whether a user with the e-mail of a login exists
 	verifiedPasswordFields := map[string]int{}
-	if len(options.VerifyPasswordFields) > 0 && len(returnValue) == 1 {
-		for fieldName, hash := range passwordHashesByRow[0] {
-			if bcrypt.CompareHashAndPassword([]byte(hash), []byte(options.VerifyPasswordFields[fieldName])) != nil {
-				verifiedPasswordFields[fieldName] = PassInvalid
-				continue
+	if len(options.VerifyPasswordFields) > 0 {
+		if len(returnValue) == 1 {
+			for fieldName, hash := range passwordHashesByRow[0] {
+				verifiedPasswordFields[fieldName] = verifyPassword(hash, options.VerifyPasswordFields[fieldName])
 			}
-			verifiedPasswordFields[fieldName] = PassOK
+		} else {
+			verifyWithoutObject(passwordFields, options.VerifyPasswordFields)
 		}
 	}
 
 	return returnValue, verifiedPasswordFields, nil
+}
+
+// checkOrder checks that the fields of order are stored fields of the struct of builder, or paths through belongs-to
+// relations to such fields of related structs, e.g. Customer.Name.
+func (c *CRUD) checkOrder(builder *sqlbuilder.Builder, order []string) error {
+	if len(order)%2 != 0 {
+		return fmt.Errorf("%w: %d elements, want pairs of a field and a direction", ErrInvalidOrder, len(order))
+	}
+
+	for i := 0; i < len(order); i += 2 {
+		current := builder
+		segments := strings.Split(order[i], ".")
+		for _, segment := range segments[:len(segments)-1] {
+			relation := findRelation(current, segment)
+			if relation == nil {
+				return fmt.Errorf("%w: %s: %s is not a relation field", ErrInvalidOrder, order[i], segment)
+			}
+			if relation.Kind != structinfo.BelongsTo {
+				return fmt.Errorf("%w: %s: %s is a has-many relation, which has many values", ErrInvalidOrder, order[i], segment)
+			}
+
+			var err error
+			current, err = c.builder(reflect.New(relation.Type).Interface())
+			if err != nil {
+				return getBuilderObjectCRUDError(err)
+			}
+		}
+
+		if !slices.Contains(current.ColumnFieldNames(), segments[len(segments)-1]) {
+			return fmt.Errorf("%w: %s is not a stored field", ErrInvalidOrder, order[i])
+		}
+		// the order of the objects would reveal the hashes
+		if slices.Contains(current.PasswordFields(), segments[len(segments)-1]) {
+			return fmt.Errorf("%w: %s is a password field", ErrInvalidOrder, order[i])
+		}
+	}
+
+	return nil
 }

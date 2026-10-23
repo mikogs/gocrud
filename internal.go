@@ -22,6 +22,9 @@ func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {
 		TableNamePrefix: c.tableNamePrefix,
 		TagName:         c.tagName,
 		Dialect:         c.dialect,
+		RelatedBuilder: func(t reflect.Type) (*sqlbuilder.Builder, error) {
+			return c.builder(reflect.New(t).Interface())
+		},
 	})
 	if err != nil {
 		return nil, err

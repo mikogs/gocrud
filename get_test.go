@@ -2,6 +2,7 @@ package gocrud
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -132,3 +133,25 @@ func TestSQLite_Get_InvalidFilters(t *testing.T) { testGetInvalidFilters(t, test
 
 func TestUpdateMultiple(t *testing.T)        { testUpdateMultiple(t, testCRUD) }
 func TestSQLite_UpdateMultiple(t *testing.T) { testUpdateMultiple(t, testCRUDSQLite) }
+
+func TestGet_InvalidOrder(t *testing.T) {
+	createPreloadData(t, testCRUDSQLite)
+
+	tests := map[string][]string{
+		"unknown field":            {"Unknown", "asc"},
+		"relation field":           {"Customer", "asc"},
+		"has many":                 {"Items.Product", "asc"},
+		"not a relation":           {"Status.Name", "asc"},
+		"unknown field of related": {"Customer.Unknown", "asc"},
+		"no direction":             {"ID"},
+	}
+	for name, order := range tests {
+		if _, err := Get[PreOrder](context.Background(), testCRUDSQLite, GetOptions{Order: order}); !errors.Is(err, ErrInvalidOrder) {
+			t.Fatalf("Get ordered by %s returned %v, want %v", name, err, ErrInvalidOrder)
+		}
+	}
+
+	if _, err := Get[PreOrder](context.Background(), testCRUDSQLite, GetOptions{Order: []string{"Customer.Name", "asc", "ID", "desc"}}); err != nil {
+		t.Fatalf("Get ordered by valid fields returned %v", err)
+	}
+}

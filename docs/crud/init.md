@@ -27,7 +27,7 @@ type Options struct {
 }
 ```
 
-* **TableNamePrefix (string)**: Allows you to define a prefix for all database table names managed by this instance. This is useful for organizing tables in shared databases or separating environments (e.g., dev_, prod_). If left empty, the library uses the default table name derived from the struct.
+* **TableNamePrefix (string)**: Allows you to define a prefix for all database table names managed by this instance. This is useful for organizing tables in shared databases or separating environments (e.g., dev_, prod_). If left empty, the library uses the default table name derived from the struct. The prefix can have only lowercase letters, digits and underscores, as it is a part of the SQL of the queries, otherwise `New` panics.
 * **TagName (string)**: Specifies the name of the struct tag used for database mapping rules. Default: `crud`. If you set this to `mytag`, the library will look for tags like `mytag:"uniq"` instead of the default `crud:"uniq"`, and for regular expressions in `mytag_regexp` instead of `crud_regexp`. Validation rules are always read from the `validate` tag.
 * **Dialect (string)** *(required)*: Selects the SQL dialect used to generate queries. Passing an empty or unrecognised value causes a panic at startup. Two constants are provided:
     * `gocrud.DialectPostgres` — PostgreSQL.
@@ -44,7 +44,7 @@ import (
     _ "github.com/lib/pq"
 )
 
-db, err := sql.Open("postgres", "host=localhost user=myuser password=mypass dbname=mydb sslmode=disable")
+db, err := sql.Open("postgres", "host=localhost user=myuser password=mypass dbname=mydb sslmode=disable statement_timeout=10000")
 
 crudInstance := gocrud.New(db, gocrud.Options{
     Dialect:         gocrud.DialectPostgres,
@@ -53,6 +53,8 @@ crudInstance := gocrud.New(db, gocrud.Options{
     Flags:           gocrud.GetCountOnUniq,
 })
 ```
+
+`statement_timeout=10000` makes PostgreSQL cancel any query that takes longer than 10 seconds, e.g. one with filters from a request that the database cannot answer quickly. gocrud also cancels a query when the `ctx` of the operation is cancelled, e.g. with `context.WithTimeout`.
 
 ### SQLite
 

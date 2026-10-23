@@ -48,6 +48,15 @@ func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, o
 	})
 
 	if err != nil {
+		// the order usually comes from a request, like the filters
+		if errors.Is(err, gocrud.ErrInvalidOrder) {
+			slog.Error("invalid order", logAttrService, logger.AttrError(err))
+			return nil, map[string]int{}, &FilterValidationError{
+				Err:        err,
+				Violations: map[string]string{order: gocrud.ViolationType},
+			}
+		}
+
 		var crudErr *gocrud.CRUDError
 		if errors.As(err, &crudErr) {
 			var validationErr *gocrud.ValidationError

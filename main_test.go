@@ -9,7 +9,6 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/mikogs/gocrud/pkg/test"
-	"github.com/ory/dockertest/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -18,8 +17,7 @@ var testPassword = "testpass"
 var testName = "testdb"
 var testDB *sql.DB
 
-var dockerPool *dockertest.Pool
-var dockerResource *dockertest.Resource
+var dockerContainer *test.Container
 
 var testCRUD *CRUD
 
@@ -27,7 +25,7 @@ var testDBSQLite *sql.DB
 var testCRUDSQLite *CRUD
 
 func TestMain(m *testing.M) {
-	dockerPool, dockerResource, testDB = test.CreateDocker(testUser, testPassword, testName)
+	dockerContainer, testDB = test.CreateDocker(testUser, testPassword, testName)
 
 	var err error
 	testDBSQLite, err = sql.Open("sqlite", ":memory:")
@@ -35,17 +33,14 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not open SQLite in-memory database: %s", err)
 	}
 
-	var code int
-
-	defer func() {
-		test.RemoveDocker(dockerPool, dockerResource)
-		testDBSQLite.Close()
-		os.Exit(code)
-	}()
-
 	createCRUD()
 	createCRUDSQLite()
-	code = m.Run()
+	code := m.Run()
+
+	_ = testDB.Close()
+	_ = testDBSQLite.Close()
+	test.RemoveDocker(dockerContainer)
+	os.Exit(test.CheckLeaks(code))
 }
 
 func createCRUD() {

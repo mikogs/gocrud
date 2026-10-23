@@ -3,8 +3,7 @@ package gocrud
 import (
 	"context"
 	"database/sql"
-
-	"golang.org/x/crypto/bcrypt"
+	"errors"
 )
 
 type LoadOptions struct {
@@ -51,8 +50,9 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 
 	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objColumnInterfaces(obj, builder.ColumnFieldNames(), true)...)
 	switch {
-	case err == sql.ErrNoRows:
+	case errors.Is(err, sql.ErrNoRows):
 		ZeroObjFields(obj)
+		verifyWithoutObject(builder.PasswordFields(), options.VerifyPasswordFields)
 		return passwordFields, nil
 	case err != nil:
 		return nil, getDBFuncCRUDError("query row", err)
@@ -67,12 +67,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 		}
 
 		hash, _ := ObjFieldValue(obj, fieldName).(string)
-		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-			passwordFields[fieldName] = PassInvalid
-			continue
-		}
-
-		passwordFields[fieldName] = PassOK
+		passwordFields[fieldName] = verifyPassword(hash, password)
 	}
 
 	zeroPasswordFields(obj, builder.PasswordFields())

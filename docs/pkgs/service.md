@@ -149,7 +149,7 @@ Returns a paginated, filtered, ordered list of objects for the given key. All fi
 | `constructor` | `func() interface{}` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
 | `passFieldsToVerify` | `map[string]string` | Optional passwords to verify, as in `Read`, when exactly one record is found |
 
-**Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, or a filter value that fails struct validation.
+**Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, a filter value that fails struct validation, or an `order` that is not a field, with the `type` violation for it.
 
 ---
 
@@ -172,7 +172,7 @@ Returns the count of records matching the given filters. Accepts the same `Filte
 
 ```go
 type Filters struct {
-    Vals map[string]string // the values, by field name, e.g. "Status", or field and group, e.g. "Name.q"
+    Vals map[string]string // the values, by field name, e.g. "Status", path, e.g. "Customer.Country", or with a group, e.g. "Name~q"
     Ops  map[string]string // the operators, by the same keys, "eq" when not set
 
     ScopeVals map[string]string // conditions that every record has to match, by field name
@@ -215,15 +215,17 @@ objs, _, err := svc.List(ctx, "tasks", 50, 0, "DueAt", "asc", svccrud.Filters{
 }, nil, nil, nil)
 ```
 
-**Groups.** The conditions are joined with AND. A key can also name a group after a dot, e.g. `Name.q`. The conditions of a group are joined with OR, and the group is joined with AND with the other conditions and groups. The name of a group can be any text without a dot, and only has to be the same for the conditions of the group. A key with an empty field or group name, or with a second dot, is a `type` violation.
+**Paths.** A key can be a path through relation fields, e.g. `Customer.Country` for the customer of an order, or `Orders.Status` for the orders of a customer, see [Conditions on related records](../crud/ops.md#conditions-on-related-records). The `order` of `List` can be a path through belongs-to relations too, e.g. `Customer.Name`.
+
+**Groups.** The conditions are joined with AND. A key can also name a group after a tilde, e.g. `Name~q` or `Customer.Name~q`. The conditions of a group are joined with OR, and the group is joined with AND with the other conditions and groups. The name of a group can be any text without a tilde, and only has to be the same for the conditions of the group. A key with an empty field, path segment or group name, or with a second tilde, is a `type` violation.
 
 A search box that looks for the text in the name or the email, of the customers in a city:
 
 ```go
 text := "%" + r.URL.Query().Get("q") + "%"
 objs, _, err := svc.List(ctx, "customers", 50, 0, "Name", "asc", svccrud.Filters{
-    Vals: map[string]string{"City": "Warsaw", "Name.q": text, "Email.q": text},
-    Ops:  map[string]string{"Name.q": "like", "Email.q": "like"},
+    Vals: map[string]string{"City": "Warsaw", "Name~q": text, "Email~q": text},
+    Ops:  map[string]string{"Name~q": "like", "Email~q": "like"},
 }, nil, nil, nil)
 // WHERE "city"=$1 AND ("email" LIKE $2 OR "name" LIKE $3)
 ```
@@ -231,11 +233,11 @@ objs, _, err := svc.List(ctx, "customers", 50, 0, "Name", "asc", svccrud.Filters
 A group with one condition is joined with AND, so groups also give several conditions on one field, e.g. a range:
 
 ```go
-Vals: map[string]string{"Total.min": "100", "Total.max": "500"},
-Ops:  map[string]string{"Total.min": "ge", "Total.max": "lt"},
+Vals: map[string]string{"Total~min": "100", "Total~max": "500"},
+Ops:  map[string]string{"Total~min": "ge", "Total~max": "lt"},
 ```
 
-**Scope.** `ScopeVals` and `ScopeOps` are conditions that every record has to match, e.g. that it belongs to the signed-in user. They are joined with AND around all the other conditions, so `Vals` cannot match records outside the scope, even with a group, and a condition in `Vals` on the same field only narrows the result:
+**Scope.** `ScopeVals` and `ScopeOps` are conditions that every record has to match, e.g. that it belongs to the signed-in user. They are keyed by field name or path, without groups. They are joined with AND around all the other conditions, so `Vals` cannot match records outside the scope, even with a group, and a condition in `Vals` on the same field only narrows the result:
 
 ```go
 objs, _, err := svc.List(ctx, "notes", 20, 0, "CreatedAt", "desc", svccrud.Filters{
@@ -269,7 +271,7 @@ op, err := svccrud.Op("ge")              // returns sqlfilters.OpGreaterOrEqual,
 | `ErrInvalidFilterOp` | `errors.Is(err, ErrInvalidFilterOp)` | `Op`: unknown operator string. `List` and `Num` return a `*FilterValidationError` for it instead |
 | `ErrForeignKeyCycle` | `errors.Is(err, ErrForeignKeyCycle)` | `CreateTables` / `Migrate`: foreign keys reference each other in a cycle |
 
-Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]string` field mapping each failed field to the name of the failed validation rule, e.g. `"required"` or `"min"` from the [go-playground/validator](https://github.com/go-playground/validator) library, `"regexp"` (`gocrud.ViolationRegExp`) for a failed `crud_regexp` pattern, or `"type"` (`gocrud.ViolationType`) for a value of a wrong type or an invalid filter operator.
+Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[string]string` field mapping each failed field to the name of the failed validation rule, e.g. `"required"` or `"min"` from the [go-playground/validator](https://github.com/go-playground/validator) library, `"regexp"` (`gocrud.ViolationRegExp`) for a failed `crud_regexp` pattern, `"type"` (`gocrud.ViolationType`) for a value of a wrong type, an invalid filter operator or an invalid order, or `"password"` (`gocrud.ViolationPassword`) for a filter on a password field, which cannot be used in filters.
 
 ## Example
 

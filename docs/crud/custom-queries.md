@@ -61,8 +61,9 @@ The query is run with the same arguments as the generated query, in the order be
 | `DropTableQuery() (string, error)` | `DropTable` | none | nothing |
 
 * **The updated columns** are the columns without `ID`, and without `CreatedAt` and `CreatedBy` when the struct has the [creation and modification fields](../struct.md#4-creation-and-modification-fields).
-* **The filter values** are the values that `sqlfilters.FiltersInterfaces(filters)` returns: the values of the filters of a group in their order, and of the conditions in a map ordered by field name, with one value for each element of `OpIn`, none for `IS NULL` conditions, and one for each element of a slice in a raw filter. `sqlfilters.Conditions(filters)` returns the conditions on fields in the same order, e.g. to build the `WHERE` clause.
+* **The filter values** are the values that `sqlfilters.FiltersInterfaces(filters)` returns: the values of the filters of a group in their order, and of the conditions in a map ordered by field name, with one value for each element of `OpIn`, the values of the filter of a subquery, none for `IS NULL` conditions, and one for each element of a slice in a raw filter. `sqlfilters.Conditions(filters)` returns the conditions on fields in the same order, e.g. to build the `WHERE` clause.
 * **Placeholders** are `$1`, `$2`, … in PostgreSQL and `?` in SQLite. Times are converted for SQLite as in the generated queries.
+* **Password columns** get an empty value when the password of an object is not changed, see [`pass`](../struct.md#the-crud-tag). The generated update queries keep the stored password then, e.g. `"password"=COALESCE(NULLIF($2,''),"user"."password")`, and so should your own `UpdateByIDQuery` and `InsertOnConflictUpdateQuery`, as well as `BuildUpdateByIDQuery` and `BuildInsertOnConflictUpdateQuery` below.
 
 ## Builder methods
 

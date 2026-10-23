@@ -42,6 +42,21 @@ func Raw(sql string, values ...interface{}) RawFilter {
 	return RawFilter{SQL: sql, Values: values}
 }
 
+// SubqueryValue is the value of an OpIn condition that is a subquery. It is made with Subquery.
+type SubqueryValue struct {
+	Obj    interface{}
+	Field  string
+	Filter Filter
+}
+
+// Subquery returns the value of an OpIn condition that matches the values of a field of the objects of another struct
+// that match a filter, e.g. the customers that have paid orders:
+//
+//	Filters{"ID": {Op: OpIn, Val: Subquery(&Order{}, "CustomerID", Filters{"Status": {Op: OpEqual, Val: "paid"}})}}
+func Subquery(obj interface{}, field string, filter Filter) SubqueryValue {
+	return SubqueryValue{Obj: obj, Field: field, Filter: filter}
+}
+
 // Condition is a condition on a field, i.e. an entry of Filters.
 type Condition struct {
 	Field string
@@ -86,8 +101,8 @@ func walk(f Filter, condFunc func(Condition), rawFunc func(RawFilter)) {
 }
 
 // FiltersInterfaces returns the values of a filter, in the order of the placeholders in the query: one value for each
-// condition, none for IS NULL and IS NOT NULL conditions, one for each element of OpIn, and the values of raw filters,
-// with one for each element of a slice or an array.
+// condition, none for IS NULL and IS NOT NULL conditions, one for each element of OpIn, the values of the filter of a
+// subquery, and the values of raw filters, with one for each element of a slice or an array.
 func FiltersInterfaces(f Filter) []interface{} {
 	var interfaces []interface{}
 
@@ -95,6 +110,10 @@ func FiltersInterfaces(f Filter) []interface{} {
 		switch {
 		case c.IsNull():
 		case c.Op == OpIn:
+			if subquery, ok := c.Val.(SubqueryValue); ok {
+				interfaces = append(interfaces, FiltersInterfaces(subquery.Filter)...)
+				break
+			}
 			values, _ := c.InValues()
 			interfaces = append(interfaces, values...)
 		default:

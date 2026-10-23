@@ -30,7 +30,10 @@ type SaveOptions struct {
 // Save takes an object, validates its field values, and saves it in the database.
 // If ID is not present, then an INSERT will be performed.
 // If ID is set, then an "upsert" is performed.
-func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) error {
+// Password fields are hashed with bcrypt. An empty password field keeps the stored password of an object that is
+// updated, and leaves a new object without a password that can be verified. The password fields are empty after the
+// object is saved.
+func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (err error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
@@ -77,21 +80,34 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 		}
 	}
 
-	// encrypt all password fields
+	// The passwords are hashed for the query, and the password fields are empty after the object is saved, as after
+	// Load, so that saving the object again does not change the passwords. After an error, they have the passwords
+	// again, so that saving the object again saves them.
 	passFields := builder.PasswordFields()
+	passwords := map[string]string{}
+	defer func() {
+		if err == nil {
+			zeroPasswordFields(obj, passFields)
+			return
+		}
+		for passField, password := range passwords {
+			SetObjStringField(obj, passField, password)
+		}
+	}()
 
 	for _, passField := range passFields {
-		fieldValue := ObjFieldValue(obj, passField)
-		fieldStr := fieldValue.(string)
-		// Skip fields that are already a bcrypt hash to prevent double-hashing on updates.
-		if _, costErr := bcrypt.Cost([]byte(fieldStr)); costErr == nil {
+		password := ObjFieldValue(obj, passField).(string)
+		// an empty password is not hashed: an update keeps the stored password, and a new object has no password
+		// that can be verified
+		if password == "" {
 			continue
 		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(fieldStr), bcrypt.DefaultCost)
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if err != nil {
-			return err
+			return passwordHashError(passField, err)
 		}
 
+		passwords[passField] = password
 		SetObjStringField(obj, passField, string(hash))
 	}
 

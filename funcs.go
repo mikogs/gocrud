@@ -118,7 +118,7 @@ func idValue(isUUID bool, id interface{}) (interface{}, error) {
 	case value.CanUint():
 		return value.Uint(), nil
 	case value.CanInt() && value.Int() >= 0:
-		return uint64(value.Int()), nil
+		return uint64(value.Int()), nil // #nosec G115 -- the value is not negative
 	case value.Kind() == reflect.String:
 		number, err := strconv.ParseUint(value.String(), 10, 64)
 		if err == nil {
@@ -164,7 +164,7 @@ func ObjFieldValue(obj interface{}, fieldName string) interface{} {
 	val := reflect.ValueOf(obj)
 
 	// Handle pointers: we need the element the pointer points to.
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
 			return nil // nil pointer – nothing to read
 		}

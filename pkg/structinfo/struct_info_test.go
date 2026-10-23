@@ -22,7 +22,7 @@ type tagsTestStruct struct {
 	Skipped         string `crud:"-"`
 	Status          int
 	Tags            []string
-	internal        string
+	internal        string //nolint:unused // an unexported field, which is not a column
 	CreatedAt       time.Time
 	CreatedBy       uint64
 	ModifiedAt      time.Time

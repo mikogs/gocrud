@@ -54,6 +54,22 @@ Use `omitempty` in the `json` tag of relation fields, so that they are not encod
 
 Related objects are not validated when the object that holds them is saved. They are validated when they are saved themselves.
 
+## Filtering by related objects
+
+Filters can be on the fields of related objects, with the same paths as `Preload`, e.g. the orders of customers from Poland, or the customers with a paid order:
+
+```go
+orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.Filters{"Customer.Country": {Op: sqlfilters.OpEqual, Val: "PL"}},
+})
+
+customers, err := gocrud.Get[Customer](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.Filters{"Orders.Status": {Op: sqlfilters.OpEqual, Val: "paid"}},
+})
+```
+
+See [Conditions on related records](ops.md#conditions-on-related-records). Objects can also be sorted by the fields of related objects of belongs-to relations, e.g. orders by the names of their customers with `Order: []string{"Customer.Name", "asc"}`, see [Get](ops.md#get).
+
 ## Loading related objects
 
 The `Preload` option names the relation fields to load:

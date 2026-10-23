@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/mikogs/gocrud/pkg/sql/builder/querycontainer"
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
 
@@ -115,11 +116,12 @@ func placeholders(first int, num int) string {
 	return strings.Join(values, ",")
 }
 
-// setClause returns a SET clause for the quoted columns, with placeholders starting with $first.
-func setClause(columns []string, first int) string {
+// setClause returns a SET clause for the quoted columns of table, with placeholders starting with $first, which keeps
+// the stored passwords of the password columns when their values are empty.
+func setClause(columns []string, first int, table string, passwordColumns map[string]bool) string {
 	values := make([]string, len(columns))
 	for i, column := range columns {
-		values[i] = fmt.Sprintf("%s=$%d", column, first+i)
+		values[i] = fmt.Sprintf("%s=%s", column, querycontainer.KeepEmptyPassword(fmt.Sprintf("$%d", first+i), table, column, passwordColumns[column]))
 	}
 
 	return strings.Join(values, ",")

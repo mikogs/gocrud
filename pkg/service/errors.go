@@ -23,6 +23,10 @@ func (e *ModelValidationError) Error() string {
 	return e.Err.Error()
 }
 
+func (e *ModelValidationError) Unwrap() error {
+	return e.Err
+}
+
 type FilterValidationError struct {
 	Err        error
 	Violations map[string]string
@@ -30,4 +34,9 @@ type FilterValidationError struct {
 
 func (e *FilterValidationError) Error() string {
 	return e.Err.Error()
+}
+
+// Unwrap returns the cause, e.g. a *gocrud.ValidationError, or gocrud.ErrInvalidOrder for an invalid order.
+func (e *FilterValidationError) Unwrap() error {
+	return e.Err
 }

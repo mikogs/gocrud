@@ -1,9 +1,14 @@
 package builder
 
 import (
+	"fmt"
+	"reflect"
+	"slices"
+
 	"github.com/mikogs/gocrud/pkg/filters"
 	postgresQueryBuilder "github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/postgres"
 	sqliteQueryBuilder "github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/sqlite"
+	"github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where"
 	"github.com/mikogs/gocrud/pkg/sql/builder/querycontainer"
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 	sqliteQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/sqlite"
@@ -18,6 +23,7 @@ type dynamicQueryBuilder interface {
 	Delete(filters filters.Filter) (string, error)
 	DeleteReturningID(filters filters.Filter) (string, error)
 	Update(values map[string]interface{}, filters filters.Filter) (string, error)
+	WhereDialect(qualifier string, withAlias bool, placeholder func() string) where.Dialect
 }
 
 // Builder reflects the object to generate and cache SQL queries (CREATE TABLE, INSERT, UPDATE, etc.).
@@ -27,6 +33,8 @@ type Builder struct {
 	structInfo *structinfo.StructInfo
 
 	tableName              string
+	fieldColumns           map[string]string
+	relatedBuilder         func(t reflect.Type) (*Builder, error)
 	columns                []querycontainer.Column
 	indexStatements        []string
 	indexNames             []string
@@ -46,6 +54,8 @@ type Builder struct {
 func New(obj interface{}, options Options) (*Builder, error) {
 	b := &Builder{}
 
+	b.relatedBuilder = options.RelatedBuilder
+
 	b.tagName = DefaultTagName
 	if options.TagName != "" {
 		b.tagName = options.TagName
@@ -64,6 +74,7 @@ func New(obj interface{}, options Options) (*Builder, error) {
 			return nil, err
 		}
 		b.tableName = container.RawTableName
+		b.fieldColumns = container.FieldColumnName
 		b.columns = container.Columns
 		b.indexStatements = container.IndexStatements
 		b.indexNames = container.IndexNames
@@ -74,13 +85,17 @@ func New(obj interface{}, options Options) (*Builder, error) {
 		b.updateByID = container.UpdateByID
 		b.selectByID = container.SelectByID
 		b.deleteByID = container.DeleteByID
-		b.queryBuilder = sqliteQueryBuilder.New(b.structInfo, container)
+		queryBuilder := sqliteQueryBuilder.New(b.structInfo, container)
+		queryBuilder.Relation = b.relation
+		queryBuilder.Subquery = b.subquery
+		b.queryBuilder = queryBuilder
 	default: // postgres
 		container, err := postgresQueryContainer.New(obj, b.structInfo, options.TableNamePrefix)
 		if err != nil {
 			return nil, err
 		}
 		b.tableName = container.RawTableName
+		b.fieldColumns = container.FieldColumnName
 		b.columns = container.Columns
 		b.indexStatements = container.IndexStatements
 		b.indexNames = container.IndexNames
@@ -91,11 +106,96 @@ func New(obj interface{}, options Options) (*Builder, error) {
 		b.updateByID = container.UpdateByID
 		b.selectByID = container.SelectByID
 		b.deleteByID = container.DeleteByID
-		b.queryBuilder = postgresQueryBuilder.New(b.structInfo, container)
+		queryBuilder := postgresQueryBuilder.New(b.structInfo, container)
+		queryBuilder.Relation = b.relation
+		queryBuilder.Subquery = b.subquery
+		b.queryBuilder = queryBuilder
 	}
 
 	return b, nil
 }
+
+// relation returns the rows of the related struct of a relation field, for where.Dialect.Relation, with the columns of
+// the related struct qualified with alias, and the columns of this struct qualified with outer.
+func (b *Builder) relation(outer string, field string, alias string, placeholder func() string) (where.Related, error) {
+	var relation *structinfo.RelationInfo
+	for _, r := range b.structInfo.Relations {
+		if r.Field == field {
+			relation = r
+		}
+	}
+	if relation == nil {
+		return where.Related{}, fmt.Errorf("%w: %s is not a relation field of %s", where.ErrRelationPath, field, b.structInfo.Name)
+	}
+	if b.relatedBuilder == nil {
+		return where.Related{}, fmt.Errorf("%w: %s: related structs are not available", where.ErrRelationPath, field)
+	}
+
+	related, err := b.relatedBuilder(relation.Type)
+	if err != nil {
+		return where.Related{}, fmt.Errorf("%s: %w", field, err)
+	}
+
+	quote := func(column string) string { return `"` + column + `"` }
+	var match string
+	if relation.Kind == structinfo.BelongsTo {
+		// the related row has the ID that is in the key field of this row
+		match = alias + "." + quote(related.fieldColumns["ID"]) + " = " + outer + "." + quote(b.fieldColumns[relation.KeyField])
+	} else {
+		// the related rows have the ID of this row in their key field
+		match = alias + "." + quote(related.fieldColumns[relation.KeyField]) + " = " + outer + "." + quote(b.fieldColumns["ID"])
+	}
+
+	return where.Related{
+		Dialect: related.queryBuilder.WhereDialect(alias, false, placeholder),
+		Table:   quote(related.tableName),
+		Match:   match,
+		Many:    relation.Kind == structinfo.HasMany,
+	}, nil
+}
+
+// subquery returns the rows of the struct of obj, for where.Dialect.Subquery, with its columns qualified with alias.
+func (b *Builder) subquery(obj interface{}, field string, alias string, placeholder func() string) (where.Selected, error) {
+	if b.relatedBuilder == nil {
+		return where.Selected{}, fmt.Errorf("%w: other structs are not available", where.ErrSubquery)
+	}
+
+	t := reflect.TypeOf(obj)
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == nil || t.Kind() != reflect.Struct {
+		return where.Selected{}, fmt.Errorf("%w: %T is not a struct", where.ErrSubquery, obj)
+	}
+
+	sub, err := b.relatedBuilder(t)
+	if err != nil {
+		return where.Selected{}, fmt.Errorf("%w: %s: %w", where.ErrSubquery, t.Name(), err)
+	}
+
+	if !slices.Contains(sub.ColumnFieldNames(), field) {
+		return where.Selected{}, fmt.Errorf("%w: %s is not a stored field of %s", where.ErrSubquery, field, t.Name())
+	}
+	if slices.Contains(sub.PasswordFields(), field) {
+		return where.Selected{}, fmt.Errorf("%w: %s of %s", where.ErrPasswordField, field, t.Name())
+	}
+
+	quote := func(column string) string { return `"` + column + `"` }
+	return where.Selected{
+		Dialect: sub.queryBuilder.WhereDialect(alias, false, placeholder),
+		Table:   quote(sub.tableName),
+		Column:  alias + "." + quote(sub.fieldColumns[field]),
+	}, nil
+}
+
+// WhereDialect returns the dialect of conditions on the fields of the struct, with the columns qualified with
+// qualifier unless it is empty, e.g. for a query that joins other tables.
+func (b *Builder) WhereDialect(qualifier string, placeholder func() string) where.Dialect {
+	return b.queryBuilder.WhereDialect(qualifier, false, placeholder)
+}
+
+// QuotedTableName returns the quoted name of the table.
+func (b *Builder) QuotedTableName() string { return `"` + b.tableName + `"` }
 
 // DropTable returns an SQL query for dropping the table.
 func (b *Builder) DropTable() string { return b.dropTable + ";" }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/mikogs/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sql/builder/querybuilder/where"
 	postgresQueryContainer "github.com/mikogs/gocrud/pkg/sql/builder/querycontainer/postgres"
 	"github.com/mikogs/gocrud/pkg/structinfo"
 )
@@ -11,6 +12,12 @@ import (
 type QueryBuilder struct {
 	structInfo     *structinfo.StructInfo
 	queryContainer *postgresQueryContainer.QueryContainer
+
+	// Relation returns the related rows of a relation field, for where.Dialect.Relation, with the columns of the
+	// table of this struct qualified with outer.
+	Relation func(outer string, field string, alias string, placeholder func() string) (where.Related, error)
+	// Subquery returns the rows of the struct of obj for where.Dialect.Subquery.
+	Subquery func(obj interface{}, field string, alias string, placeholder func() string) (where.Selected, error)
 }
 
 func New(structInfo *structinfo.StructInfo, queryContainer *postgresQueryContainer.QueryContainer) *QueryBuilder {

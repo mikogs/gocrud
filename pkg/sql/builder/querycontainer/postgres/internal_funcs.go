@@ -41,11 +41,13 @@ func columnTypeFromField(fieldType string) (string, string) {
 	switch fieldType {
 	case "bool":
 		return "BOOLEAN", "false"
-	case "int64", "int", "uint64", "uint":
+	// the integer types of PostgreSQL are signed, so an unsigned type gets the next larger one, except uint64, whose
+	// values from 2^63 cannot be stored
+	case "int64", "int", "uint64", "uint", "uint32":
 		return "BIGINT", "0"
-	case "int32", "uint32":
+	case "int32", "uint16":
 		return "INTEGER", "0"
-	case "int16", "int8", "uint16", "uint8":
+	case "int16", "int8", "uint8":
 		return "SMALLINT", "0"
 	case "float64":
 		return "DOUBLE PRECISION", "0"

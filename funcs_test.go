@@ -55,3 +55,18 @@ func TestPasswordFieldsFor(t *testing.T) {
 		t.Fatalf("PasswordFieldsFor returned %v for an invalid object, want nil", got)
 	}
 }
+
+func TestNew_InvalidTableNamePrefix(t *testing.T) {
+	for _, prefix := range []string{`app"; DROP TABLE x; --`, "App_", "app-", "app."} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Fatalf("New with the table name prefix %q did not panic", prefix)
+				}
+			}()
+			New(testDBSQLite, Options{Dialect: DialectSQLite, TableNamePrefix: prefix})
+		}()
+	}
+
+	New(testDBSQLite, Options{Dialect: DialectSQLite, TableNamePrefix: "app_2_"})
+}

@@ -17,6 +17,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 * **New objects**: An object with an empty `ID`, `0` or `""`, is inserted. The database assigns a numeric `ID`, and `Save` generates a UUID for a `string` ID, see [The ID Field](../struct.md#1-the-id-field). The `ID` is set on the object.
 * **Default Behavior (Upsert)**: An object with an `ID` is inserted with that `ID`. If a record with the same `ID` already exists in the database, it automatically falls back to performing an update.
 * **Update Only**: To force an update operation without attempting an insertion, set the `NoInsert` flag to `true` in the options. When there is no object with the `ID`, nothing is saved, and `Save` returns an error that matches `gocrud.ErrNotFound`.
+* **Password fields**: A field tagged `crud:"pass"` is hashed with bcrypt, and is empty after the object is saved, as after `Load`. An empty password keeps the stored password of an object that is updated, so an object can be loaded, changed and saved without changing its password. Set the field to a new password to change it. When `Save` fails, the field has the password again.
 
 **Parameters**
 
@@ -82,6 +83,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 * **Data Retrieval**: Fetches the row corresponding to the provided id and maps the database columns to the fields of the obj struct.
 * **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` after the row is scanned. The bcrypt hash is never left in memory after a successful load.
 * **Password Verification**: For every field tagged `crud:"pass"` that also appears as a key in `options.VerifyPasswordFields`, the corresponding map value is checked as a plaintext password against the bcrypt hash stored in that field, and the result is recorded in the returned map. Keys in `options.VerifyPasswordFields` that do not name an actual password field are ignored and do not appear in the result.
+* **The time of a verification** is the same whether the object exists, has a password, or not: without a hash to check the password against, it is checked against a dummy hash, so that e.g. the time of a login does not show whether there is a user with its e-mail. The same applies to `Get` with `VerifyPasswordFields`, whatever the number of objects found.
 * **Not Found Handling**: If no record exists with the given id, the method returns no error, but the obj instance is zeroed out. This means all fields in the struct are reset to their default zero values (e.g., 0, "", nil, false), ensuring the caller receives a clean, empty object rather than partial or stale data. Check it with `gocrud.ObjIDIsZero(obj)`, or use [`Load[T]`](generics.md#load), which returns `ErrNotFound`.
 
 **Parameters**
@@ -170,6 +172,14 @@ type GetOptions struct {
 
 * **Sorting (Order)**: Accepts a flat list of strings where pairs represent Field and Direction.
   * Example: `[]string{"Age", "ASC", "Price", "DESC"}` sorts by `Age` ascending, then `Price` descending.
+  * A field can be a path through belongs-to [relations](relations.md), e.g. `[]string{"Customer.Name", "asc", "ID", "asc"}` sorts orders by the names of their customers. Paths can be nested, e.g. `Order.Customer.Country` for the items of orders. Objects without the related object come last, in both directions and in both databases. A has-many relation, e.g. `Orders.Total` of a customer, has many values, and cannot be used to sort.
+  * The related field is selected by a subquery, which finds the related object by its `ID`:
+
+    ```sql
+    ORDER BY (SELECT r1."name" FROM "customer" r1 WHERE r1."id" = "order"."customer_id") ASC NULLS LAST,"id" ASC
+    ```
+
+    Like [conditions on related records](#conditions-on-related-records), it cannot be used for a struct that builds its own `SELECT` with `BuildSelectPrefixQuery`.
 
 * **Filtering (Filters)**: The conditions of the `WHERE` clause, e.g. `sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "paid"}}`, see [Filters](#filters).
 
@@ -261,6 +271,8 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 * **Batch Update**: Executes an `UPDATE` query that modifies only the specified fields for all rows matching the filter conditions.
 * **Selective Updates**: Only the fields listed in fieldsToUpdate are modified; all other fields remain unchanged.
 * **Filtering**: The same [filters](#filters) as in `Get` and `DeleteMultiple` select the rows that are updated.
+* **Password fields**: A password is hashed with bcrypt, once, so all the updated rows get the same hash. An empty password keeps the stored passwords, as in `Save`.
+* **The map** `fieldsToUpdate` is not changed, also when the values are converted from strings or hashed.
 
 **Parameters**
 
@@ -322,7 +334,7 @@ orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
 | `OpLike` | `LIKE` | a pattern, e.g. `"%smith%"` |
 | `OpMatch` | `~` (PostgreSQL only) | a regular expression |
 | `OpBit` | `& value > 0` | a bit mask |
-| `OpIn` | `IN (...)` | a slice or an array of values of the field type |
+| `OpIn` | `IN (...)` | a slice or an array of values of the field type, or a [subquery](#subqueries) |
 
 * **`nil`** is valid only for a [nullable field](../struct.md#5-optional-values-null), with `OpEqual` or `OpNotEqual`.
 * **`OpIn`** matches any of the values in the list, and an empty list matches nothing. Each value is a parameter of the query, and databases limit their number: 65535 in PostgreSQL and 32766 in SQLite.
@@ -364,6 +376,79 @@ for _, field := range []string{"Name", "Email", "Phone"} {
 customers, err := gocrud.Get[Customer](ctx, crud, gocrud.GetOptions{Filters: search})
 ```
 
+### Conditions on related records
+
+A field can be a path through [relation fields](relations.md), the same as in `Preload`, e.g. `Customer.Country` for the customer of an order, or `Orders.Status` for the orders of a customer:
+
+```go
+// the paid orders of customers from Poland
+orders, err := gocrud.Get[Order](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.Filters{
+        "Status":           {Op: sqlfilters.OpEqual, Val: "paid"},
+        "Customer.Country": {Op: sqlfilters.OpEqual, Val: "PL"},
+    },
+})
+```
+
+```sql
+WHERE EXISTS (SELECT 1 FROM "customer" r1 WHERE r1."id" = "order"."customer_id" AND r1."country"=$1) AND "status"=$2
+```
+
+* **Belongs to**, e.g. `Customer.Country`: the related object matches the condition. An object without it, e.g. with the key `0` or `NULL`, does not match.
+* **Has many**, e.g. `Orders.Status`: at least one of the related objects matches.
+* **Paths can be nested**, e.g. `Orders.Items.Product.Category` for the customers that bought a product of a category.
+
+The conditions of one map whose paths start with the same relation field are about **the same related object**. Conditions in different maps can match different related objects:
+
+```go
+// customers with an order that is paid and over 100
+sqlfilters.Filters{
+    "Orders.Status": {Op: sqlfilters.OpEqual, Val: "paid"},
+    "Orders.Total":  {Op: sqlfilters.OpGreater, Val: 100},
+}
+
+// customers with a paid order, and an order over 100, which can be another order
+sqlfilters.And(
+    sqlfilters.Filters{"Orders.Status": {Op: sqlfilters.OpEqual, Val: "paid"}},
+    sqlfilters.Filters{"Orders.Total": {Op: sqlfilters.OpGreater, Val: 100}},
+)
+```
+
+The conditions are `EXISTS` subqueries, not joins, so an object is returned once, however many related objects match, and `Limit` and `Offset` count the objects. They work in `Get`, `GetCount`, `UpdateMultiple` and `DeleteMultiple`, also in groups with `Or`.
+
+* **Values** are converted from strings and validated with the tags of the related struct, and the violations are named by the path, e.g. `{"Customer.Country": "len"}`.
+* **A path through a field that is not a relation field**, e.g. `Status.Name`, is an error that matches `gocrud.ErrFilterPath`.
+* **Indexes.** The subqueries find the related objects by their key field, so index it, e.g. `crud:"idx fk:customer"`. PostgreSQL does not create indexes for foreign keys by itself.
+* **Own select queries.** The subqueries refer to the table by its name, so `Get` and `GetCount` cannot use them for a struct that builds its own `SELECT` with `BuildSelectPrefixQuery`, e.g. with [column aliases](../struct.md#column-aliases), and return an error instead.
+
+### Subqueries
+
+The value of `OpIn` can be a subquery, which selects the values of a field of the objects of another struct that match a filter. The structs do not need a relation, e.g. the users who have an invitation that is not accepted yet:
+
+```go
+users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
+    Filters: sqlfilters.Filters{
+        "Email": {Op: sqlfilters.OpIn, Val: sqlfilters.Subquery(&Invitation{}, "Email", sqlfilters.Filters{
+            "AcceptedAt": {Op: sqlfilters.OpEqual, Val: nil},
+        })},
+    },
+})
+```
+
+```sql
+WHERE "email" IN (SELECT s1."email" FROM "invitation" s1 WHERE s1."accepted_at" IS NULL)
+```
+
+```go
+func Subquery(obj interface{}, field string, filter Filter) SubqueryValue
+```
+
+* **The filter** of a subquery is any filter of the struct, including groups, [paths](#conditions-on-related-records) and other subqueries, or `nil` for all the objects. It is validated with the tags of the struct, with the violations named by its fields, and its values are not converted from strings. `obj` is used only for its type.
+* **Subqueries work** in `Get`, `GetCount`, `UpdateMultiple`, `DeleteMultiple` and the `Filters` of [`Aggregate`](reports.md), also in groups with `Or` and in conditions on related records, e.g. `Customer.ID`.
+* **The field** of a subquery has to be stored, and its values have to be of the same kind as the values of the field of the condition: numbers, strings, booleans or times.
+* **A subquery that cannot be used**, e.g. with an operator other than `OpIn`, on a field that is not stored or of another kind, or with an invalid filter, is an error that matches `gocrud.ErrSubquery`, and also `*gocrud.ValidationError` for invalid values in its filter.
+* **For related objects** paths are shorter, e.g. `"Customer.Country"` instead of `"CustomerID"` with a subquery of the customers from a country, and they work for has-many relations too.
+
 ### Raw SQL
 
 `Raw` is a fragment of SQL, for conditions that the other filters cannot express, e.g. with an SQL function:
@@ -390,11 +475,13 @@ With `ConvertFiltersFromString`, `Get` and `GetCount` convert the string values 
 * **Times** can be written in several formats, e.g. `2024-05-01T10:30:00Z` or `2024-05-01`, see [Times](../struct.md#3-times).
 * **`OpIn`** values are separated with commas, e.g. `"paid,shipped"`, and an empty string is an empty list. A value cannot contain a comma.
 * **An empty string** is `NULL` for a nullable field.
-* **A value that cannot be converted** is a validation error with the `type` violation.
+* **A value that cannot be converted** is a validation error with the `type` violation, also a number that does not fit in the type of the field, e.g. `300` for a `uint8`.
 
 ### Validation
 
 Each condition on a field is validated as if its value was the value of the field, with the `validate` and `crud_regexp` tags, e.g. `"Status": {Op: sqlfilters.OpEqual, Val: "lost"}` fails for a field with `validate:"oneof=new paid shipped"`. The operation then returns a `*gocrud.ValidationError` with the violations of all the conditions, by field name.
+
+**Password fields** cannot be used in filters, also through relation fields and in subqueries, e.g. `Author.Password`: a condition on a hash would reveal it, e.g. with `OpLike`. Such a condition is the violation `"password"` (`gocrud.ViolationPassword`), e.g. `{"Password": "password"}`. Password fields cannot be used in `Order` either, and a subquery cannot select one. To find e.g. the users without a password, write the column in a [raw filter](#raw-sql), ``sqlfilters.Raw(`"password" = ''`)``, as `.Password` is a password field too.
 
 ## Transactions
 
@@ -414,11 +501,11 @@ ok, violations, err = gocrud.Validate(obj, map[string]bool{"Email": true}, "crud
 // values as UpdateMultiple validates them, without changing obj
 ok, violations, err = gocrud.ValidateValues(obj, map[string]interface{}{"Email": "x"}, "crud")
 
-// filters as Get validates them, returns a *gocrud.CRUDError with a *gocrud.ValidationError
-err = gocrud.ValidateFilters(obj, filters, "crud")
+// filters as Get validates them, also on the fields of related structs and in subqueries, returns a *gocrud.CRUDError with a *gocrud.ValidationError
+err = crud.ValidateFilters(obj, filters)
 ```
 
-`violations` maps the names of the invalid fields to the names of the failed rules, see [Validation Errors](../struct.md#validation-errors). The last argument is the `TagName` of the CRUD, which is used for the `<tagName>_regexp` tags. `err` is set when `obj` cannot be validated, e.g. it is not a pointer to a struct.
+`violations` maps the names of the invalid fields to the names of the failed rules, see [Validation Errors](../struct.md#validation-errors). The last argument of the functions is the `TagName` of the CRUD, which is used for the `<tagName>_regexp` tags. `err` is set when `obj` cannot be validated, e.g. it is not a pointer to a struct.
 
 ## Errors
 
@@ -430,6 +517,10 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `*gocrud.UniqError` | a unique field already has the value, see below |
 | `gocrud.ErrForeignKeyViolation` | a foreign key is violated, see [Relations](relations.md#violations) |
 | `gocrud.ErrNotFound` | `Load[T]` did not find the object, or `Save` with `NoInsert` did not find the object to update |
+| `gocrud.ErrAggregate` | a result struct or options of [`Aggregate`](reports.md) cannot be used |
+| `gocrud.ErrInvalidOrder` | `Order` of `Get` has a field that does not exist, a password field, a path through a field that is not a belongs-to relation, or an odd number of elements |
+| `gocrud.ErrSubquery` | a filter has a [subquery](#subqueries) that cannot be used |
+| `gocrud.ErrFilterPath` | a filter has a path through a field that is not a relation field, see [Conditions on related records](#conditions-on-related-records) |
 | `gocrud.ErrPreload` | a name in `Preload` is not a relation field |
 | `gocrud.ErrInvalidID` | an ID, or the ID of a user in `SaveOptions.ModifiedBy`, is of the wrong type, e.g. a number for a struct with a UUID, or a string that is not a UUID |
 | `gocrud.ErrUnsupportedOption` | an option is not supported by a [typed function](generics.md) |

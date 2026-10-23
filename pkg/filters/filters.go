@@ -2,6 +2,7 @@ package filters
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 
 	"github.com/mikogs/gocrud/pkg/structinfo"
@@ -20,7 +21,7 @@ func SetObjFields(obj interface{}, values *Filters) error {
 
 	// objValue must be a struct or point to a struct
 	objValue := reflect.ValueOf(obj)
-	if objValue.Kind() == reflect.Ptr {
+	if objValue.Kind() == reflect.Pointer {
 		if objValue.IsNil() {
 			return fmt.Errorf("obj cannot be a nil pointer")
 		}
@@ -85,7 +86,7 @@ func SetObjFields(obj interface{}, values *Filters) error {
 	return firstErr
 }
 
-// setValue sets dest to inVal when it is of the same type, or when both are numbers.
+// setValue sets dest to inVal when it is of the same type, or when both are numbers and inVal fits in dest.
 func setValue(dest reflect.Value, inVal reflect.Value) bool {
 	if !inVal.IsValid() {
 		return false
@@ -97,12 +98,50 @@ func setValue(dest reflect.Value, inVal reflect.Value) bool {
 	}
 
 	// reflect also converts integers to strings (as runes), so conversion is limited to numbers
-	if isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) {
+	if isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) && numberFits(inVal, dest.Type()) {
 		dest.Set(inVal.Convert(dest.Type()))
 		return true
 	}
 
 	return false
+}
+
+// numberFits checks if the number v is the same number after the conversion to the numeric type t: an integer in the
+// range of t, a float that is a whole number in the range of an integer type t, or a number in the range of a float
+// type t. reflect converts the numbers that do not fit without an error, e.g. 300 to 44 in an uint8.
+func numberFits(v reflect.Value, t reflect.Type) bool {
+	dest := reflect.New(t).Elem()
+
+	switch {
+	case v.CanInt():
+		n := v.Int()
+		switch {
+		case dest.CanInt():
+			return !dest.OverflowInt(n)
+		case dest.CanUint():
+			return n >= 0 && !dest.OverflowUint(uint64(n))
+		}
+		return true
+	case v.CanUint():
+		n := v.Uint()
+		switch {
+		case dest.CanInt():
+			return n <= math.MaxInt64 && !dest.OverflowInt(int64(n))
+		case dest.CanUint():
+			return !dest.OverflowUint(n)
+		}
+		return true
+	}
+
+	f := v.Float()
+	switch {
+	case dest.CanInt():
+		// -2^63 and 2^63 are exact as floats, unlike math.MaxInt64
+		return f == math.Trunc(f) && f >= -(1<<63) && f < 1<<63 && !dest.OverflowInt(int64(f))
+	case dest.CanUint():
+		return f == math.Trunc(f) && f >= 0 && f < 1<<64 && !dest.OverflowUint(uint64(f))
+	}
+	return !dest.OverflowFloat(f)
 }
 
 func isNil(v interface{}) bool {

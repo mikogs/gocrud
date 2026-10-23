@@ -42,6 +42,18 @@ At this stage, the library supports the following basic data types for struct fi
 
 Complex types (such as slices, maps, or nested structs) are not currently supported for direct mapping in this context. Fields of such types, as well as unexported fields, are not stored in the database.
 
+**Integer columns.** The integer columns of PostgreSQL are signed, so an unsigned field gets a column that holds all its values:
+
+| Field | PostgreSQL | SQLite |
+|---|---|---|
+| `int8`, `int16`, `uint8` | `SMALLINT` | `INTEGER` |
+| `int32`, `uint16` | `INTEGER` | `INTEGER` |
+| `int`, `int64`, `uint32`, `uint`, `uint64` | `BIGINT` | `INTEGER` |
+
+The largest integer of both databases is 2^63-1, so a `uint64` from 2^63, e.g. `math.MaxUint64`, cannot be saved, and `Save` returns an error.
+
+**Values of filters** have to fit in the type of the field, otherwise they are the [violation](#validation-errors) `type`, e.g. `300` or `-1` for a `uint8`, or `1.5` for an `int64`. A number that would change in the conversion to the type of the field could pass the `validate` rules as another number.
+
 ### 3. Times
 
 `time.Time` fields are stored in the following columns:
@@ -215,7 +227,7 @@ Validates a `string` field against a regular expression. Regular expressions are
 
 The `crud` tag defines how the field is stored in the database. Multiple options are separated with a space.
 
-* `pass`: Marks a `string` field as a password. On **Save** the plain-text value is automatically bcrypt-hashed before it is written to the database. On **Load** and **Get** the field is zeroed after the row is scanned so that bcrypt hashes never appear in memory after a read. When using [gorestapi](https://github.com/mikogs/gorestapi), the field is omitted entirely from JSON responses.
+* `pass`: Marks a `string` field as a password. On **Save** the plain-text value is automatically bcrypt-hashed before it is written to the database, and the field is empty after the object is saved. On **Load** and **Get** the field is zeroed after the row is scanned so that bcrypt hashes never appear in memory after a read. An **empty** password is never hashed: an update keeps the stored password, so that an object can be loaded, changed and saved, and a new object has no password that can be verified, so use `validate:"required"` when a password is needed. A value that is a bcrypt hash is hashed like any other password. bcrypt hashes at most 72 bytes, so a longer password is the [violation](#validation-errors) `max`. When using [gorestapi](https://github.com/mikogs/gorestapi), the field is omitted entirely from JSON responses.
 * `uniq`: Adds a `UNIQUE` constraint to the field's column when the table is created.
 * `idx`: Creates a database index on the field. Use `idx:<name>` to give the index an explicit name; fields sharing the same `<name>` are combined into a single composite index, in the order they're declared in the struct. A bare `idx` (no name) creates its own single-column index.
 * `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
@@ -259,8 +271,9 @@ When validation fails, the returned `*gocrud.ValidationError` carries a `Violati
 map[string]string{
 	"Username": "min",
 	"Email":    "email",
-	"Phone":    "regexp", // gocrud.ViolationRegExp
-	"Age":      "type",   // gocrud.ViolationType - value of a wrong type
+	"Phone":    "regexp",   // gocrud.ViolationRegExp
+	"Age":      "type",     // gocrud.ViolationType - value of a wrong type
+	"Password": "password", // gocrud.ViolationPassword - a filter on a password field
 }
 ```
 

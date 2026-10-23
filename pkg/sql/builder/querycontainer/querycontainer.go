@@ -105,3 +105,13 @@ func (f *ForeignKey) Clause() string {
 
 	return clause
 }
+
+// KeepEmptyPassword returns the value of a column in the SET clause of an update: the placeholder, or, for a password
+// column, an expression that keeps the stored password when the value is empty, as the password fields of an object
+// are empty after it is loaded. table and column are quoted.
+func KeepEmptyPassword(placeholder string, table string, column string, password bool) string {
+	if !password {
+		return placeholder
+	}
+	return fmt.Sprintf("COALESCE(NULLIF(%s,''),%s.%s)", placeholder, table, column)
+}

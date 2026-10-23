@@ -3,6 +3,7 @@ package gocrud
 import (
 	"database/sql"
 	"reflect"
+	"regexp"
 	"sync"
 
 	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
@@ -27,9 +28,16 @@ type builderCache struct {
 	builders map[reflect.Type]*sqlbuilder.Builder
 }
 
+// regexpTableNamePrefix matches the prefixes of table names, which are a part of the SQL of the queries, as the names
+// of tables generated from the names of structs and the tags, which are checked in the same way.
+var regexpTableNamePrefix = regexp.MustCompile(`^[a-z0-9_]*$`)
+
 func New(db *sql.DB, options Options) *CRUD {
 	if options.Dialect != DialectPostgres && options.Dialect != DialectSQLite {
 		panic("gocrud: Options.Dialect must be set to DialectPostgres or DialectSQLite")
+	}
+	if !regexpTableNamePrefix.MatchString(options.TableNamePrefix) {
+		panic("gocrud: Options.TableNamePrefix can have only lowercase letters, digits and underscores")
 	}
 
 	crud := &CRUD{
@@ -69,4 +77,20 @@ func (c *CRUD) PasswordFieldsFor(obj interface{}) []string {
 		return nil
 	}
 	return builder.PasswordFields()
+}
+
+// RelatedType returns the type of the related struct of the relation field of obj, e.g. Customer for the field
+// Customer of an order, or Order for the field Orders of a customer. It returns false when field is not a relation
+// field.
+func (c *CRUD) RelatedType(obj interface{}, field string) (reflect.Type, bool) {
+	builder, err := c.builder(obj)
+	if err != nil {
+		return nil, false
+	}
+
+	relation := findRelation(builder, field)
+	if relation == nil {
+		return nil, false
+	}
+	return relation.Type, true
 }

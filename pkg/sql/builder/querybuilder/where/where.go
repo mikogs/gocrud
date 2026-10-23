@@ -14,9 +14,14 @@ import (
 var regexpFieldInRaw = regexp.MustCompile(`(^|[^a-zA-Z0-9_"])\.([a-zA-Z_][a-zA-Z0-9_]*)`)
 
 var (
-	ErrInFilter    = errors.New("value of an OpIn filter must be a slice or an array")
-	ErrMatchFilter = errors.New("OpMatch is not supported")
-	ErrRawFilter   = errors.New("invalid raw filter")
+	ErrInFilter     = errors.New("value of an OpIn filter must be a slice or an array")
+	ErrMatchFilter  = errors.New("OpMatch is not supported")
+	ErrRawFilter    = errors.New("invalid raw filter")
+	ErrRelationPath = errors.New("invalid relation path")
+	ErrSubquery     = errors.New("invalid subquery")
+	// ErrPasswordField is matched by the error of a condition or an order on a password field, whose hashes it would
+	// reveal.
+	ErrPasswordField = errors.New("password fields cannot be used in conditions or orders")
 )
 
 // Dialect is what differs between databases in a WHERE clause.
@@ -29,36 +34,73 @@ type Dialect struct {
 	Placeholder func() string
 	// MatchOperator is the operator of OpMatch, or empty when it is not supported.
 	MatchOperator string
+	// Relation returns the related rows of a relation field, with alias as the name of their table. When it is nil,
+	// fields of related structs cannot be used.
+	Relation func(field string, alias string) (Related, error)
+	// Subquery returns the rows of the struct of obj for a subquery, with alias as the name of their table. When it is
+	// nil, subqueries cannot be used.
+	Subquery func(obj interface{}, field string, alias string) (Selected, error)
+}
+
+// Related describes the related rows of a relation field.
+type Related struct {
+	// Dialect is the dialect of the related struct, with its columns qualified with the alias, and the same
+	// Placeholder.
+	Dialect Dialect
+	// Table is the quoted name of the table of the related struct.
+	Table string
+	// Match is the condition that matches the related rows to a row of the struct of the relation field.
+	Match string
+	// Many is set to true for a has-many relation, which can have many related rows.
+	Many bool
+}
+
+// Selected describes the rows of a subquery.
+type Selected struct {
+	// Dialect is the dialect of the struct of the subquery, with its columns qualified with the alias, and the same
+	// Placeholder.
+	Dialect Dialect
+	// Table is the quoted name of the table of the struct.
+	Table string
+	// Column is the column of the field that the subquery selects, qualified with the alias.
+	Column string
+}
+
+// state is shared by all the conditions of a query, including the conditions of its subqueries.
+type state struct {
+	aliases    int
+	subqueries int
 }
 
 // Build returns the conditions of a WHERE clause, or an empty string when the filter has no conditions. Placeholders
 // are in the order of the values that filters.FiltersInterfaces returns.
+//
+// A field can be a path through relation fields, e.g. Customer.Country. The conditions of a Filters map whose paths
+// start with the same relation field are in one EXISTS subquery, so that they match the same related row.
+//
+// The value of an OpIn condition can be a filters.SubqueryValue, which is an IN subquery.
 func Build(f filters.Filter, d Dialect) (string, error) {
-	sql, _, err := build(f, d)
+	sql, _, err := build(f, d, &state{})
 	return sql, err
 }
 
 // build returns the SQL of a filter, which is empty when it matches every row, and whether it has to be in parentheses
 // when it is joined with other conditions.
-func build(f filters.Filter, d Dialect) (string, bool, error) {
+func build(f filters.Filter, d Dialect, st *state) (string, bool, error) {
 	switch f := f.(type) {
 	case *filters.Filters:
 		if f == nil {
 			return "", false, nil
 		}
-		return build(*f, d)
+		return build(*f, d, st)
 	case filters.Filters:
-		parts := []string{}
-		for _, c := range filters.Conditions(f) {
-			part, err := condition(c, d)
-			if err != nil {
-				return "", false, err
-			}
-			parts = append(parts, part)
+		parts, err := conditions(filters.Conditions(f), d, st)
+		if err != nil {
+			return "", false, err
 		}
 		return strings.Join(parts, " AND "), len(parts) > 1, nil
 	case filters.Group:
-		return group(f, d)
+		return group(f, d, st)
 	case filters.RawFilter:
 		sql, err := raw(f, d)
 		return sql, true, err
@@ -69,11 +111,102 @@ func build(f filters.Filter, d Dialect) (string, bool, error) {
 	}
 }
 
-func group(g filters.Group, d Dialect) (string, bool, error) {
+// conditions returns the SQL of the conditions of a Filters map, in their order. The conditions on fields of a
+// relation are next to each other in the order, which is sorted by field name, so they are replaced with one EXISTS
+// subquery where they are, and the placeholders stay in the order of the values.
+func conditions(conds []filters.Condition, d Dialect, st *state) ([]string, error) {
+	parts := []string{}
+	for i := 0; i < len(conds); {
+		relation, _, isPath := strings.Cut(conds[i].Field, ".")
+		if !isPath {
+			part, err := condition(conds[i], d, st)
+			if err != nil {
+				return nil, err
+			}
+			parts = append(parts, part)
+			i++
+			continue
+		}
+
+		related := filters.Filters{}
+		for ; i < len(conds); i++ {
+			name, field, ok := strings.Cut(conds[i].Field, ".")
+			if !ok || name != relation {
+				break
+			}
+			related[field] = conds[i].OpVal
+		}
+
+		part, err := exists(relation, related, d, st)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, part)
+	}
+
+	return parts, nil
+}
+
+// exists returns an EXISTS subquery that matches the rows of a relation for which the conditions are true.
+func exists(relation string, conds filters.Filters, d Dialect, st *state) (string, error) {
+	if d.Relation == nil {
+		return "", fmt.Errorf("%w: %s: fields of related structs cannot be used here", ErrRelationPath, relation)
+	}
+
+	st.aliases++
+	alias := fmt.Sprintf("r%d", st.aliases)
+
+	related, err := d.Relation(relation, alias)
+	if err != nil {
+		return "", err
+	}
+
+	parts, err := conditions(filters.Conditions(conds), related.Dialect, st)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("EXISTS (SELECT 1 FROM %s %s WHERE %s AND %s)", related.Table, alias, related.Match, strings.Join(parts, " AND ")), nil
+}
+
+// OrderColumn returns the column of a field for ORDER BY. For a path through belongs-to relations, e.g. Customer.Name,
+// it returns a subquery that selects the column of the related row, which is NULL when there is no related row.
+func OrderColumn(field string, d Dialect) (string, error) {
+	return orderColumn(field, d, 1)
+}
+
+func orderColumn(field string, d Dialect, depth int) (string, error) {
+	relation, rest, isPath := strings.Cut(field, ".")
+	if !isPath {
+		return d.Column(field)
+	}
+
+	if d.Relation == nil {
+		return "", fmt.Errorf("%w: %s: fields of related structs cannot be used here", ErrRelationPath, relation)
+	}
+
+	alias := fmt.Sprintf("r%d", depth)
+	related, err := d.Relation(relation, alias)
+	if err != nil {
+		return "", err
+	}
+	if related.Many {
+		return "", fmt.Errorf("%w: %s: a has-many relation has many values, and cannot be used to order", ErrRelationPath, relation)
+	}
+
+	column, err := orderColumn(rest, related.Dialect, depth+1)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("(SELECT %s FROM %s %s WHERE %s)", column, related.Table, alias, related.Match), nil
+}
+
+func group(g filters.Group, d Dialect, st *state) (string, bool, error) {
 	parts := []string{}
 	compound := []bool{}
 	for _, filter := range g.Filters {
-		part, isCompound, err := build(filter, d)
+		part, isCompound, err := build(filter, d, st)
 		if err != nil {
 			return "", false, err
 		}
@@ -114,10 +247,17 @@ func group(g filters.Group, d Dialect) (string, bool, error) {
 	return strings.Join(parts, joiner), true, nil
 }
 
-func condition(c filters.Condition, d Dialect) (string, error) {
+func condition(c filters.Condition, d Dialect, st *state) (string, error) {
 	column, err := d.Column(c.Field)
 	if err != nil {
 		return "", err
+	}
+
+	if s, ok := c.Val.(filters.SubqueryValue); ok {
+		if c.Op != filters.OpIn {
+			return "", fmt.Errorf("%w: %s: a subquery can only be the value of OpIn", ErrSubquery, c.Field)
+		}
+		return subquery(column, s, d, st)
 	}
 
 	if c.IsNull() {
@@ -160,6 +300,32 @@ func condition(c filters.Condition, d Dialect) (string, error) {
 	default:
 		return column + "=" + d.Placeholder(), nil
 	}
+}
+
+// subquery returns an IN condition with a subquery that selects the values of a field of the rows that match a filter.
+func subquery(column string, s filters.SubqueryValue, d Dialect, st *state) (string, error) {
+	if d.Subquery == nil {
+		return "", fmt.Errorf("%w: subqueries cannot be used here", ErrSubquery)
+	}
+
+	st.subqueries++
+	alias := fmt.Sprintf("s%d", st.subqueries)
+
+	selected, err := d.Subquery(s.Obj, s.Field, alias)
+	if err != nil {
+		return "", err
+	}
+
+	where, _, err := build(s.Filter, selected.Dialect, st)
+	if err != nil {
+		return "", err
+	}
+
+	sql := fmt.Sprintf("SELECT %s FROM %s %s", selected.Column, selected.Table, alias)
+	if where != "" {
+		sql += " WHERE " + where
+	}
+	return column + " IN (" + sql + ")", nil
 }
 
 // raw returns the SQL of a raw filter, with the fields replaced with their columns, and each ? replaced with a

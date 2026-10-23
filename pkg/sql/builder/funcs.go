@@ -136,7 +136,8 @@ func valueFromString(obj interface{}, name string, value string, set bool) (bool
 }
 
 // convertFromString converts value to a value of a type of the same kind as t: uint64 for unsigned integers,
-// int64 for integers, float64 for floats, bool, string or time.Time.
+// int64 for integers, float64 for floats, bool, string or time.Time. A number has to fit in t, e.g. 300 does not fit
+// in an uint8, as it would be a different number after the conversion to t.
 func convertFromString(t reflect.Type, value string) (interface{}, bool) {
 	if structinfo.IsTimeType(t) {
 		return TimeFromString(value)
@@ -145,21 +146,21 @@ func convertFromString(t reflect.Type, value string) (interface{}, bool) {
 	switch t.Kind() {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if intRegex.MatchString(value) {
-			v, err := strconv.ParseUint(value, 10, 64)
+			v, err := strconv.ParseUint(value, 10, t.Bits())
 			if err == nil {
 				return v, true
 			}
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if intRegex.MatchString(value) {
-			v, err := strconv.ParseInt(value, 10, 64)
+			v, err := strconv.ParseInt(value, 10, t.Bits())
 			if err == nil {
 				return v, true
 			}
 		}
 	case reflect.Float32, reflect.Float64:
 		if floatRegex.MatchString(value) || intRegex.MatchString(value) {
-			v, err := strconv.ParseFloat(value, 64)
+			v, err := strconv.ParseFloat(value, t.Bits())
 			if err == nil {
 				return v, true
 			}

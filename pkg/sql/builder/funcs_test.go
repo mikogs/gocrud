@@ -105,3 +105,41 @@ func TestSetStructFieldValueFromString_Nullable(t *testing.T) {
 		t.Fatal("SetStructFieldValueFromString did not fail for an invalid value")
 	}
 }
+
+type numbersFromString struct {
+	Int8    int8
+	Uint8   uint8
+	Uint16  uint16
+	Float32 float32
+}
+
+func TestStructFieldValueFromString_NumbersThatDoNotFit(t *testing.T) {
+	tests := []struct {
+		field string
+		value string
+		fits  bool
+	}{
+		{"Uint8", "255", true},
+		{"Uint8", "256", false},
+		{"Uint8", "-1", false},
+		{"Int8", "-128", true},
+		{"Int8", "200", false},
+		{"Uint16", "65535", true},
+		{"Uint16", "65536", false},
+		{"Float32", "340000000000000000000000000000000000000.5", true},
+		{"Float32", "1000000000000000000000000000000000000000.5", false},
+	}
+
+	for _, test := range tests {
+		obj := &numbersFromString{}
+		ok, _ := SetStructFieldValueFromString(obj, test.field, test.value)
+		if ok != test.fits {
+			t.Fatalf("SetStructFieldValueFromString of %q in %s returned %v, want %v", test.value, test.field, ok, test.fits)
+		}
+	}
+
+	obj := &numbersFromString{}
+	if ok, _ := SetStructFieldValueFromString(obj, "Uint8", "255"); !ok || obj.Uint8 != 255 {
+		t.Fatalf("SetStructFieldValueFromString set %d, want 255", obj.Uint8)
+	}
+}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/mikogs/gocrud"
 	"github.com/mikogs/gocrud/pkg/test"
-	"github.com/ory/dockertest/v3"
 )
 
 var testUser = "testuser"
@@ -18,26 +17,21 @@ var testPassword = "testpass"
 var testName = "testdb"
 var testDB *sql.DB
 
-var dockerPool *dockertest.Pool
-var dockerResource *dockertest.Resource
+var dockerContainer *test.Container
 
 var testCRUD *gocrud.CRUD
 var testService *CRUD
 
 func TestMain(m *testing.M) {
-	dockerPool, dockerResource, testDB = test.CreateDocker(testUser, testPassword, testName)
-
-	var code int
-
-	defer func() {
-		test.RemoveDocker(dockerPool, dockerResource)
-		os.Exit(code)
-	}()
+	dockerContainer, testDB = test.CreateDocker(testUser, testPassword, testName)
 
 	createCRUD()
 	createService()
+	code := m.Run()
 
-	code = m.Run()
+	_ = testDB.Close()
+	test.RemoveDocker(dockerContainer)
+	os.Exit(test.CheckLeaks(code))
 }
 
 func createCRUD() {

@@ -317,7 +317,7 @@ func (c *CRUD) databaseColumns(ctx context.Context, table string) (map[string]da
 	if err != nil {
 		return nil, getDBFuncCRUDError("query table columns", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	columns := map[string]databaseColumn{}
 	for rows.Next() {
@@ -351,7 +351,7 @@ func (c *CRUD) databaseUniqueColumns(ctx context.Context, table string) (map[str
 	if err != nil {
 		return nil, getDBFuncCRUDError("query unique columns", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	columns := map[string]bool{}
 	for rows.Next() {
@@ -386,7 +386,7 @@ func (c *CRUD) databaseForeignKeys(ctx context.Context, table string) (map[strin
 	if err != nil {
 		return nil, getDBFuncCRUDError("query foreign keys", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	foreignKeys := map[string]*querycontainer.ForeignKey{}
 	for rows.Next() {
@@ -439,7 +439,7 @@ func (c *CRUD) databaseIndexes(ctx context.Context, table string) (map[string]bo
 	if err != nil {
 		return nil, getDBFuncCRUDError("query table indexes", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	indexes := map[string]bool{}
 	for rows.Next() {

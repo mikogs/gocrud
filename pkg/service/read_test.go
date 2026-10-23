@@ -18,7 +18,7 @@ func TestRead(t *testing.T) {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 
-	for _, id := range []interface{}{saved.ID, int(saved.ID), "1"} {
+	for _, id := range []interface{}{saved.ID, int(saved.ID), "1"} { // #nosec G115 -- the first ID
 		obj, _, err := testService.Read(ctx, "teststruct", id, nil, nil)
 		if err != nil || !test.AreTestStructObjectsSame(saved, obj.(*test.TestStruct)) {
 			t.Fatalf("Read(%#v) returned %+v, %v, want the object", id, obj, err)

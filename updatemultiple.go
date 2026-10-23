@@ -2,9 +2,11 @@ package gocrud
 
 import (
 	"context"
+	"maps"
 
 	sqlfilters "github.com/mikogs/gocrud/pkg/filters"
 	sqlbuilder "github.com/mikogs/gocrud/pkg/sql/builder"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UpdateMultipleOptions struct {
@@ -12,11 +14,16 @@ type UpdateMultipleOptions struct {
 	ConvertValuesFromString bool
 }
 
+// UpdateMultiple sets the fields of fieldsToUpdate in all the rows that match the filters. The values of password
+// fields are hashed with bcrypt, once, so the rows get the same hash. An empty password keeps the stored passwords, as
+// in Save. fieldsToUpdate is not changed.
 func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpdate map[string]interface{}, options UpdateMultipleOptions) error {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+
+	fieldsToUpdate = maps.Clone(fieldsToUpdate)
 	if options.ConvertValuesFromString {
 		for name, value := range fieldsToUpdate {
 			valueAsString, ok := value.(string)
@@ -44,9 +51,16 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 		return getObjInvalidCRUDError(violations)
 	}
 
-	options.Filters, err = prepareFilters(obj, builder, options.Filters, false, c.tagName)
+	options.Filters, err = c.prepareFilters(obj, options.Filters, false)
 	if err != nil {
 		return err
+	}
+
+	if err := hashPasswordValues(fieldsToUpdate, builder.PasswordFields()); err != nil {
+		return err
+	}
+	if len(fieldsToUpdate) == 0 {
+		return nil
 	}
 
 	var query string
@@ -94,6 +108,30 @@ func normalizeUUIDValues(values map[string]interface{}, uuidFields []string) err
 
 	if len(violations) > 0 {
 		return getObjInvalidCRUDError(violations)
+	}
+	return nil
+}
+
+// hashPasswordValues replaces the values of the password fields with their bcrypt hashes, and removes the empty ones,
+// which keep the stored passwords. The values were validated, so they are strings.
+func hashPasswordValues(values map[string]interface{}, passwordFields []string) error {
+	for _, name := range passwordFields {
+		value, ok := values[name]
+		if !ok {
+			continue
+		}
+
+		password := value.(string)
+		if password == "" {
+			delete(values, name)
+			continue
+		}
+
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return passwordHashError(name, err)
+		}
+		values[name] = string(hash)
 	}
 	return nil
 }

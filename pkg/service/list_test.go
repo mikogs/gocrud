@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"reflect"
@@ -174,5 +175,15 @@ func TestList_InFilter(t *testing.T) {
 	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
 	if num != 0 {
 		t.Fatalf("Num returned %d for an invalid value, want 0", num)
+	}
+}
+
+func TestList_InvalidOrder(t *testing.T) {
+	for _, order := range []string{"Unknown", "Password.Length"} {
+		_, _, err := testService.List(context.Background(), "teststruct", 10, 0, order, "asc", Filters{}, nil, nil, nil)
+		fatalIfNotFilterViolations(t, err, map[string]string{order: gocrud.ViolationType})
+		if !errors.Is(err, gocrud.ErrInvalidOrder) {
+			t.Fatalf("List ordered by %s returned %v, want %v", order, err, gocrud.ErrInvalidOrder)
+		}
 	}
 }

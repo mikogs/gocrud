@@ -40,6 +40,7 @@ In package `github.com/mikogs/gocrud/pkg/filters`.
 
 | Function | Description |
 |---|---|
+| `Subquery(obj, field string, filter Filter) SubqueryValue` | returns a subquery, the value of an `OpIn` condition, see [Subqueries](crud/ops.md#subqueries) |
 | `FiltersInterfaces(filter Filter) []interface{}` | returns the values of a filter, in the order of the placeholders in the generated query, see [Custom queries](crud/custom-queries.md#query-methods) |
 | `Conditions(filter Filter) []Condition` | returns the conditions on fields of a filter, in the same order, without the raw filters. A `Condition` is the name of a field and its `OpVal` |
 | `SetObjFields(obj, values *Filters) error` | sets the fields of `obj` to the values of the filters, converting numbers between types |

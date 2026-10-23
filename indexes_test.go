@@ -27,7 +27,7 @@ func TestSQLite_CreateTable_WithIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SQLite failed to list indexes: %s", err.Error())
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	unique := map[string]bool{}
 	for rows.Next() {
@@ -37,6 +37,9 @@ func TestSQLite_CreateTable_WithIndexes(t *testing.T) {
 			t.Fatalf("SQLite failed to scan index_list row: %s", err.Error())
 		}
 		unique[name] = isUnique == 1
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("SQLite failed to list indexes: %s", err.Error())
 	}
 
 	wantIndexes := map[string]bool{
@@ -58,7 +61,7 @@ func TestSQLite_CreateTable_WithIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SQLite failed to inspect composite index: %s", err.Error())
 	}
-	defer infoRows.Close()
+	defer func() { _ = infoRows.Close() }()
 
 	var cols []string
 	for infoRows.Next() {
@@ -68,6 +71,9 @@ func TestSQLite_CreateTable_WithIndexes(t *testing.T) {
 			t.Fatalf("SQLite failed to scan index_info row: %s", err.Error())
 		}
 		cols = append(cols, colName)
+	}
+	if err := infoRows.Err(); err != nil {
+		t.Fatalf("SQLite failed to inspect composite index: %s", err.Error())
 	}
 	if len(cols) != 2 || cols[0] != "first_name" || cols[1] != "last_name" {
 		t.Fatalf("SQLite composite index columns = %v, want [first_name last_name]", cols)

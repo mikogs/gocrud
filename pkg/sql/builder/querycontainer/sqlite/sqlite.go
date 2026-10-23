@@ -17,7 +17,10 @@ type QueryContainer struct {
 	// UpdateColumnNames contains the quoted names of the columns that are written when an object is updated,
 	// see structinfo.StructInfo.UpdateFieldNames.
 	UpdateColumnNames []string
-	ColumnNotString   map[string]bool
+	// PasswordColumnNames contains the quoted names of the columns of the password fields. An update keeps the stored
+	// password when the value of such a column is empty.
+	PasswordColumnNames map[string]bool
+	ColumnNotString     map[string]bool
 
 	FieldColumnName map[string]string
 
@@ -118,6 +121,11 @@ func New(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix str
 		qc.UpdateColumnNames = append(qc.UpdateColumnNames, QuoteColumn(ColumnWithoutAlias(qc.FieldColumnName[fieldName])))
 	}
 
+	qc.PasswordColumnNames = make(map[string]bool, len(structInfo.PasswordFields))
+	for _, fieldName := range structInfo.PasswordFields {
+		qc.PasswordColumnNames[QuoteColumn(ColumnWithoutAlias(qc.FieldColumnName[fieldName]))] = true
+	}
+
 	qc.IndexStatements, qc.IndexNames = indexStatements(rawTableName, qc.TableName, structInfo.Indexes, qc.FieldColumnName)
 
 	// structinfo.New ensures that ID is the first column
@@ -151,7 +159,7 @@ func (q *QueryContainer) setQueries(obj interface{}, tableNamePrefix string, uui
 	// SET clause: "col1"=?,"col2"=? (updated columns)
 	setCols := make([]string, len(q.UpdateColumnNames))
 	for i, col := range q.UpdateColumnNames {
-		setCols[i] = col + "=?"
+		setCols[i] = col + "=" + querycontainer.KeepEmptyPassword("?", q.TableName, col, q.PasswordColumnNames[col])
 	}
 	setClause := strings.Join(setCols, ",")
 

@@ -19,7 +19,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 		return nil, getBuilderObjectCRUDError(err)
 	}
 
-	options.Filters, err = prepareFilters(obj, builder, options.Filters, false, c.tagName)
+	options.Filters, err = c.prepareFilters(obj, options.Filters, false)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 	if err != nil {
 		return nil, getDBFuncCRUDError("query", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	deletedIDs := []interface{}{}
 	for rows.Next() {

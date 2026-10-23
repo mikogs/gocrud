@@ -1,8 +1,8 @@
 package test
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -35,7 +35,7 @@ func objFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 
 func FatalIfTestStructNotDeletedInTheDatabase(t *testing.T, db *sql.DB, id uint64) {
 	var rowCount uint64
-	err := db.QueryRow(fmt.Sprintf("SELECT COUNT(*) AS c FROM test_struct WHERE id = %d", id)).Scan(&rowCount)
+	err := db.QueryRowContext(context.Background(), "SELECT COUNT(*) AS c FROM test_struct WHERE id = $1", id).Scan(&rowCount)
 	if err != nil {
 		t.Fatalf("Delete failed to delete struct from the table")
 	}
@@ -48,7 +48,7 @@ func FatalIfNoTestStructInTheDatabase(t *testing.T, db *sql.DB) *TestStruct {
 	objLoaded := &TestStruct{}
 	fieldsPtrs := []interface{}{&objLoaded.ID}
 	fieldsPtrs = append(fieldsPtrs, objFieldInterfaces(objLoaded, false)...)
-	err := db.QueryRow("SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
+	err := db.QueryRowContext(context.Background(), "SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
 	if err != nil {
 		t.Fatalf("Save failed to insert struct to the table: %s", err.Error())
 	}

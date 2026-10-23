@@ -18,6 +18,7 @@ They are functions and not methods, because methods in Go cannot have type param
 | `GetCount[T](ctx, crud, GetCountOptions) (uint64, error)` | `crud.GetCount(ctx, &T{}, options)` |
 | `UpdateMultiple[T](ctx, crud, values, UpdateMultipleOptions) error` | `crud.UpdateMultiple(ctx, &T{}, values, options)` |
 | `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]interface{}, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
+| `Aggregate[T, R](ctx, crud, AggregateOptions) ([]*R, error)` | — the aggregated values of the objects, see [Reports](reports.md) |
 | `CreateTable[T](ctx, crud) error` | `crud.CreateTable(ctx, &T{})` |
 | `DropTable[T](ctx, crud) error` | `crud.DropTable(ctx, &T{})` |
 

@@ -22,7 +22,7 @@ func contactsService(t *testing.T) *CRUD {
 
 	svc := New(map[string]func() interface{}{
 		"contacts": func() interface{} { return &Contact{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Contact{})
 	if err := svc.CreateTables(ctx); err != nil {
@@ -178,7 +178,7 @@ func TestList_FilterPaths(t *testing.T) {
 	svc := New(map[string]func() interface{}{
 		"accounts": func() interface{} { return &Account{} },
 		"projects": func() interface{} { return &Project{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Project{})
 	_ = testCRUD.DropTable(ctx, &Account{})

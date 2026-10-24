@@ -16,7 +16,7 @@ reg := registry.New(
         "products": func() interface{} { return &Product{} },
     },
     dbConn,
-    gocrud.DialectPostgres, // or gocrud.DialectSQLite
+    gocrud.Options{Dialect: gocrud.DialectPostgres}, // or gocrud.DialectSQLite
 )
 ```
 
@@ -24,7 +24,7 @@ reg := registry.New(
 
 * **registry** `map[string]func() interface{}` — maps string keys to constructor functions. Each function must return a pointer to a new zero-value struct.
 * **dbConn** `*sql.DB` — an open database connection.
-* **dialect** `string` — the SQL dialect; must be `gocrud.DialectPostgres` or `gocrud.DialectSQLite`. Passing an empty or unrecognised value causes a panic at startup.
+* **options** `gocrud.Options` — the [options](../crud/init.md#configuration-options) of the gocrud `CRUD` of the registry, e.g. the `QueryHook`. `Dialect` must be `gocrud.DialectPostgres` or `gocrud.DialectSQLite`; an empty or unrecognised value causes a panic at startup.
 
 ### Creating tables
 
@@ -279,7 +279,7 @@ Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[
 reg := registry.New(map[string]func() interface{}{
     "users": func() interface{} { return &User{} },
     "notes": func() interface{} { return &Note{} },
-}, dbConn, gocrud.DialectPostgres)
+}, dbConn, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 // In an HTTP handler, the notes of the user:
 objs, _, err := reg.List(ctx, "notes", 20, 0, "CreatedAt", "desc",

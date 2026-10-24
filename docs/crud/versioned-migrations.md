@@ -81,7 +81,7 @@ func NewService(db *sql.DB) *registry.CRUD {
     return registry.New(map[string]func() interface{}{
         "users": func() interface{} { return &User{} },
         "notes": func() interface{} { return &Note{} },
-    }, db, gocrud.DialectSQLite)
+    }, db, gocrud.Options{Dialect: gocrud.DialectSQLite})
 }
 ```
 

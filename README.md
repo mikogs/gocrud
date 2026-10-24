@@ -10,7 +10,7 @@ Package `gocrud` uses reflection to create CRUD operations for structs.
 * [Demo](docs/demo.md)
 * [Struct Definition](docs/struct.md)
 * CRUD object
-    * [Initialization](docs/crud/init.md)
+    * [Initialization](docs/crud/init.md), and the [query hook](docs/crud/init.md#query-hook)
     * [Operations](docs/crud/ops.md)
     * [Typed functions](docs/crud/generics.md)
     * [Transactions](docs/crud/transactions.md)

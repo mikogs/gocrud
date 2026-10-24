@@ -26,7 +26,7 @@ func issuesService(t *testing.T) *CRUD {
 
 	svc := New(map[string]func() interface{}{
 		"issues": func() interface{} { return &Issue{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Issue{})
 	if err := svc.CreateTables(ctx); err != nil {

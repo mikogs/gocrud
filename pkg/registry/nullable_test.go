@@ -18,7 +18,7 @@ func TestList_NullFilters(t *testing.T) {
 	ctx := context.Background()
 	svc := New(map[string]func() interface{}{
 		"tasks": func() interface{} { return &Task{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Task{})
 	if err := svc.CreateTables(ctx); err != nil {

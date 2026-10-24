@@ -22,6 +22,7 @@ type CRUD struct {
 	dialect         string
 	sqlDialect      dialect.Dialect
 	flags           uint64
+	hook            QueryHook
 }
 
 // builderCache is shared between a CRUD and its copies running in transactions.
@@ -62,6 +63,8 @@ func New(db *sql.DB, options Options) *CRUD {
 	crud.dialect = options.Dialect
 	crud.sqlDialect = dialect.For(options.Dialect)
 	crud.flags = options.Flags
+	crud.hook = options.QueryHook
+	crud.conn = crud.hooked(db)
 
 	return crud
 }

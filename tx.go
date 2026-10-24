@@ -18,7 +18,7 @@ type DBTX interface {
 func (c *CRUD) WithTx(tx *sql.Tx) *CRUD {
 	txCRUD := *c
 	txCRUD.tx = tx
-	txCRUD.conn = tx
+	txCRUD.conn = c.hooked(tx)
 
 	return &txCRUD
 }

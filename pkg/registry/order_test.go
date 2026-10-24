@@ -51,7 +51,7 @@ func newOrderedService() *CRUD {
 		"b_orders":     func() interface{} { return &SvcOrder{} },
 		"c_customers":  func() interface{} { return &SvcCustomer{} },
 		"d_categories": func() interface{} { return &SvcCategory{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 }
 
 func dropOrderedTables() {
@@ -71,7 +71,7 @@ func TestTableKeys_Order(t *testing.T) {
 
 	svc := New(map[string]func() interface{}{
 		"invoices": func() interface{} { return &SvcInvoice{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 	if keys, err := svc.tableKeys(); err != nil || !reflect.DeepEqual(keys, []string{"invoices"}) {
 		t.Fatalf("tableKeys returned %v, %v for a table that is not in the registry, want [invoices]", keys, err)
 	}
@@ -159,7 +159,7 @@ func TestCreateTables_ForeignKeyCycle(t *testing.T) {
 	svc := New(map[string]func() interface{}{
 		"a": func() interface{} { return &SvcCycleA{} },
 		"b": func() interface{} { return &SvcCycleB{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	if err := svc.CreateTables(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {
 		t.Fatalf("CreateTables returned err %v, want %v", err, ErrForeignKeyCycle)

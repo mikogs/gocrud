@@ -23,10 +23,11 @@ type CRUD struct {
 	crud     *gocrud.CRUD
 }
 
-func New(registry map[string]func() interface{}, dbConn *sql.DB, dialect string) *CRUD {
+// New returns the registry of the structs, with a gocrud.CRUD of the options, e.g. its dialect and query hook.
+func New(registry map[string]func() interface{}, dbConn *sql.DB, options gocrud.Options) *CRUD {
 	return &CRUD{
 		registry: registry,
-		crud:     gocrud.New(dbConn, gocrud.Options{Dialect: dialect}),
+		crud:     gocrud.New(dbConn, options),
 	}
 }
 

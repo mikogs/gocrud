@@ -51,7 +51,7 @@ func createService() {
 		"passwordstructtouch": func() interface{} {
 			return &PasswordStruct_Touch{}
 		},
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 }
 
 func recreateTestStructTable() {

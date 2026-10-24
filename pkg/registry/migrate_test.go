@@ -23,7 +23,7 @@ func TestMigrate(t *testing.T) {
 	svc := New(map[string]func() interface{}{
 		"customers":         func() interface{} { return &Customer{} },
 		"customersummaries": func() interface{} { return &Customer_Summary{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Customer{})
 	if _, err := testDB.ExecContext(ctx, `CREATE TABLE customer (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL DEFAULT '')`); err != nil {

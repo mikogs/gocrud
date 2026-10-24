@@ -18,7 +18,7 @@ func TestList_TimeFilters(t *testing.T) {
 	ctx := context.Background()
 	svc := New(map[string]func() interface{}{
 		"events": func() interface{} { return &Event{} },
-	}, testDB, gocrud.DialectPostgres)
+	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Event{})
 	if err := svc.CreateTables(ctx); err != nil {

@@ -1,9 +1,9 @@
 package logger
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"os"
 	"reflect"
 	"time"
@@ -67,17 +67,11 @@ func logLevelFromEnv(s string) slog.Level {
 	}
 }
 
-func generateRandomAlphanumeric(length int) string {
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
-}
-
+// LogError logs msg with attrs as an error, with a code that it returns, e.g. to show it to a user, who can then tell
+// which error they got: ERR-<8 random letters and digits>-<time in nanoseconds>.
 func LogError(msg string, attrs ...interface{}) string {
-	code := fmt.Sprintf("ERR-%s-%d", generateRandomAlphanumeric(8), time.Now().UnixNano())
+	// crypto/rand, as the code of an error should not be predictable, e.g. to point to the error of another user
+	code := fmt.Sprintf("ERR-%s-%d", rand.Text()[:8], time.Now().UnixNano())
 	attrs = append(attrs, slog.String("err_code", code))
 	slog.Error(msg, attrs...)
 	return code

@@ -209,7 +209,8 @@ func TestList_FilterPaths(t *testing.T) {
 			Vals:      map[string]string{"Name": "Acme clone"},
 			ScopeVals: map[string]string{"Account.Country": "PL"},
 		}, "ID", "asc", []uint64{}},
-		"ordered by a related field": {Filters{}, "Account.Name", "desc", []uint64{2, 1, 3}},
+		// the projects of the same account are ordered by ID, in the direction of the order
+		"ordered by a related field": {Filters{}, "Account.Name", "desc", []uint64{2, 3, 1}},
 	}
 	for name, test := range projects {
 		t.Run("projects "+name, func(t *testing.T) {

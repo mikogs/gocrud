@@ -318,6 +318,12 @@ func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldN
 
 func (b *Builder) VersionField() string { return b.structInfo.VersionField }
 
+// IsNullable returns whether the column of the field can be NULL.
+func (b *Builder) IsNullable(field string) bool {
+	info, ok := b.structInfo.Fields[field]
+	return ok && info.Nullable
+}
+
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
 
 func (b *Builder) JSONFields() []string { return b.structInfo.JSONFields }

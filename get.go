@@ -13,9 +13,12 @@ import (
 )
 
 type GetOptions struct {
-	Order                    []string
-	Limit                    int
-	Offset                   int
+	Order  []string
+	Limit  int
+	Offset int
+	// After is the cursor of NextCursor: Get returns the objects after the object of the cursor, in the same Order.
+	// It cannot be combined with an Offset.
+	After                    string
 	Filters                  sqlfilters.Filter
 	RowObjTransformFunc      func(interface{}) interface{}
 	ConvertFiltersFromString bool
@@ -44,6 +47,20 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	if err := c.checkOrder(builder, options.Order); err != nil {
 		return nil, nil, getCRUDFuncCRUDError("order", err)
+	}
+	options.Order = pageOrder(options.Order, options.Limit > 0 || options.After != "")
+	if options.After != "" {
+		if options.Offset > 0 {
+			return nil, nil, getCRUDFuncCRUDError("cursor", fmt.Errorf("%w: After cannot be combined with an Offset", ErrCursor))
+		}
+		after, err := cursorFilter(builder, obj, options.Order, options.After)
+		if err != nil {
+			return nil, nil, getCRUDFuncCRUDError("cursor", err)
+		}
+		if options.Filters != nil {
+			after = sqlfilters.And(options.Filters, after)
+		}
+		options.Filters = after
 	}
 
 	options.Filters, err = c.prepareFilters(obj, options.Filters, options.ConvertFiltersFromString)

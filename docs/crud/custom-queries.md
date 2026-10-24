@@ -52,7 +52,7 @@ The query is run with the same arguments as the generated query, in the order be
 | `InsertOnConflictUpdateQuery() (string, error)` | `Save` of an object with an `ID` | all the columns, then the updated columns, then the version of the object, for a struct with a [version](../struct.md#10-version) | nothing, or the stored version for a struct with a version, and no row when it is another one |
 | `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID`, then the version of the object, for a struct with a version | nothing, and `Save` returns `ErrNotFound`, or `ErrVersionConflict` when the row exists, when it changes no rows |
 | `SelectByIDQuery() (string, error)` | `Load` | the `ID` | the columns |
-| `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns |
+| `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns, in `order`, which ends with `ID`, and with the condition of a [cursor](ops.md#pages-with-cursors) in `filters` |
 | `SelectCountQuery(filters sqlfilters.Filter) (string, error)` | `GetCount` | the filter values | the number of rows |
 | `UpdateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error)` | `UpdateMultiple` | the values, ordered by field name, then the filter values | nothing |
 | `DeleteByIDQuery() (string, error)` | `Delete` | the `ID` | nothing |

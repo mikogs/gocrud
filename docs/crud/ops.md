@@ -177,8 +177,9 @@ type GetOptions struct {
     Order []string
 
     // Pagination
-    Limit  int   // Maximum number of rows to return (SQL LIMIT)
-    Offset int   // Number of rows to skip (SQL OFFSET)
+    Limit  int    // Maximum number of rows to return (SQL LIMIT)
+    Offset int    // Number of rows to skip (SQL OFFSET)
+    After  string // The cursor of NextCursor, see Pages with cursors below
 
     // Filtering, see Filters below
     Filters sqlfilters.Filter
@@ -199,6 +200,7 @@ type GetOptions struct {
 
 * **Sorting (Order)**: Accepts a flat list of strings where pairs represent Field and Direction.
   * Example: `[]string{"Age", "ASC", "Price", "DESC"}` sorts by `Age` ascending, then `Price` descending.
+  * **`ID` is the last field** of every order that does not have it, in the direction of the last field, e.g. `"Price", "DESC", "ID", "DESC"`, so that the objects with the same values of the other fields are always in the same order, and pages neither miss nor repeat any of them. An index of the fields and `ID`, e.g. `crud:"idx:price_id"` on both, serves such an order in both directions. A page, with a `Limit`, without an order is ordered by `ID`.
   * A field can be a path through belongs-to [relations](relations.md), e.g. `[]string{"Customer.Name", "asc", "ID", "asc"}` sorts orders by the names of their customers. Paths can be nested, e.g. `Order.Customer.Country` for the items of orders. Objects without the related object come last, in both directions and in both databases. A has-many relation, e.g. `Orders.Total` of a customer, has many values, and cannot be used to sort.
   * The related field is selected by a subquery, which finds the related object by its `ID`:
 
@@ -215,6 +217,31 @@ type GetOptions struct {
 * **Row Transformation (RowObjTransformFunc)**: Instead of returning raw structs, you can transform each row into a different format (e.g., a map for JSON, a string for CSV, or HTML snippets).
 
 * **Related objects (Preload)**: Loads the related objects of the relation fields, with one query per relation, see [Relations](relations.md#loading-related-objects).
+
+### Pages with cursors
+
+`Offset` makes the database read and skip all the rows before the page, so the pages of a large table get slower, and an object that is inserted or deleted while the pages are read moves the others to another page, so they are missed or repeated. A cursor instead marks the last object of a page, and the next page has the objects after it in the order:
+
+```go
+order := []string{"PublishedAt", "desc"}
+page, err := gocrud.Get[Post](ctx, crud, gocrud.GetOptions{Order: order, Limit: 20})
+// ...
+if len(page) == 20 {
+    after, err := crud.NextCursor(page[len(page)-1], order)
+    // ...
+    next, err := gocrud.Get[Post](ctx, crud, gocrud.GetOptions{Order: order, Limit: 20, After: after})
+}
+```
+
+```go
+func (c *CRUD) NextCursor(obj interface{}, order []string) (string, error)
+```
+
+* **The cursor** is a string for a URL, with the values of the order fields and the `ID` of the object, as they were loaded. It is encoded but not encrypted, so a client can read the values, also of fields that it is not shown otherwise.
+* **The next page** has the objects after the cursor, with a condition on the order fields, together with the `Filters`: e.g. the `PublishedAt` is before the one of the cursor, or it is the same and the `ID` is lower. The condition also compares the first field on its own, e.g. `"published_at" <= $1`, so that the database can use its index. It reads only the rows of the page when there is an index of the order fields, see the order with `ID` above. The same `Order` and `Filters` are used for all the pages.
+* **The last page** has fewer objects than `Limit`, or none. To know it without another query, get `Limit` plus one objects, and show `Limit` of them.
+* **The order fields** of a cursor cannot be nullable, as `NULL` is neither greater nor lower than other values, JSON fields, or fields of related objects, otherwise `NextCursor` and `Get` return an error that matches `gocrud.ErrCursor`. So do a cursor of another order, a string that is not a cursor, and `After` with an `Offset`.
+* **Only the next page.** There are no cursors of previous pages: keep the cursors of the pages that were read, e.g. in the URLs, to go back.
 
 
 
@@ -552,6 +579,7 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `gocrud.ErrInsertMultiple` | `InsertMultiple` of objects of different types |
 | `gocrud.ErrVersionConflict` | `Save` of an object whose [version](../struct.md#10-version) is not the stored one, as the object was changed since it was loaded |
 | `gocrud.ErrAggregate` | a result struct or options of [`Aggregate`](reports.md) cannot be used |
+| `gocrud.ErrCursor` | a cursor that cannot be used, see [Pages with cursors](#pages-with-cursors) |
 | `gocrud.ErrInvalidOrder` | `Order` of `Get` has a field that does not exist, a password field, a path through a field that is not a belongs-to relation, or an odd number of elements |
 | `gocrud.ErrSubquery` | a filter has a [subquery](#subqueries) that cannot be used |
 | `gocrud.ErrFilterPath` | a filter has a path through a field that is not a relation field, see [Conditions on related records](#conditions-on-related-records) |

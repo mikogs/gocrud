@@ -47,7 +47,7 @@ func fatalIfNotContacts(t *testing.T, svc *CRUD, filters Filters, want []uint64)
 	t.Helper()
 	ctx := context.Background()
 
-	objs, _, err := svc.List(ctx, "contacts", 10, 0, "ID", "asc", filters, nil, nil, nil)
+	objs, _, err := svc.List(ctx, "contacts", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: filters})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -153,7 +153,7 @@ func TestList_InvalidFilterGroups(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := svc.List(context.Background(), "contacts", 10, 0, "", "", test.filters, nil, nil, nil)
+			_, _, err := svc.List(context.Background(), "contacts", ListOptions{Limit: 10, Filters: test.filters})
 			fatalIfNotFilterViolations(t, err, test.want)
 		})
 	}
@@ -214,7 +214,7 @@ func TestList_FilterPaths(t *testing.T) {
 	}
 	for name, test := range projects {
 		t.Run("projects "+name, func(t *testing.T) {
-			objs, _, err := svc.List(ctx, "projects", 10, 0, test.order, test.direction, test.filters, nil, nil, nil)
+			objs, _, err := svc.List(ctx, "projects", ListOptions{Limit: 10, Order: test.order, OrderDirection: test.direction, Filters: test.filters})
 			if err != nil {
 				t.Fatalf("List failed: %s", err.Error())
 			}

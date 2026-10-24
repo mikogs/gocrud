@@ -101,6 +101,21 @@ func testCursor(t *testing.T, crud *CRUD) {
 		})
 	}
 
+	// the values of the cursor are not strings, also when the filters are
+	fromStrings := sqlfilters.Filters{"Score": {Op: sqlfilters.OpGreaterOrEqual, Val: "2"}}
+	first, err := Get[PagedPost](ctx, crud, GetOptions{Order: []string{"Score", "asc"}, Limit: 3, Filters: fromStrings, ConvertFiltersFromString: true})
+	if err != nil || len(first) != 3 {
+		t.Fatalf("Get with filters from strings returned %d posts, %v", len(first), err)
+	}
+	cursor, err := crud.NextCursor(first[2], []string{"Score", "asc"})
+	if err != nil {
+		t.Fatalf("NextCursor failed: %s", err.Error())
+	}
+	next, err := Get[PagedPost](ctx, crud, GetOptions{Order: []string{"Score", "asc"}, Limit: 3, After: cursor, Filters: fromStrings, ConvertFiltersFromString: true})
+	if err != nil || len(next) != 3 || next[0].Score < 2 || next[0].ID == first[2].ID {
+		t.Fatalf("Get after a cursor with filters from strings returned %v, %v", ids(next), err)
+	}
+
 	// the objects of a page without an order are ordered by ID
 	var queries []string
 	hooked := New(crud.db, Options{Dialect: crud.dialect, QueryHook: QueryHookFunc(func(_ context.Context, event *QueryEvent) {
@@ -111,7 +126,7 @@ func testCursor(t *testing.T, crud *CRUD) {
 		t.Fatalf("Get of a page without an order returned %v, %v, with %v, want the posts by ID", ids(page), err, queries)
 	}
 
-	cursor, err := crud.NextCursor(posts[3], []string{"Score", "desc"})
+	cursor, err = crud.NextCursor(posts[3], []string{"Score", "desc"})
 	if err != nil {
 		t.Fatalf("NextCursor failed: %s", err.Error())
 	}

@@ -93,14 +93,14 @@ func TestUUID_ListByID(t *testing.T) {
 		ids = append(ids, issue.ID)
 	}
 
-	objs, _, err := svc.List(ctx, "issues", 10, 0, "ID", "asc", Filters{
+	objs, _, err := svc.List(ctx, "issues", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: Filters{
 		Vals: map[string]string{"ID": strings.ToUpper(ids[0]) + "," + ids[2]},
 		Ops:  map[string]string{"ID": "in"},
-	}, nil, nil, nil)
+	}})
 	if err != nil || len(objs) != 2 || objs[0].(*Issue).Title != "a" || objs[1].(*Issue).Title != "c" {
 		t.Fatalf("List returned %+v, %v, want the issues a and c", objs, err)
 	}
 
-	_, _, err = svc.List(ctx, "issues", 10, 0, "", "", Filters{Vals: map[string]string{"ID": "42"}}, nil, nil, nil)
+	_, _, err = svc.List(ctx, "issues", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"ID": "42"}}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"ID": gocrud.ViolationType})
 }

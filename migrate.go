@@ -44,8 +44,9 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 			return err
 		}
 
+		migrateCtx := c.withQuery(ctx, "Migrate", migration.Table)
 		for _, statement := range migration.Statements {
-			if _, err := tx.conn.ExecContext(ctx, statement); err != nil {
+			if _, err := tx.conn.ExecContext(migrateCtx, statement); err != nil {
 				return getDBFuncCRUDError("migrate "+migration.Table, err)
 			}
 		}
@@ -66,6 +67,7 @@ func (c *CRUD) PlanMigration(ctx context.Context, obj interface{}) (*Migration, 
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "PlanMigration", builder.TableName())
 
 	if builder.HasAliasedColumnNames() {
 		return nil, getCRUDFuncCRUDError("migrate", ErrAliasedColumnsMigrate)

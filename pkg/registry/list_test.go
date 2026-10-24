@@ -32,13 +32,13 @@ func TestList_WithFilters(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	testStructs, _, err := testService.List(context.Background(), "teststruct", 10, 20, "Age", "asc", Filters{Vals: map[string]string{
+	testStructs, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Offset: 20, Order: "Age", OrderDirection: "asc", Filters: Filters{Vals: map[string]string{
 		"Price":        "444",
 		"PrimaryEmail": "primary@example.com",
 	}, Ops: map[string]string{
 		"Price":        "eq",
 		"PrimaryEmail": "eq",
-	}}, nil, nil, nil)
+	}}})
 	if err != nil {
 		t.Fatalf("List failed to return list of objects: %s", err.Error())
 	}
@@ -60,7 +60,7 @@ func TestList_WithoutFilters(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	testStructs, _, err := testService.List(context.Background(), "teststruct", 13, 14, "Age", "asc", Filters{}, nil, nil, nil)
+	testStructs, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 13, Offset: 14, Order: "Age", OrderDirection: "asc"})
 	if err != nil {
 		t.Fatalf("Get failed to return list of objects: %s", err.Error())
 	}
@@ -83,7 +83,7 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	testCustomList, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc", Filters{}, func(obj interface{}) interface{} {
+	testCustomList, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Order: "Age", OrderDirection: "asc", RowFunc: func(obj interface{}) interface{} {
 		out := "<tr>"
 
 		v := reflect.ValueOf(obj)
@@ -118,7 +118,7 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 		out += "</tr>"
 
 		return out
-	}, nil, nil)
+	}})
 	if err != nil {
 		t.Fatalf("List failed to return list of objects modified with transform func: %s", err.Error())
 	}
@@ -132,16 +132,12 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 }
 
 func TestList_InvalidFilterOp(t *testing.T) {
-	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Price": "444"}, Ops: map[string]string{"Price": "bogus"}},
-		nil, nil, nil)
+	_, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Price": "444"}, Ops: map[string]string{"Price": "bogus"}}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"Price": gocrud.ViolationType})
 }
 
 func TestList_InvalidFilterValue(t *testing.T) {
-	_, _, err := testService.List(context.Background(), "teststruct", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Age": "500"}, Ops: map[string]string{"Age": "eq"}},
-		nil, nil, nil)
+	_, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Age": "500"}, Ops: map[string]string{"Age": "eq"}}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"Age": "max"})
 }
 
@@ -154,9 +150,7 @@ func TestList_InFilter(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	objs, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc",
-		Filters{Vals: map[string]string{"Age": "20,40"}, Ops: map[string]string{"Age": "in"}},
-		nil, nil, nil)
+	objs, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Order: "Age", OrderDirection: "asc", Filters: Filters{Vals: map[string]string{"Age": "20,40"}, Ops: map[string]string{"Age": "in"}}})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -173,7 +167,7 @@ func TestList_InFilter(t *testing.T) {
 
 func TestList_InvalidOrder(t *testing.T) {
 	for _, order := range []string{"Unknown", "Password.Length"} {
-		_, _, err := testService.List(context.Background(), "teststruct", 10, 0, order, "asc", Filters{}, nil, nil, nil)
+		_, _, err := testService.List(context.Background(), "teststruct", ListOptions{Limit: 10, Order: order, OrderDirection: "asc"})
 		fatalIfNotFilterViolations(t, err, map[string]string{order: gocrud.ViolationType})
 		if !errors.Is(err, gocrud.ErrInvalidOrder) {
 			t.Fatalf("List ordered by %s returned %v, want %v", order, err, gocrud.ErrInvalidOrder)

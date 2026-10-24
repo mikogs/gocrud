@@ -62,6 +62,7 @@ func Aggregate[T any, R any](ctx context.Context, c *CRUD, options AggregateOpti
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "Aggregate", builder.TableName())
 
 	filter, err := c.prepareFilters(obj, options.Filters, false)
 	if err != nil {

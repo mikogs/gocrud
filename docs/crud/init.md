@@ -107,7 +107,7 @@ Pass `:memory:` as the path to `sql.Open` for an in-memory SQLite database (usef
 
 ## Query hook
 
-`QueryHook` is called around each query that gocrud runs, also in transactions and migrations, e.g. to log the queries, to find the slow ones, or to trace them:
+`QueryHook` is called around each query that gocrud runs, also in transactions and migrations, e.g. to log the queries, to find the slow ones, to trace them, or to measure them:
 
 ```go
 type QueryHook interface {
@@ -116,6 +116,8 @@ type QueryHook interface {
 }
 
 type QueryEvent struct {
+    Op       string // the operation, e.g. "Save", "Get", "Migrate", or "RunInTx"
+    Table    string // the table of the struct, empty for "RunInTx"
     Query    string
     Args     []interface{}
     Duration time.Duration // set for AfterQuery
@@ -123,7 +125,12 @@ type QueryEvent struct {
 }
 ```
 
-`BeforeQuery` returns the context that the query runs with, which is also passed to `AfterQuery`, e.g. with the span of a trace that `AfterQuery` ends. `AfterQuery` is called when the database has run the query. For a query that returns rows, that is when the database starts returning them, before they are read, so `Err` does not have the errors that the driver returns only when the rows are read, e.g. some errors of SQLite. A row that is not found, e.g. by `Load`, is not an error of the query.
+* **`BeforeQuery`** returns the context that the query runs with, which is also passed to `AfterQuery`, e.g. with the span of a trace that `AfterQuery` ends.
+* **`AfterQuery`** is called when the database has run the query. For a query that returns rows, that is when the database starts returning them, before they are read, so `Err` does not have the errors that the driver returns only when the rows are read, e.g. some errors of SQLite. A row that is not found, e.g. by `Load`, is not an error of the query.
+* **`Op` and `Table`** name the operation and its table, e.g. `"Get"` and `"order"`, also for the queries that an operation runs for another one, e.g. `"GetCount"` for the `GetCountOnUniq` check of `Save`, or `"Get"` and the related table for `Preload`. They have few values, so they can be the labels of metrics and the names of spans, unlike `Query`, which has the values of `IN` lists and of the limits.
+* **Transactions** of `RunInTx` are events too: `BEGIN`, `COMMIT` and `ROLLBACK`, with the `Op` `"RunInTx"`. A transaction of `WithTx` is yours, so its statements are not.
+* **`Args`** are the values of the placeholders, as `database/sql` converts them for the driver, e.g. the value of the `Value` method of a [Valuer type](../struct.md#7-valuer-types). They include the bcrypt hashes of the passwords that are saved, and any personal data of the objects, so log them with care.
+* **Without a hook,** the queries are run on the database directly, with no overhead. The queries that you run yourself, e.g. on `tx.Tx()`, are not seen by the hook.
 
 For a hook that only needs `AfterQuery`, e.g. a log of the slow queries, `QueryHookFunc` is enough:
 
@@ -132,12 +139,37 @@ crudInstance := gocrud.New(db, gocrud.Options{
     Dialect: gocrud.DialectPostgres,
     QueryHook: gocrud.QueryHookFunc(func(ctx context.Context, event *gocrud.QueryEvent) {
         if event.Err != nil || event.Duration > 100*time.Millisecond {
-            slog.WarnContext(ctx, "query", "sql", event.Query, "duration", event.Duration, "err", event.Err)
+            slog.WarnContext(ctx, "query", "op", event.Op, "table", event.Table, "sql", event.Query,
+                "duration", event.Duration, "err", event.Err)
         }
     }),
 })
 ```
 
-`Args` are the values of the placeholders, as `database/sql` converts them for the driver, e.g. the value of the `Value` method of a [Valuer type](../struct.md#7-valuer-types). They include the bcrypt hashes of the passwords that are saved, and any personal data of the objects, so log them with care. Without a hook, the queries are run on the database directly, with no overhead.
+### Metrics
 
-The hook is called only for the queries of gocrud, not for `BEGIN`, `COMMIT` and `ROLLBACK` of transactions, or the queries that you run yourself, e.g. on `tx.Tx()`.
+gocrud does not depend on a library of metrics, but the hook gives everything that metrics need. E.g. with [Prometheus](https://github.com/prometheus/client_golang), a histogram of the durations of the queries, by the operation, the table and whether the query failed:
+
+```go
+queryDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+    Name:    "gocrud_query_duration_seconds",
+    Help:    "The durations of the queries of gocrud.",
+    Buckets: prometheus.DefBuckets,
+}, []string{"op", "table", "status"})
+prometheus.MustRegister(queryDuration)
+
+crudInstance := gocrud.New(db, gocrud.Options{
+    Dialect: gocrud.DialectPostgres,
+    QueryHook: gocrud.QueryHookFunc(func(_ context.Context, event *gocrud.QueryEvent) {
+        status := "ok"
+        if event.Err != nil {
+            status = "error"
+        }
+        queryDuration.WithLabelValues(event.Op, event.Table, status).Observe(event.Duration.Seconds())
+    }),
+})
+```
+
+Do not use `Query` or `Args` as labels: each different value is a new time series.
+
+The connections of the database are often the first to run out, e.g. when queries wait for a free connection. `database/sql` counts them in `db.Stats()`, the open and the used connections, and how many times and how long the queries waited for one, and Prometheus collects them with `collectors.NewDBStatsCollector(db, "app")`, from `github.com/prometheus/client_golang/prometheus/collectors`.

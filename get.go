@@ -40,6 +40,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	if err != nil {
 		return nil, nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "Get", builder.TableName())
 
 	if err := c.checkPreload(builder, options.Preload, ""); err != nil {
 		return nil, nil, getCRUDFuncCRUDError("preload", err)
@@ -57,6 +58,13 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		if err != nil {
 			return nil, nil, getCRUDFuncCRUDError("cursor", err)
 		}
+		// the values of the cursor are of the types of the fields, so only the other filters are converted from strings
+		if options.Filters != nil && options.ConvertFiltersFromString {
+			if options.Filters, err = convertFiltersFromString(c.filterTargets(obj), options.Filters); err != nil {
+				return nil, nil, err
+			}
+		}
+		options.ConvertFiltersFromString = false
 		if options.Filters != nil {
 			after = sqlfilters.And(options.Filters, after)
 		}

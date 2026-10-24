@@ -12,7 +12,7 @@ import (
 const (
 	logAttrError   = "err"
 	logAttrModule  = "mod"
-	logAttrService = "svc"
+	logAttrService = "reg"
 	logAttrHandler = "hand"
 	logAttrPath    = "path"
 )

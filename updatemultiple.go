@@ -25,6 +25,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "UpdateMultiple", builder.TableName())
 
 	if versionField := builder.VersionField(); versionField != "" {
 		if _, ok := fieldsToUpdate[versionField]; ok {

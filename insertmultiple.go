@@ -48,6 +48,7 @@ func (c *CRUD) InsertMultiple(ctx context.Context, objs []interface{}, options I
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "InsertMultiple", builder.TableName())
 
 	// the objects are restored after an error, as their fields are changed for the queries
 	saved := make([]reflect.Value, len(objs))

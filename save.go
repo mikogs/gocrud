@@ -36,6 +36,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "Save", builder.TableName())
 
 	ok, violations, err := Validate(obj, nil, c.tagName)
 	if err != nil {

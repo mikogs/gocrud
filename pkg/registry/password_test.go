@@ -29,12 +29,10 @@ func TestList_VerifyPasswordFields(t *testing.T) {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 
-	results, passwordFields, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Name": "erin"}}, nil, nil,
-		map[string]string{
-			"Password": "correct-horse",
-			"Name":     "erin",
-		})
+	results, passwordFields, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Name": "erin"}}, VerifyPasswordFields: map[string]string{
+		"Password": "correct-horse",
+		"Name":     "erin",
+	}})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -51,9 +49,7 @@ func TestList_VerifyPasswordFields(t *testing.T) {
 		t.Errorf("List: expected password field to be empty, got %q", ps.Password)
 	}
 
-	_, passwordFields2, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Name": "erin"}}, nil, nil,
-		map[string]string{"Password": "wrong-password"})
+	_, passwordFields2, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Name": "erin"}}, VerifyPasswordFields: map[string]string{"Password": "wrong-password"}})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -78,15 +74,14 @@ func TestCreateTables_SkipsUnderscoreProjections(t *testing.T) {
 func TestList_PasswordFilter(t *testing.T) {
 	recreatePasswordStructTable()
 
-	_, _, err := testService.List(context.Background(), "passwordstruct", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Password": "$2a$%"}, Ops: map[string]string{"Password": "like"}}, nil, nil, nil)
+	_, _, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Password": "$2a$%"}, Ops: map[string]string{"Password": "like"}}})
 
 	var validationErr *FilterValidationError
 	if !errors.As(err, &validationErr) || !reflect.DeepEqual(validationErr.Violations, map[string]string{"Password": gocrud.ViolationPassword}) {
 		t.Fatalf("List with a filter on a password returned %v, want %v with the violation %s", err, &FilterValidationError{}, gocrud.ViolationPassword)
 	}
 
-	_, _, err = testService.List(context.Background(), "passwordstruct", 10, 0, "Password", "asc", Filters{}, nil, nil, nil)
+	_, _, err = testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Order: "Password", OrderDirection: "asc"})
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("List ordered by a password returned %v, want %v", err, &FilterValidationError{})
 	}

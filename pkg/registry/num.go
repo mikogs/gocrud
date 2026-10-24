@@ -6,20 +6,18 @@ import (
 	"log/slog"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 func (c *CRUD) Num(ctx context.Context, key string, filters Filters) (uint64, error) {
-	logAttrService := logger.AttrService(c, "Num")
-
 	constructor, ok := c.registry[key]
 	if !ok {
-		slog.Error("key not found", logAttrService)
+		c.logError(ctx, "Num", "key not found", ErrInvalidKey, slog.String("key", key))
 		return 0, ErrInvalidKey
 	}
 
-	filter, err := buildFilter(filters, logAttrService)
+	filter, err := buildFilter(filters)
 	if err != nil {
+		c.logError(ctx, "Num", "invalid filters", err)
 		return 0, err
 	}
 
@@ -33,15 +31,16 @@ func (c *CRUD) Num(ctx context.Context, key string, filters Filters) (uint64, er
 		if errors.As(err, &crudErr) {
 			var validationErr *gocrud.ValidationError
 			if errors.As(crudErr.Err, &validationErr) {
-				slog.Error("error with validation", logAttrService, logger.AttrError(validationErr))
-				return 0, &FilterValidationError{
+				err = &FilterValidationError{
 					Err:        validationErr,
 					Violations: validationErr.Violations,
 				}
+				c.logError(ctx, "Num", "error with validation", err)
+				return 0, err
 			}
 		}
 
-		slog.Error("error getting", logAttrService, logger.AttrError(err))
+		c.logError(ctx, "Num", "error getting", err)
 		return 0, err
 	}
 

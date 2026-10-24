@@ -13,11 +13,9 @@ import (
 // migrations returned, in the order of the registry keys, except that the tables referenced by foreign keys
 // come before the tables that reference them.
 func (c *CRUD) Migrate(ctx context.Context) ([]*gocrud.Migration, error) {
-	logAttrService := logger.AttrService(c, "Migrate")
-
 	keys, err := c.tableKeys()
 	if err != nil {
-		slog.Error("error ordering tables", logAttrService, logger.AttrError(err))
+		c.logError(ctx, "Migrate", "error ordering tables", err)
 		return nil, err
 	}
 
@@ -28,12 +26,13 @@ func (c *CRUD) Migrate(ctx context.Context) ([]*gocrud.Migration, error) {
 
 			migration, err := tx.Migrate(ctx, obj)
 			if err != nil {
-				slog.Error("error migrating table", logAttrService, slog.String("key", key), logger.AttrError(err))
+				c.logError(ctx, "Migrate", "error migrating table", err, slog.String("key", key))
 				return err
 			}
 
 			for _, difference := range migration.Differences {
-				slog.Warn("table differs from struct", logAttrService, slog.String("table", migration.Table), slog.String("difference", difference))
+				c.log().LogAttrs(ctx, slog.LevelWarn, "table differs from struct", logger.AttrService(c, "Migrate"),
+					slog.String("table", migration.Table), slog.String("difference", difference))
 			}
 			migrations = append(migrations, migration)
 		}
@@ -50,11 +49,9 @@ func (c *CRUD) Migrate(ctx context.Context) ([]*gocrud.Migration, error) {
 // making them, in the order in which Migrate would make them. A table that references a table that does not exist
 // yet is planned as it would be after the referenced table is created.
 func (c *CRUD) PlanMigrations(ctx context.Context) ([]*gocrud.Migration, error) {
-	logAttrService := logger.AttrService(c, "PlanMigrations")
-
 	keys, err := c.tableKeys()
 	if err != nil {
-		slog.Error("error ordering tables", logAttrService, logger.AttrError(err))
+		c.logError(ctx, "PlanMigrations", "error ordering tables", err)
 		return nil, err
 	}
 
@@ -62,7 +59,7 @@ func (c *CRUD) PlanMigrations(ctx context.Context) ([]*gocrud.Migration, error) 
 	for _, key := range keys {
 		migration, err := c.crud.PlanMigration(ctx, c.registry[key]())
 		if err != nil {
-			slog.Error("error planning migration", logAttrService, slog.String("key", key), logger.AttrError(err))
+			c.logError(ctx, "PlanMigrations", "error planning migration", err, slog.String("key", key))
 			return nil, err
 		}
 		migrations = append(migrations, migration)

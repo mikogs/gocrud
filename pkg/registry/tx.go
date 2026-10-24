@@ -13,6 +13,7 @@ func (c *CRUD) WithTx(tx *sql.Tx) *CRUD {
 	return &CRUD{
 		registry: c.registry,
 		crud:     c.crud.WithTx(tx),
+		logger:   c.logger,
 	}
 }
 
@@ -32,6 +33,7 @@ func (c *CRUD) RunInTxWithOptions(ctx context.Context, opts *sql.TxOptions, fn f
 		return fn(&CRUD{
 			registry: c.registry,
 			crud:     txCRUD,
+			logger:   c.logger,
 		})
 	})
 }

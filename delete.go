@@ -11,6 +11,7 @@ func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOption
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "Delete", builder.TableName())
 
 	if ObjIDIsZero(obj) {
 		return nil

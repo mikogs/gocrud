@@ -118,38 +118,48 @@ Reads the record by `id`, of the same types as in `Read`, first (returning `ErrN
 ### List
 
 ```go
-objs, passwordFields, err := reg.List(
-    ctx,
-    "users",
-    limit, offset,
-    "Age", "asc",
-    registry.Filters{
+objs, passwordFields, err := reg.List(ctx, "users", registry.ListOptions{
+    Limit:          20,
+    Order:          "Age",
+    OrderDirection: "asc",
+    Filters: registry.Filters{
         Vals: map[string]string{"Status": "1"},
         Ops:  map[string]string{"Status": "eq"},
     },
-    nil, // optional row transform func
-    nil, // optional constructor override
-    nil, // optional passwords to verify
-)
+})
 ```
 
 Returns a paginated, filtered, ordered list of objects for the given key. All filter values are passed as strings and converted to the correct field types automatically, see [Filters](#filters).
 
-**Parameters:**
+**ListOptions:**
 
-| Parameter | Type | Description |
+| Field | Type | Description |
 |---|---|---|
-| `key` | `string` | Registry key |
-| `limit` | `int` | SQL `LIMIT` |
-| `offset` | `int` | SQL `OFFSET` |
-| `order` | `string` | Field name to sort by (empty = no ordering) |
-| `orderDirection` | `string` | `"asc"` or `"desc"` |
-| `filters` | `Filters` | The values and operators of the filters, see [Filters](#filters) |
-| `rowFunc` | `func(interface{}) interface{}` | Optional per-row transform; `nil` returns raw structs |
-| `constructor` | `func() interface{}` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
-| `passFieldsToVerify` | `map[string]string` | Optional passwords to verify, as in `Read`, when exactly one record is found |
+| `Limit` | `int` | SQL `LIMIT` |
+| `Offset` | `int` | SQL `OFFSET` |
+| `Order` | `string` | Field name, or a path through relation fields, to sort by. Empty is no ordering, or `ID` for a page with a `Limit` |
+| `OrderDirection` | `string` | `"asc"` or `"desc"` |
+| `After` | `string` | The cursor of `NextCursor`: the records after the record of the cursor, in the same order, see [Pages with cursors](../crud/ops.md#pages-with-cursors). It cannot be combined with an `Offset` |
+| `Filters` | `Filters` | The values and operators of the filters, see [Filters](#filters) |
+| `RowFunc` | `func(interface{}) interface{}` | Optional per-row transform; `nil` returns raw structs |
+| `Constructor` | `func() interface{}` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
+| `VerifyPasswordFields` | `map[string]string` | Optional passwords to verify, as in `Read`, when exactly one record is found |
 
-**Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, a filter value that fails struct validation, or an `order` that is not a field, with the `type` violation for it.
+**Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, a filter value that fails struct validation, an `Order` that is not a field, with the `type` violation for it, or a cursor that cannot be used, with the `type` violation of `after`.
+
+**The next page.** `reg.NextCursor(lastObj, order, orderDirection)` returns the cursor of the page after `lastObj`, the last record of a page, for `After`:
+
+```go
+page, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc"})
+// ...
+if len(page) == 20 {
+    after, err := reg.NextCursor(page[len(page)-1], "CreatedAt", "desc")
+    // ...
+    next, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", After: after})
+}
+```
+
+A nullable field cannot be in a cursor, so `NextCursor` returns an error for its order, and its pages are read with `Offset`.
 
 ---
 
@@ -200,19 +210,19 @@ An empty `Filters{}` matches all the records.
 Values of `time.Time` fields can be written as RFC 3339 (`2024-05-01T10:30:00Z`) or as values of HTML date inputs (`2024-05-01`, `2024-05-01T10:30`), see [Times](../struct.md#3-times). For example, listing the meetings from a date picked by the user, for a request like `/meetings?from=2024-05-01`:
 
 ```go
-objs, _, err := reg.List(ctx, "meetings", 50, 0, "StartsAt", "asc", registry.Filters{
+objs, _, err := reg.List(ctx, "meetings", registry.ListOptions{Limit: 50, Order: "StartsAt", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"StartsAt": r.URL.Query().Get("from")},
     Ops:  map[string]string{"StartsAt": "ge"},
-}, nil, nil, nil)
+}})
 ```
 
 For a pointer field, an empty value is `NULL`: `eq` with an empty value lists the rows where the field is `NULL`, and `ne` the rows where it is not. For example, the open tasks for `/tasks?completed_at=`:
 
 ```go
-objs, _, err := reg.List(ctx, "tasks", 50, 0, "DueAt", "asc", registry.Filters{
+objs, _, err := reg.List(ctx, "tasks", registry.ListOptions{Limit: 50, Order: "DueAt", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"CompletedAt": r.URL.Query().Get("completed_at")},
     Ops:  map[string]string{"CompletedAt": "eq"},
-}, nil, nil, nil)
+}})
 ```
 
 **Paths.** A key can be a path through relation fields, e.g. `Customer.Country` for the customer of an order, or `Orders.Status` for the orders of a customer, see [Conditions on related records](../crud/ops.md#conditions-on-related-records). The `order` of `List` can be a path through belongs-to relations too, e.g. `Customer.Name`.
@@ -223,10 +233,10 @@ A search box that looks for the text in the name or the email, of the customers 
 
 ```go
 text := "%" + r.URL.Query().Get("q") + "%"
-objs, _, err := reg.List(ctx, "customers", 50, 0, "Name", "asc", registry.Filters{
+objs, _, err := reg.List(ctx, "customers", registry.ListOptions{Limit: 50, Order: "Name", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"City": "Warsaw", "Name~q": text, "Email~q": text},
     Ops:  map[string]string{"Name~q": "like", "Email~q": "like"},
-}, nil, nil, nil)
+}})
 // WHERE "city"=$1 AND ("email" LIKE $2 OR "name" LIKE $3)
 ```
 
@@ -240,11 +250,11 @@ Ops:  map[string]string{"Total~min": "ge", "Total~max": "lt"},
 **Scope.** `ScopeVals` and `ScopeOps` are conditions that every record has to match, e.g. that it belongs to the signed-in user. They are keyed by field name or path, without groups. They are joined with AND around all the other conditions, so `Vals` cannot match records outside the scope, even with a group, and a condition in `Vals` on the same field only narrows the result:
 
 ```go
-objs, _, err := reg.List(ctx, "notes", 20, 0, "CreatedAt", "desc", registry.Filters{
+objs, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", Filters: registry.Filters{
     Vals:      filterValsFromRequest, // anything the client sent
     Ops:       filterOpsFromRequest,
     ScopeVals: map[string]string{"UserID": userID},
-}, nil, nil, nil)
+}})
 ```
 
 ---
@@ -258,6 +268,19 @@ keys  := reg.Registry()                  // returns the registry keys, in no par
 names := reg.PasswordFieldNames("users") // returns the fields tagged with pass, or nil if key unknown
 op, err := registry.Op("ge")              // returns sqlfilters.OpGreaterOrEqual, or ErrInvalidFilterOp
 ```
+
+## Logging
+
+The registry logs the errors of its methods with `log/slog`, also when it returns them. An error caused by the request, e.g. a validation error, an invalid filter, an unknown key or a record that is not found, is logged at the debug level, as the caller handles it, e.g. with a `400` or `404` response. Other errors, e.g. of the database, are logged at the error level. The differences that `Migrate` reports are warnings.
+
+The logs have the `reg` attribute with the method, e.g. `github.com/mikogs/gocrud/pkg/registry.CRUD.Save`, and the `err` attribute. They are written with the context of the call, so a handler of `slog` can add e.g. the ID of the trace of a request. The logger is `slog.Default()`, or another one set with `WithLogger`, which returns a copy of the registry:
+
+```go
+reg := registry.New(structs, db, gocrud.Options{Dialect: gocrud.DialectPostgres}).
+    WithLogger(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+```
+
+The copies of `WithTx` and `RunInTx` log with the same logger.
 
 ## Error types
 
@@ -282,12 +305,12 @@ reg := registry.New(map[string]func() interface{}{
 }, dbConn, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 // In an HTTP handler, the notes of the user:
-objs, _, err := reg.List(ctx, "notes", 20, 0, "CreatedAt", "desc",
-    registry.Filters{ScopeVals: map[string]string{"UserID": userID}},
-    nil, // rowFunc
-    nil, // constructor (use registered default)
-    nil, // passFieldsToVerify
-)
+objs, _, err := reg.List(ctx, "notes", registry.ListOptions{
+    Limit:          20,
+    Order:          "CreatedAt",
+    OrderDirection: "desc",
+    Filters:        registry.Filters{ScopeVals: map[string]string{"UserID": userID}},
+})
 ```
 
 ## Transactions

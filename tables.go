@@ -14,6 +14,7 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "CreateTable", builder.TableName())
 
 	statements, err := createTableStatements(obj, builder)
 	if err != nil {
@@ -58,6 +59,7 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "DropTable", builder.TableName())
 
 	var query string
 	if dropTableerImpl, ok := obj.(dropTableQueryBuilder); ok {

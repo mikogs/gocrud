@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -64,14 +65,18 @@ func testQueryHook(t *testing.T, db *sql.DB, dialect string) {
 	if err := CreateTable[HookedItem](ctx, crud); err != nil {
 		t.Fatalf("CreateTable failed: %s", err.Error())
 	}
-	hook.take()
+	for _, event := range hook.take() {
+		if event.Op != "CreateTable" && event.Op != "DropTable" || event.Table != "hooked_item" {
+			t.Fatalf("CreateTable ran the query %+v, want the operation and the table", event)
+		}
+	}
 
 	item := &HookedItem{Name: "a"}
 	if err := crud.Save(ctx, item, SaveOptions{}); err != nil {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
-	if events := hook.take(); len(events) != 1 || !strings.HasPrefix(events[0].Query, "INSERT INTO") ||
-		len(events[0].Args) != 1 || events[0].Args[0] != "a" || events[0].Err != nil || events[0].Duration <= 0 {
+	if events := hook.take(); len(events) != 1 || !strings.HasPrefix(events[0].Query, "INSERT INTO") || events[0].Op != "Save" ||
+		events[0].Table != "hooked_item" || len(events[0].Args) != 1 || events[0].Args[0] != "a" || events[0].Err != nil || events[0].Duration <= 0 {
 		t.Fatalf("Save ran the queries %+v, want one INSERT of a", events)
 	}
 
@@ -102,8 +107,15 @@ func testQueryHook(t *testing.T, db *sql.DB, dialect string) {
 		}
 		return tx.Delete(ctx, item, DeleteOptions{})
 	})
-	if events := hook.take(); err != nil || len(events) != 2 || !strings.HasPrefix(events[1].Query, "DELETE") {
-		t.Fatalf("RunInTx returned %v, with the queries %+v, want a SELECT and a DELETE", err, events)
+	if events := hook.take(); err != nil || len(events) != 4 || events[0].Query != "BEGIN" || events[0].Op != "RunInTx" ||
+		events[1].Op != "Load" || events[2].Op != "Delete" || !strings.HasPrefix(events[2].Query, "DELETE") || events[3].Query != "COMMIT" {
+		t.Fatalf("RunInTx returned %v, with the queries %+v, want BEGIN, a SELECT, a DELETE and COMMIT", err, events)
+	}
+
+	failed := errors.New("failed")
+	err = crud.RunInTx(ctx, func(tx *CRUD) error { return failed })
+	if events := hook.take(); !errors.Is(err, failed) || len(events) != 2 || events[1].Query != "ROLLBACK" || events[1].Err != nil {
+		t.Fatalf("RunInTx that failed returned %v, with the queries %+v, want BEGIN and ROLLBACK", err, events)
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -112,8 +124,27 @@ func testQueryHook(t *testing.T, db *sql.DB, dialect string) {
 	}
 	_, err = GetCount[HookedItem](ctx, crud.WithTx(tx), GetCountOptions{})
 	_ = tx.Rollback()
-	if events := hook.take(); err != nil || len(events) != 1 {
+	if events := hook.take(); err != nil || len(events) != 1 || events[0].Op != "GetCount" || events[0].Table != "hooked_item" {
 		t.Fatalf("GetCount with WithTx returned %v, with the queries %+v, want one", err, events)
+	}
+
+	// the table is created by Migrate
+	if err := DropTable[HookedItem](ctx, crud); err != nil {
+		t.Fatalf("DropTable failed: %s", err.Error())
+	}
+	hook.take()
+	if _, err := Migrate[HookedItem](ctx, crud); err != nil {
+		t.Fatalf("Migrate failed: %s", err.Error())
+	}
+	ops := map[string]bool{}
+	for _, event := range hook.take() {
+		ops[event.Op] = true
+		if event.Op == "Migrate" && (event.Table != "hooked_item" || !strings.HasPrefix(event.Query, "CREATE TABLE")) {
+			t.Fatalf("Migrate ran the query %+v, want CREATE TABLE of hooked_item", event)
+		}
+	}
+	if !reflect.DeepEqual(ops, map[string]bool{"RunInTx": true, "PlanMigration": true, "Migrate": true}) {
+		t.Fatalf("Migrate ran the queries of the operations %v", ops)
 	}
 
 	// the query runs with the context of BeforeQuery

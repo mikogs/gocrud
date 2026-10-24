@@ -16,7 +16,7 @@ func TestAttrs(t *testing.T) {
 	tests := map[string][2]string{
 		"AttrError":   {AttrError(errors.New("boom")).String(), "err=boom"},
 		"AttrModule":  {AttrModule(&testHandler{}).String(), "mod=github.com/mikogs/gocrud/pkg/logger.testHandler"},
-		"AttrService": {AttrService(&testHandler{}, "List").String(), "svc=github.com/mikogs/gocrud/pkg/logger.testHandler.List"},
+		"AttrService": {AttrService(&testHandler{}, "List").String(), "reg=github.com/mikogs/gocrud/pkg/logger.testHandler.List"},
 		"AttrHandler": {AttrHandler(&testHandler{}).String(), "hand=github.com/mikogs/gocrud/pkg/logger.testHandler"},
 		"AttrPath":    {AttrPath("/users/1").String(), "path=/users/1"},
 	}

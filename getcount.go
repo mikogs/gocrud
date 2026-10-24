@@ -17,6 +17,7 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 	if err != nil {
 		return 0, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "GetCount", builder.TableName())
 
 	options.Filters, err = c.prepareFilters(obj, options.Filters, options.ConvertFiltersFromString)
 	if err != nil {

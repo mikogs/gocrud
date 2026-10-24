@@ -42,21 +42,28 @@ func (c *CRUD) RunInTxWithOptions(ctx context.Context, opts *sql.TxOptions, fn f
 		return fn(c)
 	}
 
-	tx, err := c.db.BeginTx(ctx, opts)
+	var tx *sql.Tx
+	err = c.runTxStatement(ctx, "BEGIN", func(ctx context.Context) error {
+		tx, err = c.db.BeginTx(ctx, opts)
+		return err
+	})
 	if err != nil {
 		return getDBFuncCRUDError("begin transaction", err)
+	}
+	rollback := func() error {
+		return c.runTxStatement(ctx, "ROLLBACK", func(context.Context) error { return tx.Rollback() })
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback()
+			_ = rollback()
 			panic(p)
 		}
 	}()
 
 	err = fn(c.WithTx(tx))
 	if err != nil {
-		rollbackErr := tx.Rollback()
+		rollbackErr := rollback()
 		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
 			return errors.Join(err, getDBFuncCRUDError("rollback transaction", rollbackErr))
 		}
@@ -64,7 +71,7 @@ func (c *CRUD) RunInTxWithOptions(ctx context.Context, opts *sql.TxOptions, fn f
 		return err
 	}
 
-	err = tx.Commit()
+	err = c.runTxStatement(ctx, "COMMIT", func(context.Context) error { return tx.Commit() })
 	if err != nil {
 		return getDBFuncCRUDError("commit transaction", err)
 	}

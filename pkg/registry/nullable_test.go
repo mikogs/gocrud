@@ -33,9 +33,7 @@ func TestList_NullFilters(t *testing.T) {
 	}
 
 	for op, want := range map[string]string{"eq": "Open", "ne": "Done"} {
-		objs, _, err := svc.List(ctx, "tasks", 10, 0, "", "",
-			Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}},
-			nil, nil, nil)
+		objs, _, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}}})
 		if err != nil {
 			t.Fatalf("List failed: %s", err.Error())
 		}
@@ -49,8 +47,7 @@ func TestList_NullFilters(t *testing.T) {
 		}
 	}
 
-	_, _, err := svc.List(ctx, "tasks", 10, 0, "", "",
-		Filters{Vals: map[string]string{"Title": ""}, Ops: map[string]string{"Title": "eq"}}, nil, nil, nil)
+	_, _, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Title": ""}, Ops: map[string]string{"Title": "eq"}}})
 	if err != nil {
 		t.Fatalf("List failed for an empty value of a field that is not nullable: %s", err.Error())
 	}

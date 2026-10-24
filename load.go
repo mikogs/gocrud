@@ -25,6 +25,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "Load", builder.TableName())
 
 	idArg, err := idValue(builder.HasUUID(), id)
 	if err != nil {

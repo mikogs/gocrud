@@ -18,6 +18,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "DeleteMultiple", builder.TableName())
 
 	options.Filters, err = c.prepareFilters(obj, options.Filters, false)
 	if err != nil {

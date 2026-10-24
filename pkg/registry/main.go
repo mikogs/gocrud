@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/logger"
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
@@ -21,6 +20,8 @@ var (
 type CRUD struct {
 	registry map[string]func() interface{}
 	crud     *gocrud.CRUD
+	// logger is nil for slog.Default(), which can be set after the registry is created.
+	logger *slog.Logger
 }
 
 // New returns the registry of the structs, with a gocrud.CRUD of the options, e.g. its dialect and query hook.
@@ -35,18 +36,16 @@ func New(registry map[string]func() interface{}, dbConn *sql.DB, options gocrud.
 // tables referenced by foreign keys are created first. A struct whose name contains an underscore, e.g. User_SaveLogIn,
 // is a projection of the table of another struct, User, so its table is not created.
 func (c *CRUD) CreateTables(ctx context.Context) error {
-	logAttrService := logger.AttrService(c, "CreateTables")
-
 	keys, err := c.tableKeys()
 	if err != nil {
-		slog.Error("error ordering tables", logAttrService, logger.AttrError(err))
+		c.logError(ctx, "CreateTables", "error ordering tables", err)
 		return err
 	}
 
 	for _, key := range keys {
 		err = c.crud.CreateTable(ctx, c.registry[key]())
 		if err != nil {
-			slog.Error("error creating table", logAttrService, logger.AttrError(err))
+			c.logError(ctx, "CreateTables", "error creating table", err, slog.String("key", key))
 			return err
 		}
 	}
@@ -109,17 +108,16 @@ type Filters struct {
 }
 
 // buildFilter returns the filter of Filters for the CRUD layer.
-func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) {
+func buildFilter(filters Filters) (sqlfilters.Filter, error) {
 	violations := map[string]string{}
 
 	scope := sqlfilters.Filters{}
 	for name, value := range filters.ScopeVals {
 		if !isFilterPath(name) {
-			slog.Error("invalid filter name", logAttr, slog.String("name", name))
 			violations[name] = gocrud.ViolationType
 			continue
 		}
-		addCondition(scope, name, value, filters.ScopeOps[name], violations, logAttr)
+		addCondition(scope, name, value, filters.ScopeOps[name], violations)
 	}
 
 	keys := make([]string, 0, len(filters.Vals))
@@ -134,23 +132,21 @@ func buildFilter(filters Filters, logAttr slog.Attr) (sqlfilters.Filter, error) 
 		value := filters.Vals[key]
 		name, group, hasGroup := strings.Cut(key, "~")
 		if !isFilterPath(name) || (hasGroup && (group == "" || strings.Contains(group, "~"))) {
-			slog.Error("invalid filter name", logAttr, slog.String("name", key))
 			violations[key] = gocrud.ViolationType
 			continue
 		}
 
 		if !hasGroup {
-			addCondition(conditions, name, value, filters.Ops[key], violations, logAttr)
+			addCondition(conditions, name, value, filters.Ops[key], violations)
 			continue
 		}
 
 		condition := sqlfilters.Filters{}
-		addCondition(condition, name, value, filters.Ops[key], violations, logAttr)
+		addCondition(condition, name, value, filters.Ops[key], violations)
 		groups[group] = append(groups[group], condition)
 	}
 
 	if len(violations) > 0 {
-		slog.Error("invalid filter ops", logAttr)
 		return nil, &FilterValidationError{
 			Err:        errors.New("invalid filter ops"),
 			Violations: violations,
@@ -182,13 +178,12 @@ func isFilterPath(name string) bool {
 }
 
 // addCondition adds the condition on the field name to filters, or a violation when the operator is invalid.
-func addCondition(filters sqlfilters.Filters, name string, value string, filterOp string, violations map[string]string, logAttr slog.Attr) {
+func addCondition(filters sqlfilters.Filters, name string, value string, filterOp string, violations map[string]string) {
 	op := sqlfilters.OpEqual
 	if filterOp != "" {
 		var err error
 		op, err = Op(filterOp)
 		if err != nil {
-			slog.Error("invalid filter op", logAttr, slog.String("op", filterOp))
 			violations[name] = gocrud.ViolationType
 		}
 	}

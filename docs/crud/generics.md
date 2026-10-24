@@ -16,6 +16,7 @@ They are functions and not methods, because methods in Go cannot have type param
 | `Get[T](ctx, crud, GetOptions) ([]*T, error)` | `crud.Get(ctx, func() interface{} { return &T{} }, options)` |
 | `Load[T](ctx, crud, id, preload ...string) (*T, error)` | `crud.Load(ctx, &T{}, id, LoadOptions{Preload: preload})` |
 | `GetCount[T](ctx, crud, GetCountOptions) (uint64, error)` | `crud.GetCount(ctx, &T{}, options)` |
+| `InsertMultiple[T](ctx, crud, []*T, InsertMultipleOptions) error` | `crud.InsertMultiple(ctx, []interface{}{...}, options)`, see [InsertMultiple](ops.md#insertmultiple) |
 | `UpdateMultiple[T](ctx, crud, values, UpdateMultipleOptions) error` | `crud.UpdateMultiple(ctx, &T{}, values, options)` |
 | `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]interface{}, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
 | `Aggregate[T, R](ctx, crud, AggregateOptions) ([]*R, error)` | — the aggregated values of the objects, see [Reports](reports.md) |

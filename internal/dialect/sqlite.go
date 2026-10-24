@@ -20,6 +20,9 @@ func SQLiteTimeValue(t time.Time) string {
 
 func (SQLite) Placeholder(int) string { return "?" }
 
+// MaxPlaceholders returns the default SQLITE_MAX_VARIABLE_NUMBER of SQLite since 3.32.0.
+func (SQLite) MaxPlaceholders() int { return 32766 }
+
 func (SQLite) IDColumn(uuid bool) string {
 	if uuid {
 		return "TEXT PRIMARY KEY"

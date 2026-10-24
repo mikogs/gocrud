@@ -1069,3 +1069,41 @@ func TestSQLVersionQueries(t *testing.T) {
 		}
 	}
 }
+
+type WideRow struct {
+	ID uint64
+
+	F01, F02, F03, F04, F05, F06, F07, F08, F09, F10 string
+	F11, F12, F13, F14, F15, F16, F17, F18, F19, F20 string
+	F21, F22, F23, F24, F25, F26, F27, F28, F29, F30 string
+	F31, F32, F33, F34, F35, F36, F37, F38, F39, F40 string
+}
+
+type Memo struct {
+	ID    string
+	Title string
+}
+
+func TestSQLInsertRows(t *testing.T) {
+	for _, test := range []struct {
+		obj     interface{}
+		dialect string
+		want    string
+		limit   int
+	}{
+		{&VersionedDoc{}, DialectPostgres, `INSERT INTO "versioned_doc"("title","version") VALUES ($1,$2),($3,$4) RETURNING "id";`, 1000},
+		{&VersionedDoc{}, DialectSQLite, `INSERT INTO "versioned_doc"("title","version") VALUES (?,?),(?,?) RETURNING "id";`, 1000},
+		{&Memo{}, DialectSQLite, `INSERT INTO "memo"("id","title") VALUES (?,?),(?,?);`, 1000},
+		// 40 columns without the ID, of which SQLite takes the values of fewer than 1000 rows
+		{&WideRow{}, DialectSQLite, "", 32766 / 40},
+		{&WideRow{}, DialectPostgres, "", 1000},
+	} {
+		h := mustNew(t, test.obj, Options{Dialect: test.dialect})
+		if got := h.InsertRows(2); test.want != "" && got != test.want {
+			t.Fatalf("%s:\nwant %v\ngot  %v", test.dialect, test.want, got)
+		}
+		if got := h.InsertRowsLimit(); got != test.limit {
+			t.Fatalf("InsertRowsLimit of %T in %s returned %d, want %d", test.obj, test.dialect, got, test.limit)
+		}
+	}
+}

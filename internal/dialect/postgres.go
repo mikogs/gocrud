@@ -14,6 +14,9 @@ type Postgres struct{}
 
 func (Postgres) Placeholder(n int) string { return fmt.Sprintf("$%d", n) }
 
+// MaxPlaceholders returns the limit of the protocol of PostgreSQL, which sends the number of values in 16 bits.
+func (Postgres) MaxPlaceholders() int { return 65535 }
+
 func (Postgres) IDColumn(uuid bool) string {
 	if uuid {
 		return "UUID PRIMARY KEY"

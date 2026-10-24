@@ -40,6 +40,32 @@ type SaveOptions struct {
 
 When the struct has the `CreatedAt`, `CreatedBy`, `ModifiedAt` and `ModifiedBy` fields, `Save` fills them in. The creation fields are set only when the object is inserted, and are never changed by an update. See [Creation and modification fields](../struct.md#4-creation-and-modification-fields).
 
+## InsertMultiple
+
+`InsertMultiple` inserts many new objects of the same type with a few queries, e.g. when importing data, instead of a query per object:
+
+```go
+func (c *CRUD) InsertMultiple(ctx context.Context, objs []interface{}, options InsertMultipleOptions) error
+func InsertMultiple[T any](ctx context.Context, c *CRUD, objs []*T, options InsertMultipleOptions) error
+
+type InsertMultipleOptions struct {
+    ModifiedBy interface{} // as in SaveOptions
+    ModifiedAt time.Time   // as in SaveOptions, the current time when zero
+}
+```
+
+```go
+users := []*User{{Email: "a@example.com"}, {Email: "b@example.com"}}
+err := gocrud.InsertMultiple(ctx, crud, users, gocrud.InsertMultipleOptions{})
+// users[0].ID and users[1].ID are set
+```
+
+* **Each object** is prepared as a new object in `Save`: it is validated, gets a UUID for a `string` ID, its creation and modification fields, version `1` for a [version field](../struct.md#10-version), and its passwords are hashed. A `string` ID that is set is inserted, e.g. a UUID from another system. A `uint64` ID has to be `0`, as the database assigns it, otherwise the object fails with `gocrud.ErrInvalidID`.
+* **The queries** insert up to 1000 rows each, fewer when the rows have more values than the database takes in a query: 65535 in PostgreSQL, and 32766 in SQLite. They run in a transaction, or in the transaction of a `CRUD` of `RunInTx` or `WithTx`, so that all the objects are inserted, or none.
+* **The IDs** that the database assigns are set on the objects, in their order, and their password fields are empty, as after `Save`.
+* **An error** leaves the objects as they were, e.g. without IDs and with their passwords, so that they can be fixed and inserted again. The error of an object, e.g. a [validation error](../struct.md#validation-errors), is a `*gocrud.ObjectError`, whose `Index` is the index of the object, and which matches the error of the object, e.g. with `errors.As(err, &validationErr)`. A duplicate value is a [`UniqError`](#errors), of no particular object.
+* **Not done:** the `GetCountOnUniq` check of unique fields, as the `UNIQUE` constraints find the duplicates. A struct with its own [`InsertQuery`](custom-queries.md#query-methods) is inserted with it, one object at a time, in the transaction. Objects of different types are an error that matches `gocrud.ErrInsertMultiple`.
+
 ## Delete
 
 The `Delete` method removes a record from the database based on the identifier within the provided object.
@@ -522,6 +548,8 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `*gocrud.UniqError` | a unique field already has the value, see below |
 | `gocrud.ErrForeignKeyViolation` | a foreign key is violated, see [Relations](relations.md#violations) |
 | `gocrud.ErrNotFound` | `Load[T]` did not find the object, or `Save` with `NoInsert` did not find the object to update |
+| `*gocrud.ObjectError` | one of the objects of [`InsertMultiple`](#insertmultiple) failed, e.g. with a `ValidationError`, see its `Index` |
+| `gocrud.ErrInsertMultiple` | `InsertMultiple` of objects of different types |
 | `gocrud.ErrVersionConflict` | `Save` of an object whose [version](../struct.md#10-version) is not the stored one, as the object was changed since it was loaded |
 | `gocrud.ErrAggregate` | a result struct or options of [`Aggregate`](reports.md) cannot be used |
 | `gocrud.ErrInvalidOrder` | `Order` of `Get` has a field that does not exist, a password field, a path through a field that is not a belongs-to relation, or an odd number of elements |

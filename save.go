@@ -58,23 +58,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	objID := ObjIDValue(obj)
 
 	if builder.HasModificationFields() {
-		modifiedAt := options.ModifiedAt
-		if modifiedAt.IsZero() {
-			// databases store times with a precision of up to microseconds
-			modifiedAt = time.Now().Truncate(time.Microsecond)
-		}
-		modifiedAt = modifiedAt.UTC()
-
-		if err := setObjModified(obj, modifiedAt, options.ModifiedBy); err != nil {
-			return getCRUDFuncCRUDError("set modification fields", err)
-		}
-
-		// Creation fields are never updated in the database. They are set when the object is inserted, and when
-		// they are empty, as "upsert" inserts the object when it does not exist in the database.
-		if isNew || objFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
-			if err := setObjCreated(obj, modifiedAt, options.ModifiedBy); err != nil {
-				return getCRUDFuncCRUDError("set creation fields", err)
-			}
+		if err := setModificationFields(obj, isNew, modificationTime(options.ModifiedAt), options.ModifiedBy); err != nil {
+			return err
 		}
 	}
 
@@ -93,20 +78,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		}
 	}()
 
-	for _, passField := range passFields {
-		password := objFieldValue(obj, passField).(string)
-		// an empty password is not hashed: an update keeps the stored password, and a new object has no password
-		// that can be verified
-		if password == "" {
-			continue
-		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			return passwordHashError(passField, err)
-		}
-
-		passwords[passField] = password
-		setObjStringField(obj, passField, string(hash))
+	if err := hashObjPasswords(obj, passFields, passwords); err != nil {
+		return err
 	}
 
 	if c.flags&GetCountOnUniq > 0 {
@@ -225,30 +198,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		return nil
 	}
 
-	var query string
-	if inserterImpl, ok := obj.(insertQueryBuilder); ok {
-		query, err = inserterImpl.InsertQuery()
-		if err != nil {
-			return getObjFuncCRUDError("insert query", err)
-		}
-	} else {
-		query = builder.Insert()
-	}
-
-	// the ID, the first column, is inserted only when it is a UUID, which is generated before
-	insertIndexes := columnIndexes
-	if !builder.HasUUID() {
-		insertIndexes = columnIndexes[1:]
-	}
-	err = c.conn.QueryRowContext(ctx, query, c.args(objArgs(obj, insertIndexes, builder.FieldKinds()))...).Scan(idPointer)
-	if err != nil {
-		if uniqErr := checkUniqueErr(builder, err); uniqErr != nil {
-			return uniqErr
-		}
-		return getDBFuncCRUDError("query row", err)
-	}
-
-	return nil
+	return c.insertObj(ctx, builder, obj)
 }
 
 // setObjUUID sets the ID of a new object to a new UUIDv7, which starts with the time, so that new rows are added at
@@ -342,4 +292,48 @@ func setVersion(version reflect.Value, number uint64) {
 		return
 	}
 	version.SetUint(number)
+}
+
+// modificationTime returns the time of a change, modifiedAt, or the current time when it is zero, in UTC.
+func modificationTime(modifiedAt time.Time) time.Time {
+	if modifiedAt.IsZero() {
+		// databases store times with a precision of up to microseconds
+		modifiedAt = time.Now().Truncate(time.Microsecond)
+	}
+	return modifiedAt.UTC()
+}
+
+func setModificationFields(obj interface{}, isNew bool, modifiedAt time.Time, modifiedBy interface{}) error {
+	if err := setObjModified(obj, modifiedAt, modifiedBy); err != nil {
+		return getCRUDFuncCRUDError("set modification fields", err)
+	}
+
+	// Creation fields are never updated in the database. They are set when the object is inserted, and when
+	// they are empty, as "upsert" inserts the object when it does not exist in the database.
+	if isNew || objFieldValue(obj, "CreatedAt").(time.Time).IsZero() {
+		if err := setObjCreated(obj, modifiedAt, modifiedBy); err != nil {
+			return getCRUDFuncCRUDError("set creation fields", err)
+		}
+	}
+	return nil
+}
+
+// hashObjPasswords replaces the passwords of obj with their bcrypt hashes, and puts the passwords in passwords.
+func hashObjPasswords(obj interface{}, passFields []string, passwords map[string]string) error {
+	for _, passField := range passFields {
+		password := objFieldValue(obj, passField).(string)
+		// an empty password is not hashed: an update keeps the stored password, and a new object has no password
+		// that can be verified
+		if password == "" {
+			continue
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return passwordHashError(passField, err)
+		}
+
+		passwords[passField] = password
+		setObjStringField(obj, passField, string(hash))
+	}
+	return nil
 }

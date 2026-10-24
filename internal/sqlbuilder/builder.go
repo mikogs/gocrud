@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/mikogs/gocrud/internal/dialect"
 	"github.com/mikogs/gocrud/internal/sqlbuilder/where"
@@ -240,6 +241,37 @@ func (b *Builder) DropTable() string { return b.dropTable + ";" }
 func (b *Builder) CreateTable() string { return b.createTable + ";" }
 
 func (b *Builder) Insert() string { return b.insert + ";" }
+
+// maxInsertRows limits the rows of an INSERT of InsertRows, so that a query and its values stay small.
+const maxInsertRows = 1000
+
+// InsertRowsLimit returns the largest number of rows of an INSERT of InsertRows, which takes the values of the
+// inserted columns of each row.
+func (b *Builder) InsertRowsLimit() int {
+	return min(maxInsertRows, b.dialect.MaxPlaceholders()/len(b.insertColumns()))
+}
+
+// InsertRows returns an INSERT of rows rows, which takes the values of the columns without the ID of each row, and
+// returns their IDs, or of all the columns for a struct with a UUID, which is generated before.
+func (b *Builder) InsertRows(rows int) string {
+	columns := b.insertColumns()
+	values := make([]string, rows)
+	for i := range values {
+		values[i] = "(" + placeholders(b.dialect, i*len(columns)+1, len(columns)) + ")"
+	}
+	query := fmt.Sprintf("INSERT INTO %s(%s) VALUES %s", b.st.TableName, strings.Join(columns, ","), strings.Join(values, ","))
+	if !b.structInfo.UUID {
+		query += ` RETURNING "id"`
+	}
+	return query + ";"
+}
+
+func (b *Builder) insertColumns() []string {
+	if b.structInfo.UUID {
+		return b.st.ColumnNames
+	}
+	return b.st.ColumnNames[1:]
+}
 
 func (b *Builder) UpdateByID() string { return b.updateByID + ";" }
 

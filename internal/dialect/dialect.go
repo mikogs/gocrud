@@ -15,6 +15,8 @@ import (
 type Dialect interface {
 	// Placeholder returns the placeholder of the n-th value of a query, from 1, e.g. $1 or ?.
 	Placeholder(n int) string
+	// MaxPlaceholders returns the largest number of values of a query.
+	MaxPlaceholders() int
 	// IDColumn returns the definition of the column of the ID: a UUID for a string ID, and otherwise an integer that
 	// the database assigns.
 	IDColumn(uuid bool) string

@@ -11,9 +11,9 @@ import (
 )
 
 reg := registry.New(
-    map[string]func() interface{}{
-        "users":    func() interface{} { return &User{} },
-        "products": func() interface{} { return &Product{} },
+    map[string]func() any{
+        "users":    func() any { return &User{} },
+        "products": func() any { return &Product{} },
     },
     dbConn,
     gocrud.Options{Dialect: gocrud.DialectPostgres}, // or gocrud.DialectSQLite
@@ -22,7 +22,7 @@ reg := registry.New(
 
 `New` takes three arguments:
 
-* **registry** `map[string]func() interface{}` — maps string keys to constructor functions. Each function must return a pointer to a new zero-value struct.
+* **registry** `map[string]func() any` — maps string keys to constructor functions. Each function must return a pointer to a new zero-value struct.
 * **dbConn** `*sql.DB` — an open database connection.
 * **options** `gocrud.Options` — the [options](../crud/init.md#configuration-options) of the gocrud `CRUD` of the registry, e.g. the `QueryHook`. `Dialect` must be `gocrud.DialectPostgres` or `gocrud.DialectSQLite`; an empty or unrecognised value causes a panic at startup.
 
@@ -71,16 +71,14 @@ Saves `obj` to the database. If the `ID` is empty, `0` or `""`, an `INSERT` is p
 ### Read
 
 ```go
-obj, passwordFields, err := reg.Read(ctx, "users", id, nil, nil)
+obj, err := reg.Read(ctx, "users", id, nil)
 ```
 
 Loads a single record by `id`. Returns `ErrNotFound` if no record with that ID exists.
 
 The `id` is a number, or a decimal string, for an `ID` of type `uint64`, and a UUID for a `string` ID, so that the ID from a URL can be passed as it is. An ID of the wrong type, e.g. `abc` for a numeric ID, or a number for a UUID, returns `ErrInvalidID`.
 
-The fourth argument is an optional constructor (`func() interface{}`). When `nil` the key's registered constructor is used. Pass a non-nil constructor to load the record into a different struct type — for example a read-specific projection with fewer fields, which will generate a narrower `SELECT`.
-
-The fifth argument, `passFieldsToVerify`, maps a struct field name to a plaintext password to check against the stored hash. The returned `passwordFields` (`map[string]int`) holds `gocrud.PassOK` or `gocrud.PassInvalid` for each password field named in `passFieldsToVerify`; keys that do not name an actual password field are ignored.
+The fourth argument is an optional constructor (`func() any`). When `nil` the key's registered constructor is used. Pass a non-nil constructor to load the record into a different struct type — for example a read-specific projection with fewer fields, which will generate a narrower `SELECT`.
 
 ```go
 // The "_" suffix is stripped when deriving the table name:
@@ -90,18 +88,24 @@ type User_Summary struct {
     Email string
 }
 
-obj, _, err := reg.Read(ctx, "users", id, func() interface{} { return &User_Summary{} }, nil)
+obj, err := reg.Read(ctx, "users", id, func() any { return &User_Summary{} })
 ```
 
+---
+
+### VerifyPasswords
+
 ```go
-// Verify a login password while loading the user record:
-obj, passwordFields, err := reg.Read(ctx, "users", id, nil, map[string]string{
-    "Password": submittedPassword,
-})
-if err == nil && passwordFields["Password"] == gocrud.PassOK {
-    // password matches
+obj, ok, err := reg.VerifyPasswords(ctx, "users",
+    registry.Filters{Vals: map[string]string{"Email": submittedEmail}},
+    map[string]string{"Password": submittedPassword},
+)
+if err == nil && ok {
+    // obj is the user, without its password
 }
 ```
+
+Returns the record that matches the filters, e.g. the user with the e-mail of a login, and `true`, when it is the only one and all the passwords match the hashes of their fields. Otherwise it returns `nil` and `false`, in the same time whether such a record exists or not, see [VerifyPasswords](../crud/ops.md#verifypasswords). The filters are strings, as in [List](#list), and an invalid one is a `*FilterValidationError`.
 
 ---
 
@@ -118,7 +122,7 @@ Reads the record by `id`, of the same types as in `Read`, first (returning `ErrN
 ### List
 
 ```go
-objs, passwordFields, err := reg.List(ctx, "users", registry.ListOptions{
+objs, err := reg.List(ctx, "users", registry.ListOptions{
     Limit:          20,
     Order:          "Age",
     OrderDirection: "asc",
@@ -141,21 +145,20 @@ Returns a paginated, filtered, ordered list of objects for the given key. All fi
 | `OrderDirection` | `string` | `"asc"` or `"desc"` |
 | `After` | `string` | The cursor of `NextCursor`: the records after the record of the cursor, in the same order, see [Pages with cursors](../crud/ops.md#pages-with-cursors). It cannot be combined with an `Offset` |
 | `Filters` | `Filters` | The values and operators of the filters, see [Filters](#filters) |
-| `RowFunc` | `func(interface{}) interface{}` | Optional per-row transform; `nil` returns raw structs |
-| `Constructor` | `func() interface{}` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
-| `VerifyPasswordFields` | `map[string]string` | Optional passwords to verify, as in `Read`, when exactly one record is found |
+| `RowFunc` | `func(any) any` | Optional per-row transform; `nil` returns raw structs |
+| `Constructor` | `func() any` | Optional struct constructor; `nil` uses the key's registered constructor. Pass a non-nil value to scan rows into a different struct type (e.g. a list projection with fewer fields). |
 
 **Returns** `*FilterValidationError` on an unknown operator, an invalid filter name, a filter value that fails struct validation, an `Order` that is not a field, with the `type` violation for it, or a cursor that cannot be used, with the `type` violation of `after`.
 
 **The next page.** `reg.NextCursor(lastObj, order, orderDirection)` returns the cursor of the page after `lastObj`, the last record of a page, for `After`:
 
 ```go
-page, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc"})
+page, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc"})
 // ...
 if len(page) == 20 {
     after, err := reg.NextCursor(page[len(page)-1], "CreatedAt", "desc")
     // ...
-    next, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", After: after})
+    next, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", After: after})
 }
 ```
 
@@ -210,7 +213,7 @@ An empty `Filters{}` matches all the records.
 Values of `time.Time` fields can be written as RFC 3339 (`2024-05-01T10:30:00Z`) or as values of HTML date inputs (`2024-05-01`, `2024-05-01T10:30`), see [Times](../struct.md#3-times). For example, listing the meetings from a date picked by the user, for a request like `/meetings?from=2024-05-01`:
 
 ```go
-objs, _, err := reg.List(ctx, "meetings", registry.ListOptions{Limit: 50, Order: "StartsAt", OrderDirection: "asc", Filters: registry.Filters{
+objs, err := reg.List(ctx, "meetings", registry.ListOptions{Limit: 50, Order: "StartsAt", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"StartsAt": r.URL.Query().Get("from")},
     Ops:  map[string]string{"StartsAt": "ge"},
 }})
@@ -219,7 +222,7 @@ objs, _, err := reg.List(ctx, "meetings", registry.ListOptions{Limit: 50, Order:
 For a pointer field, an empty value is `NULL`: `eq` with an empty value lists the rows where the field is `NULL`, and `ne` the rows where it is not. For example, the open tasks for `/tasks?completed_at=`:
 
 ```go
-objs, _, err := reg.List(ctx, "tasks", registry.ListOptions{Limit: 50, Order: "DueAt", OrderDirection: "asc", Filters: registry.Filters{
+objs, err := reg.List(ctx, "tasks", registry.ListOptions{Limit: 50, Order: "DueAt", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"CompletedAt": r.URL.Query().Get("completed_at")},
     Ops:  map[string]string{"CompletedAt": "eq"},
 }})
@@ -233,7 +236,7 @@ A search box that looks for the text in the name or the email, of the customers 
 
 ```go
 text := "%" + r.URL.Query().Get("q") + "%"
-objs, _, err := reg.List(ctx, "customers", registry.ListOptions{Limit: 50, Order: "Name", OrderDirection: "asc", Filters: registry.Filters{
+objs, err := reg.List(ctx, "customers", registry.ListOptions{Limit: 50, Order: "Name", OrderDirection: "asc", Filters: registry.Filters{
     Vals: map[string]string{"City": "Warsaw", "Name~q": text, "Email~q": text},
     Ops:  map[string]string{"Name~q": "like", "Email~q": "like"},
 }})
@@ -250,7 +253,7 @@ Ops:  map[string]string{"Total~min": "ge", "Total~max": "lt"},
 **Scope.** `ScopeVals` and `ScopeOps` are conditions that every record has to match, e.g. that it belongs to the signed-in user. They are keyed by field name or path, without groups. They are joined with AND around all the other conditions, so `Vals` cannot match records outside the scope, even with a group, and a condition in `Vals` on the same field only narrows the result:
 
 ```go
-objs, _, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", Filters: registry.Filters{
+objs, err := reg.List(ctx, "notes", registry.ListOptions{Limit: 20, Order: "CreatedAt", OrderDirection: "desc", Filters: registry.Filters{
     Vals:      filterValsFromRequest, // anything the client sent
     Ops:       filterOpsFromRequest,
     ScopeVals: map[string]string{"UserID": userID},
@@ -299,13 +302,13 @@ Both `ModelValidationError` and `FilterValidationError` carry a `Violations map[
 ## Example
 
 ```go
-reg := registry.New(map[string]func() interface{}{
-    "users": func() interface{} { return &User{} },
-    "notes": func() interface{} { return &Note{} },
+reg := registry.New(map[string]func() any{
+    "users": func() any { return &User{} },
+    "notes": func() any { return &Note{} },
 }, dbConn, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 // In an HTTP handler, the notes of the user:
-objs, _, err := reg.List(ctx, "notes", registry.ListOptions{
+objs, err := reg.List(ctx, "notes", registry.ListOptions{
     Limit:          20,
     Order:          "CreatedAt",
     OrderDirection: "desc",

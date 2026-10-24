@@ -49,10 +49,10 @@ func createUUIDRelationTables(t *testing.T, crud *CRUD) *uuidRelationsData {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&UReview{}, &UComment{}, &UPost{}, &UAuthor{}} {
+	for _, obj := range []any{&UReview{}, &UComment{}, &UPost{}, &UAuthor{}} {
 		_ = crud.DropTable(ctx, obj)
 	}
-	for _, obj := range []interface{}{&UAuthor{}, &UPost{}, &UComment{}, &UReview{}} {
+	for _, obj := range []any{&UAuthor{}, &UPost{}, &UComment{}, &UReview{}} {
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed for %T: %s", obj, err.Error())
 		}
@@ -138,7 +138,7 @@ func testUUIDRelationsKeys(t *testing.T, crud *CRUD) {
 	fatalIfNotViolations(t, err, map[string]string{"EditorID": ViolationType})
 
 	upperAliceID := strings.ToUpper(data.alice.ID)
-	err = UpdateMultiple[UPost](ctx, crud, map[string]interface{}{"EditorID": &upperAliceID}, UpdateMultipleOptions{
+	err = UpdateMultiple[UPost](ctx, crud, map[string]any{"EditorID": &upperAliceID}, UpdateMultipleOptions{
 		Filters: sqlfilters.Filters{"Title": {Op: sqlfilters.OpEqual, Val: "third"}},
 	})
 	if err != nil {

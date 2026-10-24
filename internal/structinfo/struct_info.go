@@ -72,7 +72,7 @@ type StructInfo struct {
 
 // New returns information on the obj struct fields, read from their tagName tags.
 // The first field that is stored in the database must be "ID" of type uint64 or string.
-func New(obj interface{}, tagName string) (*StructInfo, error) {
+func New(obj any, tagName string) (*StructInfo, error) {
 	structInfo := &StructInfo{}
 
 	objValue := reflect.ValueOf(obj)

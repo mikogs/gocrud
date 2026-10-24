@@ -64,7 +64,7 @@ func TestNew_Relations(t *testing.T) {
 		t.Fatalf("New returned column field names %v, want %v", info.ColumnFieldNames, wantColumns)
 	}
 
-	for _, obj := range []interface{}{&relCustomer{}, &relCategory{}} {
+	for _, obj := range []any{&relCustomer{}, &relCategory{}} {
 		if _, err := New(obj, "crud"); err != nil {
 			t.Fatalf("New failed for %T: %s", obj, err.Error())
 		}
@@ -116,7 +116,7 @@ func TestNew_InvalidRelations(t *testing.T) {
 		OrderID string
 	}
 
-	tests := map[string]interface{}{
+	tests := map[string]any{
 		"on a column": &struct {
 			ID         uint64
 			CustomerID uint64 `crud:"rel:CustomerID"`

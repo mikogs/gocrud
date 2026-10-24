@@ -40,7 +40,7 @@ type insertQueryBuilder interface {
 }
 
 type updateQueryBuilder interface {
-	UpdateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error)
+	UpdateQuery(values map[string]any, filters sqlfilters.Filter) (string, error)
 }
 
 type createTableQueryBuilder interface {
@@ -67,7 +67,7 @@ var queryMethodInterfaces = map[string]reflect.Type{
 
 // checkQueryMethods returns an error when obj has a query method with a signature other than the one gocrud calls,
 // which would be ignored otherwise.
-func checkQueryMethods(obj interface{}) error {
+func checkQueryMethods(obj any) error {
 	objType := reflect.TypeOf(obj)
 	for name, iface := range queryMethodInterfaces {
 		if _, ok := objType.MethodByName(name); ok && !objType.Implements(iface) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/mikogs/gocrud"
@@ -21,40 +22,46 @@ type PasswordStruct_Touch struct {
 	Name string `validate:"required,min=1,max=100"`
 }
 
-func TestList_VerifyPasswordFields(t *testing.T) {
+func TestVerifyPasswords(t *testing.T) {
 	recreatePasswordStructTable()
+	ctx := context.Background()
 
 	obj := &PasswordStruct{Name: "erin", Password: "correct-horse"}
-	if err := testCRUD.Save(context.Background(), obj, gocrud.SaveOptions{}); err != nil {
+	if err := testCRUD.Save(ctx, obj, gocrud.SaveOptions{}); err != nil {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
+	byName := Filters{Vals: map[string]string{"Name": "erin"}}
 
-	results, passwordFields, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Name": "erin"}}, VerifyPasswordFields: map[string]string{
-		"Password": "correct-horse",
-		"Name":     "erin",
-	}})
-	if err != nil {
-		t.Fatalf("List failed: %s", err.Error())
+	verifiedObj, verified, err := testService.VerifyPasswords(ctx, "passwordstruct", byName, map[string]string{"Password": "correct-horse"})
+	if err != nil || !verified || verifiedObj.(*PasswordStruct).ID != obj.ID || verifiedObj.(*PasswordStruct).Password != "" {
+		t.Fatalf("VerifyPasswords of the password returned %v, %t, %v, want the record without its password", verifiedObj, verified, err)
 	}
-	if len(results) != 1 {
-		t.Fatalf("List: expected 1 result, got %d", len(results))
-	}
-	if got := passwordFields["Password"]; got != gocrud.PassOK {
-		t.Errorf("expected PassOK for correct password, got %d", got)
-	}
-	if _, ok := passwordFields["Name"]; ok {
-		t.Errorf("expected no entry for non-password field, got %d", passwordFields["Name"])
-	}
-	if ps := results[0].(*PasswordStruct); ps.Password != "" {
-		t.Errorf("List: expected password field to be empty, got %q", ps.Password)
+	byID := Filters{Vals: map[string]string{"ID": strconv.FormatUint(obj.ID, 10)}}
+	if _, verified, err := testService.VerifyPasswords(ctx, "passwordstruct", byID, map[string]string{"Password": "correct-horse"}); err != nil || !verified {
+		t.Fatalf("VerifyPasswords by the ID, as a string, returned %t, %v, want true", verified, err)
 	}
 
-	_, passwordFields2, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Name": "erin"}}, VerifyPasswordFields: map[string]string{"Password": "wrong-password"}})
-	if err != nil {
-		t.Fatalf("List failed: %s", err.Error())
+	for name, test := range map[string]struct {
+		key       string
+		filters   Filters
+		passwords map[string]string
+		wantErr   error
+	}{
+		"another password": {"passwordstruct", byName, map[string]string{"Password": "wrong-password"}, nil},
+		"no record":        {"passwordstruct", Filters{Vals: map[string]string{"Name": "nobody"}}, map[string]string{"Password": "correct-horse"}, nil},
+		"an unknown key":   {"unknown", byName, map[string]string{"Password": "correct-horse"}, ErrInvalidKey},
+		"no passwords":     {"passwordstruct", byName, map[string]string{}, gocrud.ErrVerifyPasswords},
+	} {
+		obj, verified, err := testService.VerifyPasswords(ctx, test.key, test.filters, test.passwords)
+		if obj != nil || verified || !errors.Is(err, test.wantErr) || test.wantErr == nil && err != nil {
+			t.Fatalf("VerifyPasswords with %s returned %v, %t, %v, want nil, false and %v", name, obj, verified, err, test.wantErr)
+		}
 	}
-	if got := passwordFields2["Password"]; got != gocrud.PassInvalid {
-		t.Errorf("expected PassInvalid for wrong password, got %d", got)
+
+	_, _, err = testService.VerifyPasswords(ctx, "passwordstruct", Filters{Vals: map[string]string{"ID": "x"}}, map[string]string{"Password": "correct-horse"})
+	var filterErr *FilterValidationError
+	if !errors.As(err, &filterErr) || filterErr.Violations["ID"] != gocrud.ViolationType {
+		t.Fatalf("VerifyPasswords with an invalid filter returned %v, want a FilterValidationError", err)
 	}
 }
 
@@ -74,14 +81,14 @@ func TestCreateTables_SkipsUnderscoreProjections(t *testing.T) {
 func TestList_PasswordFilter(t *testing.T) {
 	recreatePasswordStructTable()
 
-	_, _, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Password": "$2a$%"}, Ops: map[string]string{"Password": "like"}}})
+	_, err := testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Password": "$2a$%"}, Ops: map[string]string{"Password": "like"}}})
 
 	var validationErr *FilterValidationError
 	if !errors.As(err, &validationErr) || !reflect.DeepEqual(validationErr.Violations, map[string]string{"Password": gocrud.ViolationPassword}) {
 		t.Fatalf("List with a filter on a password returned %v, want %v with the violation %s", err, &FilterValidationError{}, gocrud.ViolationPassword)
 	}
 
-	_, _, err = testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Order: "Password", OrderDirection: "asc"})
+	_, err = testService.List(context.Background(), "passwordstruct", ListOptions{Limit: 10, Order: "Password", OrderDirection: "asc"})
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("List ordered by a password returned %v, want %v", err, &FilterValidationError{})
 	}

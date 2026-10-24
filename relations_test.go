@@ -67,7 +67,7 @@ func testRelationFields(t *testing.T, crud *CRUD) {
 		t.Fatalf("Load returned %+v, want the columns only", *loaded)
 	}
 
-	err = UpdateMultiple[RelOrder](ctx, crud, map[string]interface{}{"Status": "paid"}, UpdateMultipleOptions{
+	err = UpdateMultiple[RelOrder](ctx, crud, map[string]any{"Status": "paid"}, UpdateMultipleOptions{
 		Filters: &sqlfilters.Filters{"CustomerID": {Op: sqlfilters.OpIn, Val: []uint64{7}}},
 	})
 	if err != nil {

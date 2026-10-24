@@ -88,7 +88,7 @@ func testFilterGroupsUpdateAndDelete(t *testing.T, crud *CRUD) {
 	createShipments(t, crud)
 	ctx := context.Background()
 
-	err := UpdateMultiple[Shipment](ctx, crud, map[string]interface{}{"Status": "paid"}, UpdateMultipleOptions{
+	err := UpdateMultiple[Shipment](ctx, crud, map[string]any{"Status": "paid"}, UpdateMultipleOptions{
 		Filters: sqlfilters.Or(
 			sqlfilters.Filters{"Weight": {Op: sqlfilters.OpEqual, Val: 1}},
 			sqlfilters.Filters{"Carrier": {Op: sqlfilters.OpEqual, Val: "ups"}},
@@ -108,7 +108,7 @@ func testFilterGroupsUpdateAndDelete(t *testing.T, crud *CRUD) {
 		),
 	})
 	sort.Slice(deletedIDs, func(i, j int) bool { return deletedIDs[i].(uint64) < deletedIDs[j].(uint64) })
-	if err != nil || !reflect.DeepEqual(deletedIDs, []interface{}{uint64(1), uint64(4)}) {
+	if err != nil || !reflect.DeepEqual(deletedIDs, []any{uint64(1), uint64(4)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want [1 4]", deletedIDs, err)
 	}
 	fatalIfNotShipments(t, crud, GetOptions{}, []uint64{2, 3})

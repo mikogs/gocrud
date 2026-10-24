@@ -78,9 +78,9 @@ type Note struct {
 }
 
 func NewService(db *sql.DB) *registry.CRUD {
-    return registry.New(map[string]func() interface{}{
-        "users": func() interface{} { return &User{} },
-        "notes": func() interface{} { return &Note{} },
+    return registry.New(map[string]func() any{
+        "users": func() any { return &User{} },
+        "notes": func() any { return &Note{} },
     }, db, gocrud.Options{Dialect: gocrud.DialectSQLite})
 }
 ```

@@ -149,7 +149,7 @@ func testUUIDLoadAndDelete(t *testing.T, crud *CRUD) {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 
-	for _, id := range []interface{}{ticket.ID, strings.ToUpper(ticket.ID), uuid.MustParse(ticket.ID)} {
+	for _, id := range []any{ticket.ID, strings.ToUpper(ticket.ID), uuid.MustParse(ticket.ID)} {
 		loaded, err := Load[Ticket](ctx, crud, id)
 		if err != nil || loaded.ID != ticket.ID || loaded.Title != "load me" {
 			t.Fatalf("Load(%v) returned %+v, %v, want the ticket", id, loaded, err)
@@ -159,7 +159,7 @@ func testUUIDLoadAndDelete(t *testing.T, crud *CRUD) {
 	if _, err := Load[Ticket](ctx, crud, uuid.NewString()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Load of an ID that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-	for _, id := range []interface{}{"42", 42} {
+	for _, id := range []any{"42", 42} {
 		if _, err := Load[Ticket](ctx, crud, id); !errors.Is(err, ErrInvalidID) {
 			t.Fatalf("Load(%#v) returned %v, want %v", id, err, ErrInvalidID)
 		}
@@ -190,7 +190,7 @@ func testUUIDDeleteMultiple(t *testing.T, crud *CRUD) {
 		Filters: sqlfilters.Filters{"ID": {Op: sqlfilters.OpIn, Val: []string{strings.ToUpper(ids[0]), ids[2]}}},
 	})
 	sort.Slice(deleted, func(i, j int) bool { return deleted[i].(string) < deleted[j].(string) })
-	if err != nil || !reflect.DeepEqual(deleted, []interface{}{ids[0], ids[2]}) {
+	if err != nil || !reflect.DeepEqual(deleted, []any{ids[0], ids[2]}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want [%s %s]", deleted, err, ids[0], ids[2])
 	}
 }

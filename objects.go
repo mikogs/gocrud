@@ -16,9 +16,9 @@ import (
 
 // objFieldPointers returns pointers to the fields of obj at indexes, in the same order, e.g. for Scan and the values of
 // queries. The pointers are put in pointers when it has the length of indexes, so that it can be reused for every row.
-func objFieldPointers(obj interface{}, indexes []int, pointers []interface{}) []interface{} {
+func objFieldPointers(obj any, indexes []int, pointers []any) []any {
 	if len(pointers) != len(indexes) {
-		pointers = make([]interface{}, len(indexes))
+		pointers = make([]any, len(indexes))
 	}
 
 	objValue := reflect.ValueOf(obj).Elem()
@@ -30,7 +30,7 @@ func objFieldPointers(obj interface{}, indexes []int, pointers []interface{}) []
 
 // objScanPointers returns the destinations of Scan for the fields of obj at indexes, as objFieldPointers, except for
 // the fields that database/sql cannot scan into on its own, by their kinds, which are Builder.FieldKinds.
-func objScanPointers(obj interface{}, indexes []int, kinds []sqlbuilder.FieldKind, pointers []interface{}) []interface{} {
+func objScanPointers(obj any, indexes []int, kinds []sqlbuilder.FieldKind, pointers []any) []any {
 	pointers = objFieldPointers(obj, indexes, pointers)
 	if kinds == nil {
 		return pointers
@@ -50,7 +50,7 @@ func objScanPointers(obj interface{}, indexes []int, kinds []sqlbuilder.FieldKin
 
 // objArgs returns the values of the fields of obj at indexes for a query, as objFieldPointers, except for the fields
 // that database/sql cannot write on its own, by their kinds, which are Builder.FieldKinds.
-func objArgs(obj interface{}, indexes []int, kinds []sqlbuilder.FieldKind) []interface{} {
+func objArgs(obj any, indexes []int, kinds []sqlbuilder.FieldKind) []any {
 	args := objFieldPointers(obj, indexes, nil)
 	if kinds == nil {
 		return args
@@ -93,7 +93,7 @@ type jsonScanner struct {
 	field reflect.Value
 }
 
-func (s jsonScanner) Scan(src interface{}) error {
+func (s jsonScanner) Scan(src any) error {
 	var data []byte
 	switch v := src.(type) {
 	case nil:
@@ -145,7 +145,7 @@ type namedBoolScanner struct {
 	field reflect.Value
 }
 
-func (s namedBoolScanner) Scan(src interface{}) error {
+func (s namedBoolScanner) Scan(src any) error {
 	field := s.field
 	if src == nil {
 		if field.Kind() != reflect.Pointer {
@@ -169,7 +169,7 @@ func (s namedBoolScanner) Scan(src interface{}) error {
 
 // timeFieldsToUTC converts the values of the time fields of obj at indexes to UTC. Databases return times in
 // different time zones, such as the time zone of the database session.
-func timeFieldsToUTC(obj interface{}, indexes []int) {
+func timeFieldsToUTC(obj any, indexes []int) {
 	objValue := reflect.ValueOf(obj).Elem()
 	for _, index := range indexes {
 		field := objValue.Field(index)
@@ -183,14 +183,14 @@ func timeFieldsToUTC(obj interface{}, indexes []int) {
 	}
 }
 
-func objIDInterface(obj interface{}) interface{} {
+func objIDInterface(obj any) any {
 	return reflect.ValueOf(obj).Elem().FieldByName(IDField).Addr().Interface()
 }
 
 // ObjSetIDValue sets the ID of obj. For an ID of type uint64, id is a non-negative integer or a decimal string, and
 // for a string ID, a UUID. nil clears the ID, so that the object is inserted as a new one. Otherwise, it returns an
 // error that matches ErrInvalidID.
-func ObjSetIDValue(obj interface{}, id interface{}) error {
+func ObjSetIDValue(obj any, id any) error {
 	idField := reflect.ValueOf(obj).Elem().FieldByName(IDField)
 	if id == nil {
 		idField.Set(reflect.Zero(idField.Type()))
@@ -208,7 +208,7 @@ func ObjSetIDValue(obj interface{}, id interface{}) error {
 
 // idValue returns id as the value of an ID field: a UUID in its standard form for a string ID, and a uint64
 // otherwise.
-func idValue(isUUID bool, id interface{}) (interface{}, error) {
+func idValue(isUUID bool, id any) (any, error) {
 	if isUUID {
 		var text string
 		switch id := id.(type) {
@@ -245,7 +245,7 @@ func idValue(isUUID bool, id interface{}) (interface{}, error) {
 
 // zeroPasswordFields clears the password fields of obj at indexes, so that bcrypt hashes are never returned from
 // read operations.
-func zeroPasswordFields(obj interface{}, indexes []int) {
+func zeroPasswordFields(obj any, indexes []int) {
 	if len(indexes) == 0 {
 		return
 	}
@@ -256,16 +256,16 @@ func zeroPasswordFields(obj interface{}, indexes []int) {
 }
 
 // ObjIDValue returns the ID of obj: a uint64, or a string with a UUID.
-func ObjIDValue(obj interface{}) interface{} {
+func ObjIDValue(obj any) any {
 	return reflect.ValueOf(obj).Elem().FieldByName(IDField).Interface()
 }
 
 // ObjIDIsZero checks if the ID of obj is not set, i.e. 0 or an empty string, as in an object that is not saved.
-func ObjIDIsZero(obj interface{}) bool {
+func ObjIDIsZero(obj any) bool {
 	return reflect.ValueOf(obj).Elem().FieldByName(IDField).IsZero()
 }
 
-func objFieldValue(obj interface{}, fieldName string) interface{} {
+func objFieldValue(obj any, fieldName string) any {
 	if obj == nil || fieldName == "" {
 		return nil
 	}
@@ -329,7 +329,7 @@ func objFieldValue(obj interface{}, fieldName string) interface{} {
 }
 
 // zeroObjFields sets all the exported fields of obj to their zero values.
-func zeroObjFields(obj interface{}) {
+func zeroObjFields(obj any) {
 	val := reflect.ValueOf(obj).Elem()
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
@@ -340,20 +340,20 @@ func zeroObjFields(obj interface{}) {
 }
 
 // setObjCreated sets CreatedAt and CreatedBy. by is the ID of the user, see setObjBy.
-func setObjCreated(obj interface{}, at time.Time, by interface{}) error {
+func setObjCreated(obj any, at time.Time, by any) error {
 	reflect.ValueOf(obj).Elem().FieldByName("CreatedAt").Set(reflect.ValueOf(at))
 	return setObjBy(obj, "CreatedBy", by)
 }
 
 // setObjModified sets ModifiedAt and ModifiedBy. by is the ID of the user, see setObjBy.
-func setObjModified(obj interface{}, at time.Time, by interface{}) error {
+func setObjModified(obj any, at time.Time, by any) error {
 	reflect.ValueOf(obj).Elem().FieldByName("ModifiedAt").Set(reflect.ValueOf(at))
 	return setObjBy(obj, "ModifiedBy", by)
 }
 
 // setObjBy sets a field with the ID of a user: a non-negative integer for a uint64 field, and a string for a string
 // field. nil sets the zero value. Otherwise, it returns an error that matches ErrInvalidID.
-func setObjBy(obj interface{}, fieldName string, by interface{}) error {
+func setObjBy(obj any, fieldName string, by any) error {
 	field := reflect.ValueOf(obj).Elem().FieldByName(fieldName)
 	if by == nil {
 		field.Set(reflect.Zero(field.Type()))
@@ -377,6 +377,6 @@ func setObjBy(obj interface{}, fieldName string, by interface{}) error {
 	return nil
 }
 
-func setObjStringField(obj interface{}, passField, hashField string) {
+func setObjStringField(obj any, passField, hashField string) {
 	reflect.ValueOf(obj).Elem().FieldByName(passField).SetString(hashField)
 }

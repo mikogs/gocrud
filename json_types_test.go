@@ -115,7 +115,7 @@ func testJSONTypes(t *testing.T, crud *CRUD) {
 	}
 
 	reused := &JSONItem{Labels: map[string]string{"stale": "x"}}
-	if _, err := crud.Load(ctx, reused, item.ID, LoadOptions{}); err != nil {
+	if err := crud.Load(ctx, reused, item.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if !reflect.DeepEqual(reused.Address, item.Address) || !reflect.DeepEqual(reused.Tags, item.Tags) ||
@@ -124,7 +124,7 @@ func testJSONTypes(t *testing.T, crud *CRUD) {
 		t.Fatalf("Load returned %+v, want %+v", reused, item)
 	}
 
-	err = UpdateMultiple[JSONItem](ctx, crud, map[string]interface{}{
+	err = UpdateMultiple[JSONItem](ctx, crud, map[string]any{
 		"Labels":   map[string]string{"x": "y"},
 		"Previous": (*Address)(nil),
 		"Due":      sql.NullTime{Time: due.Add(2 * time.Hour), Valid: true},
@@ -143,7 +143,7 @@ func testJSONTypes(t *testing.T, crud *CRUD) {
 		t.Fatal("UpdateMultiple stored Due as another time")
 	}
 
-	err = UpdateMultiple[JSONItem](ctx, crud, map[string]interface{}{"Tags": "a"}, UpdateMultipleOptions{})
+	err = UpdateMultiple[JSONItem](ctx, crud, map[string]any{"Tags": "a"}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"Tags": ViolationType})
 
 	_, err = Get[JSONItem](ctx, crud, GetOptions{Filters: sqlfilters.Filters{"Address": {Op: sqlfilters.OpEqual, Val: item.Address}}})
@@ -157,7 +157,7 @@ func testJSONTypes(t *testing.T, crud *CRUD) {
 
 // jsonEqual compares JSON as values, as JSONB columns do not keep the spaces and the order of keys.
 func jsonEqual(a, b []byte) bool {
-	var aValue, bValue interface{}
+	var aValue, bValue any
 	return json.Unmarshal(a, &aValue) == nil && json.Unmarshal(b, &bValue) == nil && reflect.DeepEqual(aValue, bValue)
 }
 

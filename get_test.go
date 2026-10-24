@@ -61,13 +61,13 @@ func testGet(t *testing.T, crud *CRUD) {
 func testGetRowObjTransformFunc(t *testing.T, crud *CRUD) {
 	recreateTestStructs(t, crud, 2, func(int) *fixtures.TestStruct { return fixtures.TestStructWithData() })
 
-	rows, _, err := crud.Get(context.Background(), func() interface{} { return &fixtures.TestStruct{} }, GetOptions{
+	rows, err := crud.Get(context.Background(), func() any { return &fixtures.TestStruct{} }, GetOptions{
 		Order: []string{"ID", "asc"},
-		RowObjTransformFunc: func(obj interface{}) interface{} {
+		RowObjTransformFunc: func(obj any) any {
 			return fmt.Sprintf("%d:%s", obj.(*fixtures.TestStruct).ID, obj.(*fixtures.TestStruct).FirstName)
 		},
 	})
-	if err != nil || !reflect.DeepEqual(rows, []interface{}{"1:John", "2:John"}) {
+	if err != nil || !reflect.DeepEqual(rows, []any{"1:John", "2:John"}) {
 		t.Fatalf("Get returned %v, %v, want the transformed rows", rows, err)
 	}
 }
@@ -100,7 +100,7 @@ func testUpdateMultiple(t *testing.T, crud *CRUD) {
 	recreateTwentyTestStructs(t, crud)
 	ctx := context.Background()
 
-	err := UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]interface{}{"PrimaryEmail": "new@example.com", "Age": 98}, UpdateMultipleOptions{
+	err := UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]any{"PrimaryEmail": "new@example.com", "Age": 98}, UpdateMultipleOptions{
 		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "another@example.com"}},
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func testUpdateMultiple(t *testing.T, crud *CRUD) {
 		t.Fatalf("UpdateMultiple updated %d objects, want 10", cnt)
 	}
 
-	err = UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]interface{}{"FirstName": "x", "Age": "notanint"}, UpdateMultipleOptions{})
+	err = UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]any{"FirstName": "x", "Age": "notanint"}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"FirstName": "min", "Age": ViolationType})
 
 	if cnt, _ := GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{Filters: sqlfilters.Filters{"FirstName": {Op: sqlfilters.OpEqual, Val: "John"}}}); cnt != 20 {

@@ -3,7 +3,6 @@ package gocrud
 import (
 	"bytes"
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
@@ -38,19 +37,12 @@ func testPasswordVerificationTime(t *testing.T, crud *CRUD) {
 		savePasswordStruct(t, crud, obj, SaveOptions{})
 	}
 
-	load := func(id uint64, password string) map[string]int {
-		verified, err := crud.Load(ctx, &PasswordStruct{}, id, LoadOptions{VerifyPasswordFields: map[string]string{"Password": password}})
-		if err != nil {
-			t.Fatalf("Load failed: %s", err.Error())
-		}
-		return verified
-	}
-	get := func(filter sqlfilters.Filter) map[string]int {
-		_, verified, err := crud.Get(ctx, func() interface{} { return &PasswordStruct{} }, GetOptions{
-			Filters: filter, VerifyPasswordFields: map[string]string{"Password": "secret"},
+	verify := func(filter sqlfilters.Filter, password string) bool {
+		verified, err := crud.VerifyPasswords(ctx, &PasswordStruct{}, VerifyPasswordsOptions{
+			Filters: filter, Passwords: map[string]string{"Password": password},
 		})
 		if err != nil {
-			t.Fatalf("Get failed: %s", err.Error())
+			t.Fatalf("VerifyPasswords failed: %s", err.Error())
 		}
 		return verified
 	}
@@ -60,30 +52,28 @@ func testPasswordVerificationTime(t *testing.T, crud *CRUD) {
 
 	tests := []struct {
 		name   string
-		verify func() interface{}
-		want   interface{}
+		filter sqlfilters.Filter
+		pass   string
+		want   bool
 		counts [2]int
 	}{
-		{"Load of an object with the password", func() interface{} { return load(withPassword.ID, "secret") }, map[string]int{"Password": PassOK}, [2]int{0, 1}},
-		{"Load of an object with another password", func() interface{} { return load(withPassword.ID, "wrong") }, map[string]int{"Password": PassInvalid}, [2]int{0, 1}},
-		{"Load of an object without a password", func() interface{} { return load(withoutPassword.ID, "") }, map[string]int{"Password": PassInvalid}, [2]int{1, 0}},
-		{"Load of an object that does not exist", func() interface{} { return load(1000, "secret") }, map[string]int{}, [2]int{1, 0}},
-		{"Get of one object", func() interface{} { return get(byName("ida")) }, map[string]int{"Password": PassOK}, [2]int{0, 1}},
-		{"Get of one object without a password", func() interface{} { return get(byName("jack")) }, map[string]int{"Password": PassInvalid}, [2]int{1, 0}},
-		{"Get of no objects", func() interface{} { return get(byName("nobody")) }, map[string]int{}, [2]int{1, 0}},
-		{"Get of several objects", func() interface{} { return get(nil) }, map[string]int{}, [2]int{1, 0}},
+		{"an object with the password", byName("ida"), "secret", true, [2]int{0, 1}},
+		{"an object with another password", byName("ida"), "wrong", false, [2]int{0, 1}},
+		{"an object without a password", byName("jack"), "", false, [2]int{1, 0}},
+		{"no objects", byName("nobody"), "secret", false, [2]int{1, 0}},
+		{"several objects", nil, "secret", false, [2]int{1, 0}},
 	}
 	for _, test := range tests {
 		counts := countComparisons(t)
-		if got := test.verify(); !reflect.DeepEqual(got, test.want) || *counts != test.counts {
-			t.Fatalf("%s returned %v with %d comparisons with the dummy hash and %d with other hashes, want %v with %v",
+		if got := verify(test.filter, test.pass); got != test.want || *counts != test.counts {
+			t.Fatalf("VerifyPasswords of %s returned %t with %d comparisons with the dummy hash and %d with other hashes, want %t with %v",
 				test.name, got, counts[0], counts[1], test.want, test.counts)
 		}
 	}
 
 	counts := countComparisons(t)
-	if _, err := crud.Load(ctx, &PasswordStruct{}, 1000, LoadOptions{}); err != nil || *counts != [2]int{} {
-		t.Fatalf("Load without passwords to verify compared %v, %v, want nothing", *counts, err)
+	if err := crud.Load(ctx, &PasswordStruct{}, 1000, LoadOptions{}); err != nil || *counts != [2]int{} {
+		t.Fatalf("Load compared %v, %v, want nothing", *counts, err)
 	}
 }
 

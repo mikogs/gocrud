@@ -44,16 +44,16 @@ func loadPasswordStruct(t *testing.T, crud *CRUD, id uint64) *PasswordStruct {
 }
 
 // fatalIfPasswords checks the result of the verification of each password of the object named name.
-func fatalIfPasswords(t *testing.T, crud *CRUD, name string, want map[string]int) {
+func fatalIfPasswords(t *testing.T, crud *CRUD, name string, want map[string]bool) {
 	t.Helper()
 
 	for password, result := range want {
-		_, verified, err := crud.Get(context.Background(), func() interface{} { return &PasswordStruct{} }, GetOptions{
-			Filters:              sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: name}},
-			VerifyPasswordFields: map[string]string{"Password": password},
+		verified, err := crud.VerifyPasswords(context.Background(), &PasswordStruct{}, VerifyPasswordsOptions{
+			Filters:   sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: name}},
+			Passwords: map[string]string{"Password": password},
 		})
-		if err != nil || verified["Password"] != result {
-			t.Fatalf("verification of %q of %s returned %v, %v, want %d", password, name, verified, err, result)
+		if err != nil || verified != result {
+			t.Fatalf("verification of %q of %s returned %t, %v, want %t", password, name, verified, err, result)
 		}
 	}
 }
@@ -70,16 +70,16 @@ func testPasswordKeptOnUpdate(t *testing.T, crud *CRUD) {
 	loaded := loadPasswordStruct(t, crud, obj.ID)
 	loaded.Name = "alicia"
 	savePasswordStruct(t, crud, loaded, SaveOptions{})
-	fatalIfPasswords(t, crud, "alicia", map[string]int{"secret": PassOK, "": PassInvalid})
+	fatalIfPasswords(t, crud, "alicia", map[string]bool{"secret": true, "": false})
 
 	loaded = loadPasswordStruct(t, crud, obj.ID)
 	loaded.Name = "ali"
 	savePasswordStruct(t, crud, loaded, SaveOptions{NoInsert: true})
-	fatalIfPasswords(t, crud, "ali", map[string]int{"secret": PassOK, "": PassInvalid})
+	fatalIfPasswords(t, crud, "ali", map[string]bool{"secret": true, "": false})
 
 	obj.Name = "al"
 	savePasswordStruct(t, crud, obj, SaveOptions{})
-	fatalIfPasswords(t, crud, "al", map[string]int{"secret": PassOK})
+	fatalIfPasswords(t, crud, "al", map[string]bool{"secret": true})
 }
 
 func testPasswordChanged(t *testing.T, crud *CRUD) {
@@ -91,21 +91,21 @@ func testPasswordChanged(t *testing.T, crud *CRUD) {
 	loaded := loadPasswordStruct(t, crud, obj.ID)
 	loaded.Password = "changed"
 	savePasswordStruct(t, crud, loaded, SaveOptions{})
-	fatalIfPasswords(t, crud, "bob", map[string]int{"changed": PassOK, "secret": PassInvalid})
+	fatalIfPasswords(t, crud, "bob", map[string]bool{"changed": true, "secret": false})
 
 	loaded.Password = "again"
 	savePasswordStruct(t, crud, loaded, SaveOptions{NoInsert: true})
-	fatalIfPasswords(t, crud, "bob", map[string]int{"again": PassOK, "changed": PassInvalid})
+	fatalIfPasswords(t, crud, "bob", map[string]bool{"again": true, "changed": false})
 }
 
 func testPasswordEmptyOnInsert(t *testing.T, crud *CRUD) {
 	recreatePasswordTable(t, crud)
 
 	savePasswordStruct(t, crud, &PasswordStruct{Name: "carol"}, SaveOptions{})
-	fatalIfPasswords(t, crud, "carol", map[string]int{"": PassInvalid, "secret": PassInvalid})
+	fatalIfPasswords(t, crud, "carol", map[string]bool{"": false, "secret": false})
 
 	savePasswordStruct(t, crud, &PasswordStruct{ID: 42, Name: "dan"}, SaveOptions{})
-	fatalIfPasswords(t, crud, "dan", map[string]int{"": PassInvalid})
+	fatalIfPasswords(t, crud, "dan", map[string]bool{"": false})
 }
 
 func testPasswordHashNotAccepted(t *testing.T, crud *CRUD) {
@@ -116,7 +116,7 @@ func testPasswordHashNotAccepted(t *testing.T, crud *CRUD) {
 		t.Fatal(err)
 	}
 	savePasswordStruct(t, crud, &PasswordStruct{Name: "eve", Password: string(hash)}, SaveOptions{})
-	fatalIfPasswords(t, crud, "eve", map[string]int{"known": PassInvalid, string(hash): PassOK})
+	fatalIfPasswords(t, crud, "eve", map[string]bool{"known": false, string(hash): true})
 }
 
 func testPasswordAfterError(t *testing.T, crud *CRUD) {
@@ -129,7 +129,7 @@ func testPasswordAfterError(t *testing.T, crud *CRUD) {
 	}
 
 	savePasswordStruct(t, crud, obj, SaveOptions{})
-	fatalIfPasswords(t, crud, "frank", map[string]int{"secret": PassOK})
+	fatalIfPasswords(t, crud, "frank", map[string]bool{"secret": true})
 }
 
 func testPasswordRequired(t *testing.T, crud *CRUD) {
@@ -152,33 +152,33 @@ func testPasswordUpdateMultiple(t *testing.T, crud *CRUD) {
 	}
 	gina := UpdateMultipleOptions{Filters: sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: "gina"}}}
 
-	values := map[string]interface{}{"Password": "changed"}
+	values := map[string]any{"Password": "changed"}
 	if err := UpdateMultiple[PasswordStruct](ctx, crud, values, gina); err != nil {
 		t.Fatalf("UpdateMultiple failed: %s", err.Error())
 	}
 	if values["Password"] != "changed" {
 		t.Fatalf("UpdateMultiple changed the values to %v, want them as they were", values)
 	}
-	fatalIfPasswords(t, crud, "gina", map[string]int{"changed": PassOK, "secret": PassInvalid})
-	fatalIfPasswords(t, crud, "hank", map[string]int{"secret": PassOK})
+	fatalIfPasswords(t, crud, "gina", map[string]bool{"changed": true, "secret": false})
+	fatalIfPasswords(t, crud, "hank", map[string]bool{"secret": true})
 
-	err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]interface{}{"Password": "again"}, UpdateMultipleOptions{
+	err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]any{"Password": "again"}, UpdateMultipleOptions{
 		Filters: gina.Filters, ConvertValuesFromString: true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateMultiple with values from strings failed: %s", err.Error())
 	}
-	fatalIfPasswords(t, crud, "gina", map[string]int{"again": PassOK})
+	fatalIfPasswords(t, crud, "gina", map[string]bool{"again": true})
 
-	if err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]interface{}{"Name": "gin", "Password": ""}, gina); err != nil {
+	if err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]any{"Name": "gin", "Password": ""}, gina); err != nil {
 		t.Fatalf("UpdateMultiple with an empty password failed: %s", err.Error())
 	}
-	fatalIfPasswords(t, crud, "gin", map[string]int{"again": PassOK, "": PassInvalid})
+	fatalIfPasswords(t, crud, "gin", map[string]bool{"again": true, "": false})
 
-	if err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]interface{}{"Password": ""}, UpdateMultipleOptions{}); err != nil {
+	if err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]any{"Password": ""}, UpdateMultipleOptions{}); err != nil {
 		t.Fatalf("UpdateMultiple of only an empty password failed: %s", err.Error())
 	}
-	fatalIfPasswords(t, crud, "hank", map[string]int{"secret": PassOK})
+	fatalIfPasswords(t, crud, "hank", map[string]bool{"secret": true})
 }
 
 func TestPassword_KeptOnUpdate(t *testing.T)        { testPasswordKeptOnUpdate(t, testCRUD) }
@@ -216,15 +216,15 @@ func testPasswordTooLong(t *testing.T, crud *CRUD) {
 	}
 
 	savePasswordStruct(t, crud, &PasswordStruct{Name: "liam", Password: strings.Repeat("x", 72)}, SaveOptions{})
-	err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]interface{}{"Password": long}, UpdateMultipleOptions{})
+	err := UpdateMultiple[PasswordStruct](ctx, crud, map[string]any{"Password": long}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"Password": "max"})
 }
 
 func TestPassword_TooLong(t *testing.T)        { testPasswordTooLong(t, testCRUD) }
 func TestSQLite_Password_TooLong(t *testing.T) { testPasswordTooLong(t, testCRUDSQLite) }
 
-// testPasswordNotVerified checks that a password of a lookup without exactly one object is not PassOK, also when the
-// result of its field is read from the map without checking that it is there, as a login could do.
+// testPasswordNotVerified checks that VerifyPasswords returns false, and an empty object, when no object or more than
+// one matches the filters, also with the password of each of them.
 func testPasswordNotVerified(t *testing.T, crud *CRUD) {
 	recreatePasswordTable(t, crud)
 	ctx := context.Background()
@@ -232,19 +232,15 @@ func testPasswordNotVerified(t *testing.T, crud *CRUD) {
 		savePasswordStruct(t, crud, &PasswordStruct{Name: name, Password: "secret"}, SaveOptions{})
 	}
 
-	for name, want := range map[string]int{"nobody": 0, "twin": 2} {
-		objs, verified, err := crud.Get(ctx, func() interface{} { return &PasswordStruct{} }, GetOptions{
-			Filters:              sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: name}},
-			VerifyPasswordFields: map[string]string{"Password": "secret"},
+	for _, name := range []string{"nobody", "twin"} {
+		obj := &PasswordStruct{ID: 5, Name: "set"}
+		verified, err := crud.VerifyPasswords(ctx, obj, VerifyPasswordsOptions{
+			Filters:   sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: name}},
+			Passwords: map[string]string{"Password": "secret"},
 		})
-		if err != nil || len(objs) != want || verified["Password"] == PassOK {
-			t.Fatalf("Get of %d objects named %s returned %v, %v, want the password not verified", want, name, verified, err)
+		if err != nil || verified || *obj != (PasswordStruct{}) {
+			t.Fatalf("VerifyPasswords of %s returned %t, %v, %+v, want false and an empty object", name, verified, err, *obj)
 		}
-	}
-
-	verified, err := crud.Load(ctx, &PasswordStruct{}, 999, LoadOptions{VerifyPasswordFields: map[string]string{"Password": "secret"}})
-	if err != nil || verified["Password"] == PassOK {
-		t.Fatalf("Load of a missing object returned %v, %v, want the password not verified", verified, err)
 	}
 }
 

@@ -1,6 +1,6 @@
 # Operations
 
-This page describes the methods of `CRUD`. Most of them also have a typed version, e.g. `gocrud.Get[User]` returns `[]*User` instead of `[]interface{}`, see [Typed functions](generics.md).
+This page describes the methods of `CRUD`. Most of them also have a typed version, e.g. `gocrud.Get[User]` returns `[]*User` instead of `[]any`, see [Typed functions](generics.md).
 
 ## Save
 
@@ -9,7 +9,7 @@ The `Save` method handles both creating new records and updating existing ones b
 **Signature**
 
 ```go
-func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) error
+func (c *CRUD) Save(ctx context.Context, obj any, options SaveOptions) error
 ```
 
 **Behavior**
@@ -23,7 +23,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 **Parameters**
 
 * `ctx context.Context`: The execution context for the operation.
-* `obj interface{}`: The object instance containing the data to be saved.
+* `obj any`: The object instance containing the data to be saved.
 * `options SaveOptions`: Configuration flags for the save operation.
 
 **SaveOptions**
@@ -31,7 +31,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 ```go
 type SaveOptions struct {
     NoInsert   bool        // If true, skips the INSERT attempt and performs only UPDATE.
-    ModifiedBy interface{} // Optional ID of the user performing the modification.
+    ModifiedBy any // Optional ID of the user performing the modification.
     ModifiedAt time.Time   // Optional time of the modification, the current time when zero.
 }
 ```
@@ -45,11 +45,11 @@ When the struct has the `CreatedAt`, `CreatedBy`, `ModifiedAt` and `ModifiedBy` 
 `InsertMultiple` inserts many new objects of the same type with a few queries, e.g. when importing data, instead of a query per object:
 
 ```go
-func (c *CRUD) InsertMultiple(ctx context.Context, objs []interface{}, options InsertMultipleOptions) error
+func (c *CRUD) InsertMultiple(ctx context.Context, objs []any, options InsertMultipleOptions) error
 func InsertMultiple[T any](ctx context.Context, c *CRUD, objs []*T, options InsertMultipleOptions) error
 
 type InsertMultipleOptions struct {
-    ModifiedBy interface{} // as in SaveOptions
+    ModifiedBy any // as in SaveOptions
     ModifiedAt time.Time   // as in SaveOptions, the current time when zero
 }
 ```
@@ -73,7 +73,7 @@ The `Delete` method removes a record from the database based on the identifier w
 **Signature**
 
 ```go
-func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOptions) error
+func (c *CRUD) Delete(ctx context.Context, obj any, options DeleteOptions) error
 ```
 
 **Behavior**
@@ -84,7 +84,7 @@ func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOption
 **Parameters**
 
 * `ctx context.Context`: The execution context for the operation.
-* `obj interface{}`: The object instance representing the record to be deleted.
+* `obj any`: The object instance representing the record to be deleted.
 * `options DeleteOptions`: Currently an empty struct reserved for future configuration.
 
 **DeleteOptions**
@@ -102,44 +102,65 @@ The `Load` method retrieves a record from the database based on a specific ID an
 **Signature**
 
 ```go
-func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, options LoadOptions) (map[string]int, error)
+func (c *CRUD) Load(ctx context.Context, obj any, id any, options LoadOptions) error
 ```
 
 **Behavior**
 
 * **Data Retrieval**: Fetches the row corresponding to the provided id and maps the database columns to the fields of the obj struct.
-* **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` after the row is scanned. The bcrypt hash is never left in memory after a successful load.
-* **Password Verification**: For every field tagged `crud:"pass"` that also appears as a key in `options.VerifyPasswordFields`, the corresponding map value is checked as a plaintext password against the bcrypt hash stored in that field, and the result is recorded in the returned map. Keys in `options.VerifyPasswordFields` that do not name an actual password field are ignored and do not appear in the result.
-* **The time of a verification** is the same whether the object exists, has a password, or not: without a hash to check the password against, it is checked against a dummy hash, so that e.g. the time of a login does not show whether there is a user with its e-mail. The same applies to `Get` with `VerifyPasswordFields`, whatever the number of objects found.
+* **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` after the row is scanned. The bcrypt hash is never left in memory after a successful load. Passwords are verified with [`VerifyPasswords`](#verifypasswords).
 * **Not Found Handling**: If no record exists with the given id, the method returns no error, but the obj instance is zeroed out. This means all fields in the struct are reset to their default zero values (e.g., 0, "", nil, false), ensuring the caller receives a clean, empty object rather than partial or stale data. Check it with `gocrud.ObjIDIsZero(obj)`, or use [`Load[T]`](generics.md#load), which returns `ErrNotFound`.
 
 **Parameters**
 
 * `ctx context.Context`: The execution context for the operation.
-* `obj interface{}`: The target struct instance to be populated with data. It must be a pointer to a struct.
-* `id interface{}`: The ID of the record: a non-negative integer, or a decimal string, for an `ID` of type `uint64`, and a UUID for a `string` ID, so that an ID from a URL can be passed as it is. Another value fails with an error that matches `gocrud.ErrInvalidID`.
+* `obj any`: The target struct instance to be populated with data. It must be a pointer to a struct.
+* `id any`: The ID of the record: a non-negative integer, or a decimal string, for an `ID` of type `uint64`, and a UUID for a `string` ID, so that an ID from a URL can be passed as it is. Another value fails with an error that matches `gocrud.ErrInvalidID`.
 * `options LoadOptions`: Configuration options for the load operation.
 
 **LoadOptions**
 
 ```go
 type LoadOptions struct {
-    // VerifyPasswordFields maps a struct field name to a plaintext password
-    // to verify against the bcrypt hash stored in that field.
-    VerifyPasswordFields map[string]string
-
     // Preload contains the relation fields whose related objects are loaded,
     // e.g. []string{"Customer", "Items.Product"}, see Relations.
     Preload []string
 }
 ```
 
-**Returns** the results of `VerifyPasswordFields`, by the name of the password field:
+## VerifyPasswords
 
-* `PassOK`: the supplied plaintext matches the stored bcrypt hash.
-* `PassInvalid`: the supplied plaintext does not match the stored bcrypt hash.
+`VerifyPasswords` checks passwords, e.g. of a login, against the bcrypt hashes of the password fields of the object that matches the filters:
 
-`PassInvalid` is `0`, the zero value of `int`, so a field that is not in the map, e.g. because no record was found, is never `PassOK`. Check the result with `== gocrud.PassOK`, e.g. `if passwords["Password"] == gocrud.PassOK`, and not with `!= gocrud.PassInvalid`.
+```go
+func (c *CRUD) VerifyPasswords(ctx context.Context, obj any, options VerifyPasswordsOptions) (bool, error)
+
+type VerifyPasswordsOptions struct {
+    Filters                  sqlfilters.Filter // the object, as in Get
+    ConvertFiltersFromString bool
+    Passwords                map[string]string // the passwords, by the names of the password fields
+}
+```
+
+```go
+user := &User{}
+ok, err := crud.VerifyPasswords(ctx, user, gocrud.VerifyPasswordsOptions{
+    Filters:   sqlfilters.Filters{"Email": {Op: sqlfilters.OpEqual, Val: email}},
+    Passwords: map[string]string{"Password": password},
+})
+if err != nil {
+    // the database, or the options, failed
+}
+if !ok {
+    // no such user, or another password
+}
+// user is the user, without its password
+```
+
+* **True** only when exactly one object matches the filters, and every password matches the hash of its field. Then `obj` is set to the object, with its password fields empty, as after `Load`.
+* **False** when no object matches, more than one does, or a password does not match, e.g. of an object without a password. Then `obj` has the zero values of its fields, so that it cannot be used by mistake.
+* **The time** of `VerifyPasswords` is the same in all these cases: without a hash to check a password against, it is checked against a dummy hash, and all the passwords are checked, so that e.g. the time of a login does not show whether there is a user with its e-mail.
+* **Errors.** `Passwords` without passwords, or with a field that is not a password field, would not verify anything, so it is an error that matches `gocrud.ErrVerifyPasswords`.
 
 ## Get
 
@@ -150,16 +171,15 @@ The `Get` method retrieves a collection of objects from the database. Unlike `Lo
 ```go
 func (c *CRUD) Get(
     ctx context.Context, 
-    newObjFunc func() interface{}, 
+    newObjFunc func() any, 
     options GetOptions
-) ([]interface{}, map[string]int, error)
+) ([]any, error)
 ```
 
 **Behavior**
 
 * **Dynamic Instantiation**: Uses `newObjFunc` to create a fresh instance of the target struct for every row fetched. This ensures type safety and avoids shared state issues.
-* **Result Set**: Returns a slice of `interface{}` containing the populated objects (or transformed results).
-* **Password verification**: The second result holds `PassOK` or `PassInvalid` for each field named in `VerifyPasswordFields`, when exactly one record is found, and is empty otherwise, so a field that is not in it is `PassInvalid`, e.g. for a login with an e-mail that no user has.
+* **Result Set**: Returns a slice of `any` containing the populated objects (or transformed results).
 * **Filtering & Sorting**: Supports standard SQL-like filtering (`WHERE`), ordering (`ORDER BY`), and pagination (`LIMIT/OFFSET`).
 * **Transformation**: Allows custom processing of each row before it is added to the result slice via `RowObjTransformFunc`.
 * **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` on every scanned row, before the transform function or the result slice is populated. Bcrypt hashes are never left in memory after a read.
@@ -167,7 +187,7 @@ func (c *CRUD) Get(
 **Parameters**
 
 * `ctx context.Context`: Execution context.
-* `newObjFunc func() interface{}`: A factory function that returns a pointer to a new struct instance (e.g., `func() interface{} { return &MyStruct{} }`).
+* `newObjFunc func() any`: A factory function that returns a pointer to a new struct instance (e.g., `func() any { return &MyStruct{} }`).
 * `options GetOptions`: Configuration for the query.
 
 **GetOptions**
@@ -187,13 +207,10 @@ type GetOptions struct {
     Filters sqlfilters.Filter
 
     // Transformation
-    RowObjTransformFunc func(interface{}) interface{} // Custom function applied to every row
+    RowObjTransformFunc func(any) any // Custom function applied to every row
 
     // Type Conversion
     ConvertFiltersFromString bool // Converts string filter values to target field types (useful for URL params)
-
-    // Passwords to verify against the stored hashes, by field name, when exactly one record is found
-    VerifyPasswordFields map[string]string
 
     // Relation fields whose related objects are loaded, e.g. []string{"Customer", "Items.Product"}
     Preload []string
@@ -236,7 +253,7 @@ if len(page) == 20 {
 ```
 
 ```go
-func (c *CRUD) NextCursor(obj interface{}, order []string) (string, error)
+func (c *CRUD) NextCursor(obj any, order []string) (string, error)
 ```
 
 * **The cursor** is a string for a URL, with the values of the order fields and the `ID` of the object, as they were loaded. It is encoded but not encrypted, so a client can read the values, also of fields that it is not shown otherwise.
@@ -254,7 +271,7 @@ The `GetCount` method returns the total number of rows in a database table, opti
 **Signature**
 
 ```go
-func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOptions) (uint64, error)
+func (c *CRUD) GetCount(ctx context.Context, obj any, options GetCountOptions) (uint64, error)
 ```
 
 **Behavior**
@@ -266,7 +283,7 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 **Parameters**
 
 * `ctx context.Context`: Execution context.
-* `obj interface{}`: A struct instance (or pointer) used to identify the target database table. The struct's field values are not used for filtering — only its type determines which table to query.
+* `obj any`: A struct instance (or pointer) used to identify the target database table. The struct's field values are not used for filtering — only its type determines which table to query.
 * `options GetCountOptions`: Configuration for filtering the count query.
 
 **GetCountOptions**
@@ -289,7 +306,7 @@ The `DeleteMultiple` method removes multiple records from the database table tha
 **Signature**
 
 ```go
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) ([]interface{}, error)
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj any, options DeleteMultipleOptions) ([]any, error)
 ```
 
 **Behavior**
@@ -301,7 +318,7 @@ func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options Dele
 **Parameters**
 
 * `ctx context.Context`: Execution context.
-* `obj interface{}`: A struct instance used to identify the target table.
+* `obj any`: A struct instance used to identify the target table.
 * `options DeleteMultipleOptions`: Configuration for the batch deletion.
 
 **DeleteMultipleOptions**
@@ -319,7 +336,7 @@ The `UpdateMultiple` method updates multiple records in the database table that 
 **Signature**
 
 ```go
-func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpdate map[string]interface{}, options UpdateMultipleOptions) error
+func (c *CRUD) UpdateMultiple(ctx context.Context, obj any, fieldsToUpdate map[string]any, options UpdateMultipleOptions) error
 ```
 
 **Behavior**
@@ -329,13 +346,14 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 * **Filtering**: The same [filters](#filters) as in `Get` and `DeleteMultiple` select the rows that are updated.
 * **Password fields**: A password is hashed with bcrypt, once, so all the updated rows get the same hash. An empty password keeps the stored passwords, as in `Save`.
 * **The map** `fieldsToUpdate` is not changed, also when the values are converted from strings or hashed.
+* **Duplicates**: A value of a unique field that another row has is a [`UniqError`](#errors), as in `Save`, and no row is updated.
 * **Versions**: The [version field](../struct.md#10-version) of the updated rows is incremented, and a value of it in `fieldsToUpdate` is an error that matches `gocrud.ErrVersionField`.
 
 **Parameters**
 
 * `ctx context.Context`: Execution context.
-* `obj interface{}`: A struct instance used to identify the target table.
-* `fieldsToUpdate map[string]interface{}`: A map where keys are field names and values are the new values to set.
+* `obj any`: A struct instance used to identify the target table.
+* `fieldsToUpdate map[string]any`: A map where keys are field names and values are the new values to set.
 * `options UpdateMultipleOptions`: Configuration for the batch update.
 
 **UpdateMultipleOptions**
@@ -499,7 +517,7 @@ WHERE "email" IN (SELECT s1."email" FROM "invitation" s1 WHERE s1."accepted_at" 
 ```
 
 ```go
-func Subquery(obj interface{}, field string, filter Filter) SubqueryValue
+func Subquery(obj any, field string, filter Filter) SubqueryValue
 ```
 
 * **The filter** of a subquery is any filter of the struct, including groups, [paths](#conditions-on-related-records) and other subqueries, or `nil` for all the objects. It is validated with the tags of the struct, with the violations named by its fields, and its values are not converted from strings. `obj` is used only for its type.
@@ -559,7 +577,7 @@ ok, violations, err := gocrud.Validate(obj, nil, "crud")
 ok, violations, err = gocrud.Validate(obj, map[string]bool{"Email": true}, "crud")
 
 // values as UpdateMultiple validates them, without changing obj
-ok, violations, err = gocrud.ValidateValues(obj, map[string]interface{}{"Email": "x"}, "crud")
+ok, violations, err = gocrud.ValidateValues(obj, map[string]any{"Email": "x"}, "crud")
 
 // filters as Get validates them, also on the fields of related structs and in subqueries, returns a *gocrud.CRUDError with a *gocrud.ValidationError
 err = crud.ValidateFilters(obj, filters)

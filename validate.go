@@ -54,7 +54,7 @@ type regexpRule struct {
 // Validate validates obj field values against their go-playground `validate` tags and their
 // <tagName>_regexp tags. If restrictFields is not empty, only the listed fields are validated.
 // Violations map field names to the name of the failed validation tag, eg. "required" or "min".
-func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (bool, map[string]string, error) {
+func Validate(obj any, restrictFields map[string]bool, tagName string) (bool, map[string]string, error) {
 	val := reflect.ValueOf(obj)
 	for val.Kind() == reflect.Pointer {
 		if val.IsNil() {
@@ -134,7 +134,7 @@ func Validate(obj interface{}, restrictFields map[string]bool, tagName string) (
 
 // ValidateValues validates values as if they were set on obj fields, without modifying obj.
 // Only the fields present in values are validated.
-func ValidateValues(obj interface{}, values map[string]interface{}, tagName string) (bool, map[string]string, error) {
+func ValidateValues(obj any, values map[string]any, tagName string) (bool, map[string]string, error) {
 	val := reflect.ValueOf(obj)
 	for val.Kind() == reflect.Pointer {
 		if val.IsNil() {
@@ -226,7 +226,7 @@ func getValidationRules(t reflect.Type, tagName string) *validationRules {
 }
 
 // fieldHasValidationRules checks if Validate can return a violation of the field of obj, a pointer to a struct.
-func fieldHasValidationRules(obj interface{}, name string, tagName string) bool {
+func fieldHasValidationRules(obj any, name string, tagName string) bool {
 	rules := getValidationRules(reflect.TypeOf(obj).Elem(), tagName)
 	if rules.validatedFields[name] {
 		return true
@@ -282,7 +282,7 @@ func getCompiledRegexp(pattern string) (*regexp.Regexp, error) {
 	return compiled, nil
 }
 
-func isNilValue(v interface{}) bool {
+func isNilValue(v any) bool {
 	if v == nil {
 		return true
 	}

@@ -84,7 +84,7 @@ func testVersion(t *testing.T, crud *CRUD) {
 		t.Fatalf("Save of a new object with an ID returned %v, with version %d, want 1", err, inserted.Version)
 	}
 
-	err := UpdateMultiple[VersionedDoc](ctx, crud, map[string]interface{}{"Title": "d"},
+	err := UpdateMultiple[VersionedDoc](ctx, crud, map[string]any{"Title": "d"},
 		UpdateMultipleOptions{Filters: sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: doc.ID}}})
 	if err != nil {
 		t.Fatalf("UpdateMultiple failed: %s", err.Error())
@@ -95,7 +95,7 @@ func testVersion(t *testing.T, crud *CRUD) {
 	if err := crud.Save(ctx, first, SaveOptions{}); !errors.Is(err, ErrVersionConflict) || first.Version != 3 {
 		t.Fatalf("Save of an object loaded before UpdateMultiple returned %v, with version %d, want ErrVersionConflict and 3", err, first.Version)
 	}
-	err = UpdateMultiple[VersionedDoc](ctx, crud, map[string]interface{}{"Version": 1}, UpdateMultipleOptions{})
+	err = UpdateMultiple[VersionedDoc](ctx, crud, map[string]any{"Version": 1}, UpdateMultipleOptions{})
 	if !errors.Is(err, ErrVersionField) {
 		t.Fatalf("UpdateMultiple of the version returned %v, want ErrVersionField", err)
 	}
@@ -180,7 +180,7 @@ type JSONVersion struct {
 }
 
 func TestVersionField(t *testing.T) {
-	for _, obj := range []interface{}{&TwoVersions{}, &StringVersion{}, &PointerVersion{}, &IDVersion{}, &JSONVersion{}} {
+	for _, obj := range []any{&TwoVersions{}, &StringVersion{}, &PointerVersion{}, &IDVersion{}, &JSONVersion{}} {
 		if err := testCRUDSQLite.CreateTable(context.Background(), obj); !errors.Is(err, ErrVersionField) {
 			t.Fatalf("CreateTable of %T returned %v, want ErrVersionField", obj, err)
 		}

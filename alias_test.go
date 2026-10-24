@@ -41,7 +41,7 @@ func createAliasTestData(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&AliasProduct{}, &AliasPrice{}} {
+	for _, obj := range []any{&AliasProduct{}, &AliasPrice{}} {
 		_ = crud.DropTable(ctx, obj)
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
@@ -71,7 +71,7 @@ func createAliasTestData(t *testing.T, crud *CRUD) {
 func fatalIfNotAliasProductsWithPrice(t *testing.T, crud *CRUD, filters sqlfilters.Filter, want []string) {
 	t.Helper()
 
-	objs, _, err := crud.Get(context.Background(), func() interface{} {
+	objs, err := crud.Get(context.Background(), func() any {
 		return &AliasProduct_WithPrice{}
 	}, GetOptions{
 		Order:   []string{"Price", "desc"},

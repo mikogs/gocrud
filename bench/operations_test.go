@@ -153,12 +153,12 @@ func runOperations(b *testing.B, newEnv func(fakeRows int) *env) {
 // seed creates the tables of the benchmarks with: 10 customers, every other one from PL; the product with ID 1 in the
 // category new, which Update changes; and 1, 10, 100 and 1000 products in the categories c1, c10, c100 and c1000.
 func seed(e *env) error {
-	for _, obj := range []interface{}{&Product{}, &Customer{}} {
+	for _, obj := range []any{&Product{}, &Customer{}} {
 		if err := e.crud.DropTable(ctx, obj); err != nil {
 			return err
 		}
 	}
-	for _, obj := range []interface{}{&Customer{}, &Product{}} {
+	for _, obj := range []any{&Customer{}, &Product{}} {
 		if err := e.crud.CreateTable(ctx, obj); err != nil {
 			return err
 		}
@@ -358,7 +358,7 @@ func updateMultiple(e *env) operation {
 
 	return operation{
 		gocrud: func() error {
-			return gocrud.UpdateMultiple[Product](ctx, e.crud, map[string]interface{}{"Stock": int64(0)}, gocrud.UpdateMultipleOptions{
+			return gocrud.UpdateMultiple[Product](ctx, e.crud, map[string]any{"Stock": int64(0)}, gocrud.UpdateMultipleOptions{
 				Filters: sqlfilters.Filters{"Category": {Op: sqlfilters.OpEqual, Val: "c10"}},
 			})
 		},

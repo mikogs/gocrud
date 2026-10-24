@@ -12,7 +12,7 @@ type GetCountOptions struct {
 }
 
 // GetCount returns the number of the rows that match the filters.
-func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOptions) (uint64, error) {
+func (c *CRUD) GetCount(ctx context.Context, obj any, options GetCountOptions) (uint64, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return 0, getBuilderObjectCRUDError(err)

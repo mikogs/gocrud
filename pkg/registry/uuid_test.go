@@ -24,8 +24,8 @@ func issuesService(t *testing.T) *CRUD {
 	t.Helper()
 	ctx := context.Background()
 
-	svc := New(map[string]func() interface{}{
-		"issues": func() interface{} { return &Issue{} },
+	svc := New(map[string]func() any{
+		"issues": func() any { return &Issue{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Issue{})
@@ -49,18 +49,18 @@ func TestUUID_SaveReadDelete(t *testing.T) {
 		t.Fatalf("Save set ID %#v and CreatedBy %q, want a UUID and auth0|42", svc.ID(issue), issue.CreatedBy)
 	}
 
-	for _, readID := range []interface{}{id, strings.ToUpper(id)} {
-		obj, _, err := svc.Read(ctx, "issues", readID, nil, nil)
+	for _, readID := range []any{id, strings.ToUpper(id)} {
+		obj, err := svc.Read(ctx, "issues", readID, nil)
 		if err != nil || obj.(*Issue).Title != "broken" {
 			t.Fatalf("Read(%v) returned %+v, %v, want the issue", readID, obj, err)
 		}
 	}
 
-	if _, _, err := svc.Read(ctx, "issues", uuid.NewString(), nil, nil); !errors.Is(err, ErrNotFound) {
+	if _, err := svc.Read(ctx, "issues", uuid.NewString(), nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Read of an ID that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-	for _, invalidID := range []interface{}{"42", 42} {
-		if _, _, err := svc.Read(ctx, "issues", invalidID, nil, nil); !errors.Is(err, ErrInvalidID) {
+	for _, invalidID := range []any{"42", 42} {
+		if _, err := svc.Read(ctx, "issues", invalidID, nil); !errors.Is(err, ErrInvalidID) {
 			t.Fatalf("Read(%#v) returned %v, want %v", invalidID, err, ErrInvalidID)
 		}
 		if err := svc.Delete(ctx, "issues", invalidID); !errors.Is(err, ErrInvalidID) {
@@ -93,7 +93,7 @@ func TestUUID_ListByID(t *testing.T) {
 		ids = append(ids, issue.ID)
 	}
 
-	objs, _, err := svc.List(ctx, "issues", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: Filters{
+	objs, err := svc.List(ctx, "issues", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: Filters{
 		Vals: map[string]string{"ID": strings.ToUpper(ids[0]) + "," + ids[2]},
 		Ops:  map[string]string{"ID": "in"},
 	}})
@@ -101,6 +101,6 @@ func TestUUID_ListByID(t *testing.T) {
 		t.Fatalf("List returned %+v, %v, want the issues a and c", objs, err)
 	}
 
-	_, _, err = svc.List(ctx, "issues", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"ID": "42"}}})
+	_, err = svc.List(ctx, "issues", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"ID": "42"}}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"ID": gocrud.ViolationType})
 }

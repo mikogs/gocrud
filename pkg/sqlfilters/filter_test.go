@@ -41,7 +41,7 @@ func TestFiltersInterfaces_Tree(t *testing.T) {
 		Raw(".Age < ?", 100),
 	)
 
-	want := []interface{}{30, "new", "paid", uint64(1), uint64(2), nil, "a", "b", 9.99, 100}
+	want := []any{30, "new", "paid", uint64(1), uint64(2), nil, "a", "b", 9.99, 100}
 	if got := FiltersInterfaces(f); !reflect.DeepEqual(got, want) {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, want)
 	}

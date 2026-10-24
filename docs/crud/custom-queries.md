@@ -54,7 +54,7 @@ The query is run with the same arguments as the generated query, in the order be
 | `SelectByIDQuery() (string, error)` | `Load` | the `ID` | the columns |
 | `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns, in `order`, which ends with `ID`, and with the condition of a [cursor](ops.md#pages-with-cursors) in `filters` |
 | `SelectCountQuery(filters sqlfilters.Filter) (string, error)` | `GetCount` | the filter values | the number of rows |
-| `UpdateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error)` | `UpdateMultiple` | the values, ordered by field name, then the filter values | nothing |
+| `UpdateQuery(values map[string]any, filters sqlfilters.Filter) (string, error)` | `UpdateMultiple` | the values, ordered by field name, then the filter values | nothing |
 | `DeleteByIDQuery() (string, error)` | `Delete` | the `ID` | nothing |
 | `DeleteReturningIDQuery() (string, error)` | `DeleteMultiple` | the filter values | the IDs of the rows, which `DeleteMultiple` returns |
 | `CreateTableQuery() (string, error)` | `CreateTable`, `Migrate` | none, statements can be separated with `;` | nothing |

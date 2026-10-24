@@ -115,7 +115,7 @@ func TestSQLite_ValuerAggregate(t *testing.T) { testValuerAggregate(t, testCRUDS
 
 func TestCoalesce(t *testing.T) {
 	for _, test := range []struct {
-		value   interface{}
+		value   any
 		dialect string
 		want    string
 	}{

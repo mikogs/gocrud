@@ -127,7 +127,7 @@ func ValuerValueType(t reflect.Type) reflect.Type {
 
 // ScanValue returns value as a value of the Valuer type t, scanned as it would be from the database, e.g. a decimal
 // from a string, and false when t cannot scan it.
-func ScanValue(t reflect.Type, value interface{}) (reflect.Value, bool) {
+func ScanValue(t reflect.Type, value any) (reflect.Value, bool) {
 	driverValue, err := driver.DefaultParameterConverter.ConvertValue(value)
 	if err != nil {
 		return reflect.Value{}, false

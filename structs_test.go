@@ -27,7 +27,7 @@ func TestOperations_InvalidStruct(t *testing.T) {
 	var nilPointer *StructWithoutID
 
 	objs := map[string]struct {
-		obj  interface{}
+		obj  any
 		want error
 	}{
 		"nil":          {nil, structinfo.ErrNotStructPointer},
@@ -38,10 +38,10 @@ func TestOperations_InvalidStruct(t *testing.T) {
 
 	for name, test := range objs {
 		t.Run(name, func(t *testing.T) {
-			_, _, getErr := testCRUDSQLite.Get(ctx, func() interface{} { return test.obj }, GetOptions{})
+			_, getErr := testCRUDSQLite.Get(ctx, func() any { return test.obj }, GetOptions{})
 			_, getCountErr := testCRUDSQLite.GetCount(ctx, test.obj, GetCountOptions{})
 			_, deleteMultipleErr := testCRUDSQLite.DeleteMultiple(ctx, test.obj, DeleteMultipleOptions{})
-			_, loadErr := testCRUDSQLite.Load(ctx, test.obj, 1, LoadOptions{})
+			loadErr := testCRUDSQLite.Load(ctx, test.obj, 1, LoadOptions{})
 
 			errs := map[string]error{
 				"CreateTable":    testCRUDSQLite.CreateTable(ctx, test.obj),
@@ -50,7 +50,7 @@ func TestOperations_InvalidStruct(t *testing.T) {
 				"Load":           loadErr,
 				"Delete":         testCRUDSQLite.Delete(ctx, test.obj, DeleteOptions{}),
 				"DeleteMultiple": deleteMultipleErr,
-				"UpdateMultiple": testCRUDSQLite.UpdateMultiple(ctx, test.obj, map[string]interface{}{"Name": "x"}, UpdateMultipleOptions{}),
+				"UpdateMultiple": testCRUDSQLite.UpdateMultiple(ctx, test.obj, map[string]any{"Name": "x"}, UpdateMultipleOptions{}),
 				"Get":            getErr,
 				"GetCount":       getCountErr,
 			}
@@ -86,7 +86,7 @@ func testSkippedFields(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &StructWithSkippedFields{}
-	if _, err := crud.Load(ctx, loaded, 1, LoadOptions{}); err != nil {
+	if err := crud.Load(ctx, loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	want := StructWithSkippedFields{ID: 1, Name: "Apple", Price: 20}
@@ -94,7 +94,7 @@ func testSkippedFields(t *testing.T, crud *CRUD) {
 		t.Fatalf("Load returned %+v, want %+v", *loaded, want)
 	}
 
-	objs, _, err := crud.Get(ctx, func() interface{} { return &StructWithSkippedFields{} }, GetOptions{
+	objs, err := crud.Get(ctx, func() any { return &StructWithSkippedFields{} }, GetOptions{
 		Filters: &sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: "Apple"}},
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func TestSQLite_SkippedFields(t *testing.T) {
 func TestGet_BuilderErrorChain(t *testing.T) {
 	for name, crud := range map[string]*CRUD{"postgres": testCRUD, "sqlite": testCRUDSQLite} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := crud.Get(context.Background(), func() interface{} { return &StructWithSkippedFields{} }, GetOptions{
+			_, err := crud.Get(context.Background(), func() any { return &StructWithSkippedFields{} }, GetOptions{
 				Filters: sqlfilters.Raw(".Name = ?"),
 			})
 

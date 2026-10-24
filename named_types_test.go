@@ -83,7 +83,7 @@ func testNamedTypes(t *testing.T, crud *CRUD) {
 	_, err = Get[NamedTask](ctx, crud, GetOptions{Filters: sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "closed"}}})
 	fatalIfNotViolations(t, err, map[string]string{"Status": "oneof"})
 
-	err = UpdateMultiple[NamedTask](ctx, crud, map[string]interface{}{"Status": "done"}, UpdateMultipleOptions{
+	err = UpdateMultiple[NamedTask](ctx, crud, map[string]any{"Status": "done"}, UpdateMultipleOptions{
 		Filters: sqlfilters.Filters{"Level": {Op: sqlfilters.OpEqual, Val: 1}},
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func testNamedTypes(t *testing.T, crud *CRUD) {
 
 	archived := Flag(true)
 	reused := &NamedTask{Archived: &archived}
-	if _, err := crud.Load(ctx, reused, 3, LoadOptions{}); err != nil || reused.Archived != nil {
+	if err := crud.Load(ctx, reused, 3, LoadOptions{}); err != nil || reused.Archived != nil {
 		t.Fatalf("Load set Archived to %v, %v, want nil for NULL", reused.Archived, err)
 	}
 

@@ -23,7 +23,7 @@ func (m Money) Value() (driver.Value, error) {
 	return fmt.Sprintf("%d.%02d", m.cents/100, m.cents%100), nil
 }
 
-func (m *Money) Scan(src interface{}) error {
+func (m *Money) Scan(src any) error {
 	var text string
 	switch v := src.(type) {
 	case string:
@@ -53,7 +53,7 @@ type Signature struct {
 
 func (s Signature) Value() (driver.Value, error) { return append([]byte{0xab}, s.data...), nil }
 
-func (s *Signature) Scan(src interface{}) error {
+func (s *Signature) Scan(src any) error {
 	data, ok := src.([]byte)
 	if !ok || len(data) == 0 || data[0] != 0xab {
 		return fmt.Errorf("%v is not a signature", src)
@@ -149,7 +149,7 @@ func testValuerTypes(t *testing.T, crud *CRUD) {
 		t.Fatalf("Save of NULLs and empty bytes failed: %s", err.Error())
 	}
 
-	err = UpdateMultiple[ValuerItem](ctx, crud, map[string]interface{}{"Raw": json.RawMessage(nil), "Count": sql.NullInt64{}}, UpdateMultipleOptions{})
+	err = UpdateMultiple[ValuerItem](ctx, crud, map[string]any{"Raw": json.RawMessage(nil), "Count": sql.NullInt64{}}, UpdateMultipleOptions{})
 	if err != nil {
 		t.Fatalf("UpdateMultiple of NULLs and empty bytes failed: %s", err.Error())
 	}

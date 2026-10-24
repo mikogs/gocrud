@@ -8,9 +8,9 @@ import (
 
 // DBTX is the database connection that CRUD runs its queries on. It is implemented by *sql.DB, *sql.Conn and *sql.Tx.
 type DBTX interface {
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 // WithTx returns a copy of the CRUD that runs all its queries in the tx transaction.

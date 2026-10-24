@@ -75,7 +75,7 @@ func (c *CRUD) CheckSchema(ctx context.Context) error {
 		return err
 	}
 
-	objs := make([]interface{}, 0, len(keys))
+	objs := make([]any, 0, len(keys))
 	for _, key := range keys {
 		objs = append(objs, c.registry[key]())
 	}

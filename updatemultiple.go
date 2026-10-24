@@ -20,7 +20,7 @@ type UpdateMultipleOptions struct {
 // UpdateMultiple sets the fields of fieldsToUpdate in all the rows that match the filters. The values of password
 // fields are hashed with bcrypt, once, so the rows get the same hash. An empty password keeps the stored passwords, as
 // in Save. fieldsToUpdate is not changed.
-func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpdate map[string]interface{}, options UpdateMultipleOptions) error {
+func (c *CRUD) UpdateMultiple(ctx context.Context, obj any, fieldsToUpdate map[string]any, options UpdateMultipleOptions) error {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
@@ -92,6 +92,9 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 
 	_, err = c.conn.ExecContext(ctx, query, c.args(append(sqlbuilder.MapInterfaces(fieldsToUpdate), sqlfilters.FiltersInterfaces(options.Filters)...))...)
 	if err != nil {
+		if uniqErr := checkUniqueErr(builder, err); uniqErr != nil {
+			return uniqErr
+		}
 		return getDBFuncCRUDError("exec", err)
 	}
 
@@ -100,7 +103,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 
 // valueArgs replaces the values of fields that database/sql cannot write on its own with the values that Save writes,
 // see objArgs. kinds is Builder.FieldKinds.
-func valueArgs(obj interface{}, values map[string]interface{}, kinds []sqlbuilder.FieldKind) {
+func valueArgs(obj any, values map[string]any, kinds []sqlbuilder.FieldKind) {
 	if kinds == nil {
 		return
 	}
@@ -124,7 +127,7 @@ func valueArgs(obj interface{}, values map[string]interface{}, kinds []sqlbuilde
 
 // normalizeUUIDValues sets the UUIDs in the values of fields with UUIDs to their standard form, as SQLite compares them
 // as text. A value that is not a UUID is a type violation, and nil sets a nullable field to NULL.
-func normalizeUUIDValues(values map[string]interface{}, uuidFields []string) error {
+func normalizeUUIDValues(values map[string]any, uuidFields []string) error {
 	violations := map[string]string{}
 	for _, name := range uuidFields {
 		value, ok := values[name]
@@ -152,7 +155,7 @@ func normalizeUUIDValues(values map[string]interface{}, uuidFields []string) err
 // scanValuerValues replaces the values of fields of Valuer types of other types with values of the types of the fields,
 // see valuerValue, e.g. a decimal from a string. A value that cannot be scanned is a type violation. valuerType is
 // Builder.ValuerType.
-func scanValuerValues(values map[string]interface{}, valuerType func(field string) reflect.Type) error {
+func scanValuerValues(values map[string]any, valuerType func(field string) reflect.Type) error {
 	var violations map[string]string
 	for name, value := range values {
 		t := valuerType(name)
@@ -177,7 +180,7 @@ func scanValuerValues(values map[string]interface{}, valuerType func(field strin
 
 // hashPasswordValues replaces the values of the password fields with their bcrypt hashes, and removes the empty ones,
 // which keep the stored passwords. The values were validated, so they are strings.
-func hashPasswordValues(values map[string]interface{}, passwordFields []string) error {
+func hashPasswordValues(values map[string]any, passwordFields []string) error {
 	for _, name := range passwordFields {
 		value, ok := values[name]
 		if !ok {

@@ -1,6 +1,6 @@
 # Typed functions
 
-The methods of `CRUD` take and return `interface{}`, so the results of `Get` have to be converted to your type, and a mistake shows up only when the program runs. The typed functions do the same work, but take the struct type as a type parameter and return values of that type:
+The methods of `CRUD` take and return `any`, so the results of `Get` have to be converted to your type, and a mistake shows up only when the program runs. The typed functions do the same work, but take the struct type as a type parameter and return values of that type:
 
 ```go
 users, err := gocrud.Get[User](ctx, crud, gocrud.GetOptions{
@@ -13,12 +13,12 @@ They are functions and not methods, because methods in Go cannot have type param
 
 | Function | Instead of |
 |---|---|
-| `Get[T](ctx, crud, GetOptions) ([]*T, error)` | `crud.Get(ctx, func() interface{} { return &T{} }, options)` |
+| `Get[T](ctx, crud, GetOptions) ([]*T, error)` | `crud.Get(ctx, func() any { return &T{} }, options)` |
 | `Load[T](ctx, crud, id, preload ...string) (*T, error)` | `crud.Load(ctx, &T{}, id, LoadOptions{Preload: preload})` |
 | `GetCount[T](ctx, crud, GetCountOptions) (uint64, error)` | `crud.GetCount(ctx, &T{}, options)` |
-| `InsertMultiple[T](ctx, crud, []*T, InsertMultipleOptions) error` | `crud.InsertMultiple(ctx, []interface{}{...}, options)`, see [InsertMultiple](ops.md#insertmultiple) |
+| `InsertMultiple[T](ctx, crud, []*T, InsertMultipleOptions) error` | `crud.InsertMultiple(ctx, []any{...}, options)`, see [InsertMultiple](ops.md#insertmultiple) |
 | `UpdateMultiple[T](ctx, crud, values, UpdateMultipleOptions) error` | `crud.UpdateMultiple(ctx, &T{}, values, options)` |
-| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]interface{}, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
+| `DeleteMultiple[T](ctx, crud, DeleteMultipleOptions) ([]any, error)` | `crud.DeleteMultiple(ctx, &T{}, options)` |
 | `Aggregate[T, R](ctx, crud, AggregateOptions) ([]*R, error)` | — the aggregated values of the objects, see [Reports](reports.md) |
 | `CreateTable[T](ctx, crud) error` | `crud.CreateTable(ctx, &T{})` |
 | `DropTable[T](ctx, crud) error` | `crud.DropTable(ctx, &T{})` |
@@ -42,10 +42,7 @@ func ListActiveUsers(ctx context.Context, crud *gocrud.CRUD, department string) 
 }
 ```
 
-All the options of `GetOptions` work the same way as in [`CRUD.Get`](ops.md#get), except two that do not fit a typed result:
-
-* `RowObjTransformFunc` changes the type of the results.
-* `VerifyPasswordFields` returns the result of the verification next to the objects.
+All the options of `GetOptions` work the same way as in [`CRUD.Get`](ops.md#get), except `RowObjTransformFunc`, which changes the type of the results, so it does not fit a typed result.
 
 `Get` returns an error that matches `gocrud.ErrUnsupportedOption` when one of them is set. Use `CRUD.Get` for them.
 
@@ -77,7 +74,7 @@ The names of relation fields after the ID load their related objects, see [Relat
 order, err := gocrud.Load[Order](ctx, crud, orderID, "Customer", "Items.Product")
 ```
 
-Password verification with `LoadOptions.VerifyPasswordFields` is done with `CRUD.Load`.
+Passwords are verified with [`CRUD.VerifyPasswords`](ops.md#verifypasswords).
 
 ## Counting, updating and deleting
 
@@ -88,7 +85,7 @@ waiting, err := gocrud.GetCount[Order](ctx, crud, gocrud.GetCountOptions{
 })
 
 // mark all the paid orders of a customer as shipped
-err = gocrud.UpdateMultiple[Order](ctx, crud, map[string]interface{}{"Status": "shipped"}, gocrud.UpdateMultipleOptions{
+err = gocrud.UpdateMultiple[Order](ctx, crud, map[string]any{"Status": "shipped"}, gocrud.UpdateMultipleOptions{
     Filters: &sqlfilters.Filters{
         "CustomerID": {Op: sqlfilters.OpEqual, Val: customerID},
         "Status":     {Op: sqlfilters.OpEqual, Val: "paid"},

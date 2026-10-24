@@ -43,14 +43,14 @@ func createNestedPreloadData(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&NestSupplier{}, &NestProduct{}, &NestItem{}, &NestOrder{}, &NestCustomer{}} {
+	for _, obj := range []any{&NestSupplier{}, &NestProduct{}, &NestItem{}, &NestOrder{}, &NestCustomer{}} {
 		_ = crud.DropTable(ctx, obj)
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
 		}
 	}
 
-	for _, obj := range []interface{}{
+	for _, obj := range []any{
 		&NestSupplier{Name: "Logitech"}, &NestSupplier{Name: "Cherry"},
 		&NestProduct{Name: "Mouse", SupplierID: 1}, &NestProduct{Name: "Keyboard", SupplierID: 2}, &NestProduct{Name: "Webcam", SupplierID: 1},
 		&NestCustomer{Name: "Acme"}, &NestCustomer{Name: "Globex"},

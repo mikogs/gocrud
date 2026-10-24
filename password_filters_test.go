@@ -26,15 +26,15 @@ func createPasswordFilterTables(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&PFPost{}, &PFUser{}} {
+	for _, obj := range []any{&PFPost{}, &PFUser{}} {
 		_ = crud.DropTable(ctx, obj)
 	}
-	for _, obj := range []interface{}{&PFUser{}, &PFPost{}} {
+	for _, obj := range []any{&PFUser{}, &PFPost{}} {
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
 		}
 	}
-	for _, obj := range []interface{}{&PFUser{Name: "alice", Password: "secret"}, &PFPost{AuthorID: 1, Title: "first"}} {
+	for _, obj := range []any{&PFUser{Name: "alice", Password: "secret"}, &PFPost{AuthorID: 1, Title: "first"}} {
 		if err := crud.Save(ctx, obj, SaveOptions{}); err != nil {
 			t.Fatalf("Save failed: %s", err.Error())
 		}
@@ -61,7 +61,7 @@ func testPasswordFilters(t *testing.T, crud *CRUD) {
 	_, err = GetCount[PFUser](ctx, crud, GetCountOptions{Filters: hashPrefix})
 	fatalIfNotViolations(t, err, map[string]string{"Password": ViolationPassword})
 
-	err = UpdateMultiple[PFUser](ctx, crud, map[string]interface{}{"Name": "bob"}, UpdateMultipleOptions{Filters: hashPrefix})
+	err = UpdateMultiple[PFUser](ctx, crud, map[string]any{"Name": "bob"}, UpdateMultipleOptions{Filters: hashPrefix})
 	fatalIfNotViolations(t, err, map[string]string{"Password": ViolationPassword})
 
 	_, err = DeleteMultiple[PFUser](ctx, crud, DeleteMultipleOptions{Filters: hashPrefix})

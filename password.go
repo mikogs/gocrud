@@ -20,18 +20,14 @@ var dummyHash = sync.OnceValue(func() []byte {
 	return hash
 })
 
-// verifyPassword returns PassOK when password matches hash, and PassInvalid otherwise. An empty hash, of an object
-// without a password, is not a password that can match, but password is compared with the dummy hash anyway.
-func verifyPassword(hash string, password string) int {
+// verifyPassword returns whether password matches hash. An empty hash, of an object without a password, is not a
+// password that can match, but password is compared with the dummy hash anyway.
+func verifyPassword(hash string, password string) bool {
 	if hash == "" {
 		_ = compareHashAndPassword(dummyHash(), []byte(password))
-		return PassInvalid
+		return false
 	}
-
-	if compareHashAndPassword([]byte(hash), []byte(password)) != nil {
-		return PassInvalid
-	}
-	return PassOK
+	return compareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
 // verifyWithoutObject compares the passwords to verify with the dummy hash when there is no object to verify them with,

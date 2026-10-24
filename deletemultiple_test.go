@@ -43,7 +43,7 @@ func testDeleteMultipleReturnsIDs(t *testing.T, crud *CRUD) {
 		Filters: &sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{"paid", "delivered"}}},
 	})
 	sort.Slice(ids, func(i, j int) bool { return ids[i].(uint64) < ids[j].(uint64) })
-	if err != nil || !reflect.DeepEqual(ids, []interface{}{uint64(2), uint64(4)}) {
+	if err != nil || !reflect.DeepEqual(ids, []any{uint64(2), uint64(4)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want [2 4]", ids, err)
 	}
 
@@ -78,7 +78,7 @@ func TestSQLite_DeleteMultiple_ReturnsIDsOfOwnQuery(t *testing.T) {
 
 	ids, err := DeleteMultiple[HookNote](ctx, testCRUDSQLite, DeleteMultipleOptions{})
 	sort.Slice(ids, func(i, j int) bool { return ids[i].(uint64) < ids[j].(uint64) })
-	if err != nil || !reflect.DeepEqual(ids, []interface{}{uint64(1), uint64(2)}) {
+	if err != nil || !reflect.DeepEqual(ids, []any{uint64(1), uint64(2)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want the IDs returned by its own query", ids, err)
 	}
 }
@@ -89,7 +89,7 @@ func TestDeleteMultiple_ReturnsIDsWithoutCascaded(t *testing.T) {
 	ids, err := DeleteMultiple[FkCustomer](context.Background(), testCRUD, DeleteMultipleOptions{
 		Filters: &sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: "Acme"}},
 	})
-	if err != nil || !reflect.DeepEqual(ids, []interface{}{uint64(1)}) {
+	if err != nil || !reflect.DeepEqual(ids, []any{uint64(1)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want the customer only, without the orders deleted by the foreign key", ids, err)
 	}
 	if left := orderIDs(t, testCRUD); !reflect.DeepEqual(left, []uint64{3}) {

@@ -74,7 +74,7 @@ func testValuerFilters(t *testing.T, crud *CRUD) {
 		"value of the type":      {sqlfilters.Filters{"Amount": {Op: sqlfilters.OpGreater, Val: Money{cents: 1000}}}, []uint64{2}},
 		"string on a decimal":    {sqlfilters.Filters{"Amount": {Op: sqlfilters.OpGreater, Val: "9.99"}}, []uint64{1, 2}},
 		"float on a decimal":     {sqlfilters.Filters{"Amount": {Op: sqlfilters.OpLower, Val: 10.0}}, []uint64{3}},
-		"in":                     {sqlfilters.Filters{"Amount": {Op: sqlfilters.OpIn, Val: []interface{}{"10.00", Money{cents: 725}}}}, []uint64{1, 3}},
+		"in":                     {sqlfilters.Filters{"Amount": {Op: sqlfilters.OpIn, Val: []any{"10.00", Money{cents: 725}}}}, []uint64{1, 3}},
 		"pointer field":          {sqlfilters.Filters{"Refund": {Op: sqlfilters.OpEqual, Val: "5.00"}}, []uint64{2}},
 		"NULL of a pointer":      {sqlfilters.Filters{"Refund": {Op: sqlfilters.OpEqual, Val: nil}}, []uint64{1, 3}},
 		"UUID in upper case":     {sqlfilters.Filters{"Ref": {Op: sqlfilters.OpEqual, Val: strings.ToUpper(refs[1].String())}}, []uint64{2}},
@@ -131,12 +131,12 @@ func testValuerFilters(t *testing.T, crud *CRUD) {
 		t.Fatalf("Get with a subquery on a JSON field returned err %v, want ErrSubquery", err)
 	}
 
-	err = UpdateMultiple[Payment](ctx, crud, map[string]interface{}{"Amount": "99.99", "Note": nil, "Ref": strings.ToUpper(refs[0].String())},
+	err = UpdateMultiple[Payment](ctx, crud, map[string]any{"Amount": "99.99", "Note": nil, "Ref": strings.ToUpper(refs[0].String())},
 		UpdateMultipleOptions{Filters: sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: 1}}})
 	if err != nil {
 		t.Fatalf("UpdateMultiple failed: %s", err.Error())
 	}
-	err = UpdateMultiple[Payment](ctx, crud, map[string]interface{}{"Count": "", "Refund": "1.50"},
+	err = UpdateMultiple[Payment](ctx, crud, map[string]any{"Count": "", "Refund": "1.50"},
 		UpdateMultipleOptions{Filters: sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: 3}}, ConvertValuesFromString: true})
 	if err != nil {
 		t.Fatalf("UpdateMultiple from strings failed: %s", err.Error())
@@ -155,7 +155,7 @@ func testValuerFilters(t *testing.T, crud *CRUD) {
 		t.Fatalf("Get by the UUID set by UpdateMultiple returned %v, want [1]", got)
 	}
 
-	err = UpdateMultiple[Payment](ctx, crud, map[string]interface{}{"Amount": "ten"}, UpdateMultipleOptions{})
+	err = UpdateMultiple[Payment](ctx, crud, map[string]any{"Amount": "ten"}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"Amount": ViolationType})
 }
 
@@ -164,7 +164,7 @@ func TestSQLite_ValuerFilters(t *testing.T) { testValuerFilters(t, testCRUDSQLit
 
 func TestValueKind(t *testing.T) {
 	for _, test := range []struct {
-		value interface{}
+		value any
 		want  string
 	}{
 		{int8(0), "number"},

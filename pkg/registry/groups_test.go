@@ -20,8 +20,8 @@ func contactsService(t *testing.T) *CRUD {
 	t.Helper()
 	ctx := context.Background()
 
-	svc := New(map[string]func() interface{}{
-		"contacts": func() interface{} { return &Contact{} },
+	svc := New(map[string]func() any{
+		"contacts": func() any { return &Contact{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Contact{})
@@ -47,7 +47,7 @@ func fatalIfNotContacts(t *testing.T, svc *CRUD, filters Filters, want []uint64)
 	t.Helper()
 	ctx := context.Background()
 
-	objs, _, err := svc.List(ctx, "contacts", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: filters})
+	objs, err := svc.List(ctx, "contacts", ListOptions{Limit: 10, Order: "ID", OrderDirection: "asc", Filters: filters})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -153,7 +153,7 @@ func TestList_InvalidFilterGroups(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := svc.List(context.Background(), "contacts", ListOptions{Limit: 10, Filters: test.filters})
+			_, err := svc.List(context.Background(), "contacts", ListOptions{Limit: 10, Filters: test.filters})
 			fatalIfNotFilterViolations(t, err, test.want)
 		})
 	}
@@ -175,9 +175,9 @@ type Project struct {
 
 func TestList_FilterPaths(t *testing.T) {
 	ctx := context.Background()
-	svc := New(map[string]func() interface{}{
-		"accounts": func() interface{} { return &Account{} },
-		"projects": func() interface{} { return &Project{} },
+	svc := New(map[string]func() any{
+		"accounts": func() any { return &Account{} },
+		"projects": func() any { return &Project{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Project{})
@@ -185,7 +185,7 @@ func TestList_FilterPaths(t *testing.T) {
 	if err := svc.CreateTables(ctx); err != nil {
 		t.Fatalf("CreateTables failed: %s", err.Error())
 	}
-	for _, obj := range []interface{}{
+	for _, obj := range []any{
 		&Account{Name: "Acme", Country: "PL"}, &Account{Name: "Globex", Country: "DE"},
 		&Project{AccountID: 1, Name: "Website"}, &Project{AccountID: 2, Name: "Acme clone"}, &Project{AccountID: 1, Name: "App"},
 	} {
@@ -214,7 +214,7 @@ func TestList_FilterPaths(t *testing.T) {
 	}
 	for name, test := range projects {
 		t.Run("projects "+name, func(t *testing.T) {
-			objs, _, err := svc.List(ctx, "projects", ListOptions{Limit: 10, Order: test.order, OrderDirection: test.direction, Filters: test.filters})
+			objs, err := svc.List(ctx, "projects", ListOptions{Limit: 10, Order: test.order, OrderDirection: test.direction, Filters: test.filters})
 			if err != nil {
 				t.Fatalf("List failed: %s", err.Error())
 			}

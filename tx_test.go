@@ -96,7 +96,7 @@ func createShopTables(t *testing.T, crud *CRUD) (*Product, *Product) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&Product{}, &Order{}, &OrderItem{}} {
+	for _, obj := range []any{&Product{}, &Order{}, &OrderItem{}} {
 		_ = crud.DropTable(ctx, obj)
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
@@ -118,7 +118,7 @@ func fatalIfStock(t *testing.T, crud *CRUD, product *Product, want int64) {
 	t.Helper()
 
 	loaded := &Product{}
-	if _, err := crud.Load(context.Background(), loaded, product.ID, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), loaded, product.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.Stock != want {
@@ -126,7 +126,7 @@ func fatalIfStock(t *testing.T, crud *CRUD, product *Product, want int64) {
 	}
 }
 
-func fatalIfCount(t *testing.T, crud *CRUD, obj interface{}, want uint64) {
+func fatalIfCount(t *testing.T, crud *CRUD, obj any, want uint64) {
 	t.Helper()
 
 	cnt, err := crud.GetCount(context.Background(), obj, GetCountOptions{})
@@ -153,7 +153,7 @@ func testRunInTxCommit(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &Order{}
-	if _, err := crud.Load(context.Background(), loaded, order.ID, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), loaded, order.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if *loaded != *order {

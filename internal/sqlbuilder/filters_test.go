@@ -106,7 +106,7 @@ func TestSQLFilterWithoutConditions(t *testing.T) {
 func TestSQLUpdateWithFilterGroups(t *testing.T) {
 	f := sqlfilters.Or(sqlfilters.Filters{"Age": {Op: sqlfilters.OpEqual, Val: 1}}, sqlfilters.Raw(".Price IN (?)", []int{1, 2}))
 
-	got, err := mustNew(t, testStructObj, Options{}).Update(map[string]interface{}{"FirstName": "a", "LastName": "b"}, f)
+	got, err := mustNew(t, testStructObj, Options{}).Update(map[string]any{"FirstName": "a", "LastName": "b"}, f)
 	want := `UPDATE "test_struct" SET "first_name"=$1,"last_name"=$2 WHERE "age"=$3 OR ("price" IN ($4,$5));`
 	if err != nil || got != want {
 		t.Fatalf("Update returned %v\nwant %s\ngot  %s", err, want, got)

@@ -34,10 +34,10 @@ type concTotals struct {
 func testConcurrentUse(t *testing.T, db *sql.DB, dialect string) {
 	ctx := context.Background()
 	setup := New(db, Options{Dialect: dialect})
-	for _, obj := range []interface{}{&ConcOrder{}, &ConcCustomer{}} {
+	for _, obj := range []any{&ConcOrder{}, &ConcCustomer{}} {
 		_ = setup.DropTable(ctx, obj)
 	}
-	for _, obj := range []interface{}{&ConcCustomer{}, &ConcOrder{}} {
+	for _, obj := range []any{&ConcCustomer{}, &ConcOrder{}} {
 		if err := setup.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
 		}
@@ -82,7 +82,7 @@ func concurrentOperations(ctx context.Context, crud *CRUD, worker int64) error {
 	if _, err := GetCount[ConcCustomer](ctx, crud, GetCountOptions{Filters: sqlfilters.Filters{"Orders.Worker": {Op: sqlfilters.OpEqual, Val: worker}}}); err != nil {
 		return fmt.Errorf("GetCount: %w", err)
 	}
-	if err := UpdateMultiple[ConcOrder](ctx, crud, map[string]interface{}{"Total": int64(200)}, UpdateMultipleOptions{Filters: ofWorker}); err != nil {
+	if err := UpdateMultiple[ConcOrder](ctx, crud, map[string]any{"Total": int64(200)}, UpdateMultipleOptions{Filters: ofWorker}); err != nil {
 		return fmt.Errorf("UpdateMultiple: %w", err)
 	}
 	if _, err := Aggregate[ConcOrder, concTotals](ctx, crud, AggregateOptions{Filters: ofWorker}); err != nil {

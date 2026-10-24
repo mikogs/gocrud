@@ -119,7 +119,7 @@ type QueryEvent struct {
     Op       string // the operation, e.g. "Save", "Get", "Migrate", or "RunInTx"
     Table    string // the table of the struct, empty for "RunInTx"
     Query    string
-    Args     []interface{}
+    Args     []any
     Duration time.Duration // set for AfterQuery
     Err      error         // set for AfterQuery
 }

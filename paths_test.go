@@ -123,7 +123,7 @@ func testFilterPathsUpdateAndDelete(t *testing.T, crud *CRUD) {
 	createPreloadData(t, crud)
 	ctx := context.Background()
 
-	err := UpdateMultiple[PreOrder](ctx, crud, map[string]interface{}{"Status": "priority"}, UpdateMultipleOptions{
+	err := UpdateMultiple[PreOrder](ctx, crud, map[string]any{"Status": "priority"}, UpdateMultipleOptions{
 		Filters: sqlfilters.Filters{"Customer.Name": {Op: sqlfilters.OpEqual, Val: "Globex"}},
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func testFilterPathsUpdateAndDelete(t *testing.T, crud *CRUD) {
 		Filters: sqlfilters.Filters{"Items.Product": {Op: sqlfilters.OpIn, Val: []string{"Mouse", "Cable"}}},
 	})
 	sort.Slice(deleted, func(i, j int) bool { return deleted[i].(uint64) < deleted[j].(uint64) })
-	if err != nil || !reflect.DeepEqual(deleted, []interface{}{uint64(1), uint64(2)}) {
+	if err != nil || !reflect.DeepEqual(deleted, []any{uint64(1), uint64(2)}) {
 		t.Fatalf("DeleteMultiple returned %v, %v, want [1 2]", deleted, err)
 	}
 }
@@ -155,7 +155,7 @@ type PathMember struct {
 
 func testFilterPathsValidation(t *testing.T, crud *CRUD) {
 	ctx := context.Background()
-	for _, obj := range []interface{}{&PathMember{}, &PathTeam{}} {
+	for _, obj := range []any{&PathMember{}, &PathTeam{}} {
 		_ = crud.DropTable(ctx, obj)
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())

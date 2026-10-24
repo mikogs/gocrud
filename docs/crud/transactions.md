@@ -281,7 +281,7 @@ func (h *Handler) MoveTask(w http.ResponseWriter, r *http.Request) {
     userID := currentUserID(r)
 
     err := h.reg.RunInTx(ctx, func(tx *registry.CRUD) error {
-        obj, _, err := tx.Read(ctx, "tasks", taskID, nil, nil)
+        obj, err := tx.Read(ctx, "tasks", taskID, nil)
         if err != nil {
             return err
         }

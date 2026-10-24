@@ -16,8 +16,8 @@ type Task struct {
 
 func TestList_NullFilters(t *testing.T) {
 	ctx := context.Background()
-	svc := New(map[string]func() interface{}{
-		"tasks": func() interface{} { return &Task{} },
+	svc := New(map[string]func() any{
+		"tasks": func() any { return &Task{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Task{})
@@ -33,7 +33,7 @@ func TestList_NullFilters(t *testing.T) {
 	}
 
 	for op, want := range map[string]string{"eq": "Open", "ne": "Done"} {
-		objs, _, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}}})
+		objs, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"DoneAt": ""}, Ops: map[string]string{"DoneAt": op}}})
 		if err != nil {
 			t.Fatalf("List failed: %s", err.Error())
 		}
@@ -47,7 +47,7 @@ func TestList_NullFilters(t *testing.T) {
 		}
 	}
 
-	_, _, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Title": ""}, Ops: map[string]string{"Title": "eq"}}})
+	_, err := svc.List(ctx, "tasks", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"Title": ""}, Ops: map[string]string{"Title": "eq"}}})
 	if err != nil {
 		t.Fatalf("List failed for an empty value of a field that is not nullable: %s", err.Error())
 	}

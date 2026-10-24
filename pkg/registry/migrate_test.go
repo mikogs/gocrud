@@ -20,9 +20,9 @@ type Customer_Summary struct {
 
 func TestMigrate(t *testing.T) {
 	ctx := context.Background()
-	svc := New(map[string]func() interface{}{
-		"customers":         func() interface{} { return &Customer{} },
-		"customersummaries": func() interface{} { return &Customer_Summary{} },
+	svc := New(map[string]func() any{
+		"customers":         func() any { return &Customer{} },
+		"customersummaries": func() any { return &Customer_Summary{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Customer{})

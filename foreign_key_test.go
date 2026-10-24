@@ -57,16 +57,16 @@ func createForeignKeyTables(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&FkNote{}, &FkInvoice{}, &FkOrder{}, &FkShipper{}, &FkCustomer{}} {
+	for _, obj := range []any{&FkNote{}, &FkInvoice{}, &FkOrder{}, &FkShipper{}, &FkCustomer{}} {
 		_ = crud.DropTable(ctx, obj)
 	}
-	for _, obj := range []interface{}{&FkCustomer{}, &FkShipper{}, &FkOrder{}, &FkInvoice{}, &FkNote{}} {
+	for _, obj := range []any{&FkCustomer{}, &FkShipper{}, &FkOrder{}, &FkInvoice{}, &FkNote{}} {
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed for %T: %s", obj, err.Error())
 		}
 	}
 
-	for _, obj := range []interface{}{&FkCustomer{Name: "Acme"}, &FkCustomer{Name: "Globex"}, &FkShipper{Name: "DHL"}} {
+	for _, obj := range []any{&FkCustomer{Name: "Acme"}, &FkCustomer{Name: "Globex"}, &FkShipper{Name: "DHL"}} {
 		if err := crud.Save(ctx, obj, SaveOptions{}); err != nil {
 			t.Fatalf("Save failed: %s", err.Error())
 		}
@@ -121,7 +121,7 @@ func testForeignKeysOnSave(t *testing.T, crud *CRUD) {
 	order.CustomerID = 99
 	fatalIfNotForeignKeyViolation(t, crud.Save(ctx, order, SaveOptions{NoInsert: true}))
 
-	err := UpdateMultiple[FkOrder](ctx, crud, map[string]interface{}{"CustomerID": uint64(99)}, UpdateMultipleOptions{})
+	err := UpdateMultiple[FkOrder](ctx, crud, map[string]any{"CustomerID": uint64(99)}, UpdateMultipleOptions{})
 	fatalIfNotForeignKeyViolation(t, err)
 
 	if err := crud.Save(ctx, &FkInvoice{OrderID: 1}, SaveOptions{}); err != nil {
@@ -152,7 +152,7 @@ func testForeignKeysOnDelete(t *testing.T, crud *CRUD) {
 	}
 
 	// restrict and no action
-	for _, obj := range []interface{}{&FkInvoice{OrderID: 3}, &FkNote{OrderID: 3}} {
+	for _, obj := range []any{&FkInvoice{OrderID: 3}, &FkNote{OrderID: 3}} {
 		if err := crud.Save(ctx, obj, SaveOptions{}); err != nil {
 			t.Fatalf("Save failed: %s", err.Error())
 		}
@@ -177,7 +177,7 @@ func testForeignKeysOnDelete(t *testing.T, crud *CRUD) {
 func testForeignKeysMigrate(t *testing.T, crud *CRUD) {
 	createForeignKeyTables(t, crud)
 
-	for _, obj := range []interface{}{&FkCustomer{}, &FkShipper{}, &FkOrder{}, &FkInvoice{}, &FkNote{}} {
+	for _, obj := range []any{&FkCustomer{}, &FkShipper{}, &FkOrder{}, &FkInvoice{}, &FkNote{}} {
 		if migration := mustMigrate(t, crud, obj); len(migration.Differences) != 0 {
 			t.Fatalf("Migrate returned differences %v for %T, want none", migration.Differences, obj)
 		}
@@ -276,7 +276,7 @@ func TestSQLite_ForeignKeys_MigrateChanges(t *testing.T) {
 
 func TestSQLite_ForeignKeys_NotEnforced(t *testing.T) {
 	ctx := context.Background()
-	for _, obj := range []interface{}{&FkNote{}, &FkInvoice{}, &FkOrder{}, &FkShipper{}, &FkCustomer{}} {
+	for _, obj := range []any{&FkNote{}, &FkInvoice{}, &FkOrder{}, &FkShipper{}, &FkCustomer{}} {
 		_ = testCRUDSQLite.DropTable(ctx, obj)
 	}
 	mustMigrate(t, testCRUDSQLite, &FkCustomer{})

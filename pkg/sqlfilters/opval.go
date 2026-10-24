@@ -4,7 +4,7 @@ import "reflect"
 
 type OpVal struct {
 	Op  int
-	Val interface{}
+	Val any
 }
 
 // IsNull checks if the filter is an IS NULL condition (OpEqual with a nil value) or
@@ -15,13 +15,13 @@ func (o OpVal) IsNull() bool {
 
 // InValues returns the values of an OpIn filter, which is a slice or an array, e.g. []uint64{1, 2}.
 // It returns false when the value is not a slice or an array.
-func (o OpVal) InValues() ([]interface{}, bool) {
+func (o OpVal) InValues() ([]any, bool) {
 	val := reflect.ValueOf(o.Val)
 	if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
 		return nil, false
 	}
 
-	values := make([]interface{}, val.Len())
+	values := make([]any, val.Len())
 	for i := range values {
 		values[i] = val.Index(i).Interface()
 	}

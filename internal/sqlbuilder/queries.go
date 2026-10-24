@@ -94,7 +94,7 @@ func (b *Builder) deleteReturningIDQuery(filters sqlfilters.Filter) (string, err
 	return query, nil
 }
 
-func (b *Builder) updateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error) {
+func (b *Builder) updateQuery(values map[string]any, filters sqlfilters.Filter) (string, error) {
 	query := b.st.UpdatePrefix
 
 	qSet, lastVarNumber, err := b.querySet(values)
@@ -164,7 +164,7 @@ func (b *Builder) queryOrder(order []string, withAlias bool) (string, error) {
 	return qOrder[1:], nil
 }
 
-func (b *Builder) querySet(values map[string]interface{}) (string, int, error) {
+func (b *Builder) querySet(values map[string]any) (string, int, error) {
 	if len(values) == 0 {
 		return "", 0, nil
 	}
@@ -244,7 +244,7 @@ func (b *Builder) whereDialect(qualifier string, withAlias bool, placeholder fun
 		}
 		return b.relation(outer, field, alias, placeholder)
 	}
-	d.Subquery = func(obj interface{}, field string, alias string) (where.Selected, error) {
+	d.Subquery = func(obj any, field string, alias string) (where.Selected, error) {
 		return b.subquery(obj, field, alias, placeholder)
 	}
 

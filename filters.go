@@ -15,7 +15,7 @@ import (
 
 // prepareFilters returns a filter ready for a query of obj: with the values converted from strings when convert is
 // true, and with the UUIDs in their standard form, and validates it.
-func (c *CRUD) prepareFilters(obj interface{}, filter sqlfilters.Filter, convert bool) (sqlfilters.Filter, error) {
+func (c *CRUD) prepareFilters(obj any, filter sqlfilters.Filter, convert bool) (sqlfilters.Filter, error) {
 	targets := c.filterTargets(obj)
 
 	if err := checkPasswordFilters(targets, filter); err != nil {
@@ -99,7 +99,7 @@ func convertFilterValuesFromString(targets func(string) (*filterTarget, error), 
 
 		// the values of IN are separated with commas, and an empty string is an empty list
 		if filterOpVal.Op == sqlfilters.OpIn {
-			values := []interface{}{}
+			values := []any{}
 			if valueAsString != "" {
 				for _, part := range strings.Split(valueAsString, ",") {
 					ok, value := sqlbuilder.StructFieldValueFromString(target.obj, target.field, part)
@@ -251,7 +251,7 @@ func normalizeUUIDFilters(targets func(string) (*filterTarget, error), filter sq
 }
 
 // uuidConditionValue returns the value of a condition with the UUIDs in their standard form: a list for OpIn.
-func uuidConditionValue(condition sqlfilters.OpVal) (interface{}, error) {
+func uuidConditionValue(condition sqlfilters.OpVal) (any, error) {
 	if condition.Op != sqlfilters.OpIn {
 		return idValue(true, condition.Val)
 	}
@@ -311,7 +311,7 @@ func scanValuerFilters(targets func(string) (*filterTarget, error), filter sqlfi
 
 // valuerConditionValue returns the value of a condition on a field of the Valuer type t as values of t: a list for
 // OpIn.
-func valuerConditionValue(t reflect.Type, condition sqlfilters.OpVal) (interface{}, bool) {
+func valuerConditionValue(t reflect.Type, condition sqlfilters.OpVal) (any, bool) {
 	if condition.Op != sqlfilters.OpIn {
 		return valuerValue(t, condition.Val)
 	}
@@ -330,7 +330,7 @@ func valuerConditionValue(t reflect.Type, condition sqlfilters.OpVal) (interface
 
 // valuerValue returns value as a value of the Valuer type t, scanned as it would be from the database. A value of t,
 // or a pointer to one, and nil are not changed.
-func valuerValue(t reflect.Type, value interface{}) (interface{}, bool) {
+func valuerValue(t reflect.Type, value any) (any, bool) {
 	if isNilValue(value) {
 		return value, true
 	}
@@ -349,7 +349,7 @@ func valuerValue(t reflect.Type, value interface{}) (interface{}, bool) {
 // value is valid only for a nullable field, with OpEqual or OpNotEqual. The fields of related structs, e.g.
 // Customer.Country, are validated with the tags of the related struct, and the filters of subqueries with the tags of
 // their structs. A condition on a password field is a ViolationPassword. Raw filters are not validated.
-func (c *CRUD) ValidateFilters(obj interface{}, filter sqlfilters.Filter) error {
+func (c *CRUD) ValidateFilters(obj any, filter sqlfilters.Filter) error {
 	targets := c.filterTargets(obj)
 	if err := checkPasswordFilters(targets, filter); err != nil {
 		return err
@@ -442,7 +442,7 @@ func validateCondition(target *filterTarget, condition sqlfilters.OpVal, tagName
 
 // validateInFilter validates each value of an OpIn filter as if it was the value of the field, and returns the
 // violations of the first invalid value.
-func validateInFilter(obj interface{}, name string, filter sqlfilters.OpVal, tagName string) (map[string]string, error) {
+func validateInFilter(obj any, name string, filter sqlfilters.OpVal, tagName string) (map[string]string, error) {
 	values, ok := filter.InValues()
 	if !ok {
 		return map[string]string{name: ViolationType}, nil
@@ -505,7 +505,7 @@ func mapFilters(filter sqlfilters.Filter, mapFunc func(sqlfilters.Filters) (sqlf
 // filterTarget is the struct and its field that a field of a filter refers to: obj itself for a field of obj, and a
 // related struct for a path through relation fields, e.g. Customer.Country.
 type filterTarget struct {
-	obj      interface{}
+	obj      any
 	field    string
 	uuid     bool
 	password bool
@@ -516,7 +516,7 @@ type filterTarget struct {
 
 // filterTargets returns a function that returns the target of a field of a filter of obj. The objects of related
 // structs are created once, as validation sets their fields.
-func (c *CRUD) filterTargets(obj interface{}) func(string) (*filterTarget, error) {
+func (c *CRUD) filterTargets(obj any) func(string) (*filterTarget, error) {
 	targets := map[string]*filterTarget{}
 
 	return func(path string) (*filterTarget, error) {

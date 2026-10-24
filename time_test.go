@@ -66,7 +66,7 @@ func saveEvents(t *testing.T, crud *CRUD) {
 func fatalIfNotEvents(t *testing.T, crud *CRUD, options GetOptions, want []string) {
 	t.Helper()
 
-	objs, _, err := crud.Get(context.Background(), func() interface{} { return &Event{} }, options)
+	objs, err := crud.Get(context.Background(), func() any { return &Event{} }, options)
 	if err != nil {
 		t.Fatalf("Get failed: %s", err.Error())
 	}
@@ -96,7 +96,7 @@ func testTimeRoundTrip(t *testing.T, crud *CRUD, stored func(time.Time) time.Tim
 	}
 
 	loaded := &Event{}
-	if _, err := crud.Load(ctx, loaded, event.ID, LoadOptions{}); err != nil {
+	if err := crud.Load(ctx, loaded, event.ID, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if !loaded.StartsAt.Equal(stored(startsAt)) {
@@ -112,7 +112,7 @@ func testTimeRoundTrip(t *testing.T, crud *CRUD, stored func(time.Time) time.Tim
 		t.Fatalf("Save failed to update: %s", err.Error())
 	}
 
-	objs, _, err := crud.Get(ctx, func() interface{} { return &Event{} }, GetOptions{})
+	objs, err := crud.Get(ctx, func() any { return &Event{} }, GetOptions{})
 	if err != nil {
 		t.Fatalf("Get failed: %s", err.Error())
 	}
@@ -136,7 +136,7 @@ func testTimeColumnDefault(t *testing.T, crud *CRUD) {
 	}
 
 	loaded := &Event{}
-	if _, err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.Name != "Imported" || !loaded.StartsAt.IsZero() || !loaded.EndsAt.IsZero() {
@@ -197,7 +197,7 @@ func testTimeStringFilters(t *testing.T, crud *CRUD) {
 		})
 	}
 
-	_, _, err := crud.Get(context.Background(), func() interface{} { return &Event{} }, GetOptions{
+	_, err := crud.Get(context.Background(), func() any { return &Event{} }, GetOptions{
 		Filters:                  &sqlfilters.Filters{"StartsAt": {Op: sqlfilters.OpEqual, Val: "yesterday"}},
 		ConvertFiltersFromString: true,
 	})
@@ -209,7 +209,7 @@ func testTimeUpdateMultiple(t *testing.T, crud *CRUD) {
 	saveEvents(t, crud)
 
 	endsAt := time.Date(2024, 5, 1, 18, 0, 0, 0, time.UTC)
-	err := crud.UpdateMultiple(context.Background(), &Event{}, map[string]interface{}{"EndsAt": endsAt},
+	err := crud.UpdateMultiple(context.Background(), &Event{}, map[string]any{"EndsAt": endsAt},
 		UpdateMultipleOptions{
 			Filters: &sqlfilters.Filters{"StartsAt": {Op: sqlfilters.OpGreater, Val: time.Date(2024, 5, 1, 10, 30, 0, 0, time.UTC)}},
 		})
@@ -222,7 +222,7 @@ func testTimeUpdateMultiple(t *testing.T, crud *CRUD) {
 		Filters: &sqlfilters.Filters{"EndsAt": {Op: sqlfilters.OpEqual, Val: endsAt}},
 	}, []string{"Event 2", "Event 3"})
 
-	err = crud.UpdateMultiple(context.Background(), &Event{}, map[string]interface{}{"EndsAt": "2024-05-01T20:00"},
+	err = crud.UpdateMultiple(context.Background(), &Event{}, map[string]any{"EndsAt": "2024-05-01T20:00"},
 		UpdateMultipleOptions{ConvertValuesFromString: true})
 	if err != nil {
 		t.Fatalf("UpdateMultiple failed to update from a string: %s", err.Error())
@@ -293,14 +293,14 @@ func testTimeLoadedInUTC(t *testing.T, crud *CRUD) {
 	saveEvents(t, crud)
 
 	loaded := &Event{}
-	if _, err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), loaded, 1, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.StartsAt.Location() != time.UTC || loaded.EndsAt.Location() != time.UTC {
 		t.Fatalf("Load returned times in %v and %v, want UTC", loaded.StartsAt.Location(), loaded.EndsAt.Location())
 	}
 
-	objs, _, err := crud.Get(context.Background(), func() interface{} { return &Event{} }, GetOptions{})
+	objs, err := crud.Get(context.Background(), func() any { return &Event{} }, GetOptions{})
 	if err != nil {
 		t.Fatalf("Get failed: %s", err.Error())
 	}

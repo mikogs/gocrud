@@ -46,7 +46,7 @@ func pageOrder(order []string, page bool) []string {
 // NextCursor returns the cursor of the page after obj, the last object of a page of Get with order, for GetOptions.After.
 // The order fields cannot be nullable, JSON fields, or fields of related objects. The cursor has the values of the
 // order fields and the ID of obj, encoded but not encrypted.
-func (c *CRUD) NextCursor(obj interface{}, order []string) (string, error) {
+func (c *CRUD) NextCursor(obj any, order []string) (string, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return "", getBuilderObjectCRUDError(err)
@@ -102,7 +102,7 @@ func checkCursorOrder(builder *sqlbuilder.Builder, order []string) error {
 // cursorFilter returns the condition of the objects after the cursor in order: the first order field is after the
 // value of the cursor, or it is equal and the second one is after it, and so on. The first order field is also
 // compared on its own, so that the database can use its index.
-func cursorFilter(builder *sqlbuilder.Builder, obj interface{}, order []string, after string) (sqlfilters.Filter, error) {
+func cursorFilter(builder *sqlbuilder.Builder, obj any, order []string, after string) (sqlfilters.Filter, error) {
 	if err := checkCursorOrder(builder, order); err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func cursorFilter(builder *sqlbuilder.Builder, obj interface{}, order []string, 
 	}
 
 	objType := reflect.TypeOf(obj).Elem()
-	values := make([]interface{}, len(position.Values))
+	values := make([]any, len(position.Values))
 	for i, raw := range position.Values {
 		field, _ := objType.FieldByName(order[2*i])
 		valueType := field.Type

@@ -20,7 +20,7 @@ type SaveOptions struct {
 	// ModifiedBy is the ID of the user who saves the object. It is stored in the ModifiedBy field, and in the
 	// CreatedBy field when the object is created: a non-negative integer for fields of type uint64, and a string
 	// for fields of type string. nil stores the zero value.
-	ModifiedBy interface{}
+	ModifiedBy any
 	// ModifiedAt is the time of the change, stored like ModifiedBy. When it is zero, the current time is used.
 	ModifiedAt time.Time
 }
@@ -31,7 +31,7 @@ type SaveOptions struct {
 // Password fields are hashed with bcrypt. An empty password field keeps the stored password of an object that is
 // updated, and leaves a new object without a password that can be verified. The password fields are empty after the
 // object is saved.
-func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (err error) {
+func (c *CRUD) Save(ctx context.Context, obj any, options SaveOptions) (err error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
@@ -123,12 +123,12 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	// a new row has version 1, which is also the value inserted by an "upsert", and the stored version of an updated
 	// row has to be the one of the object
 	var version reflect.Value
-	var versionArgs []interface{}
+	var versionArgs []any
 	if versionField := builder.VersionField(); versionField != "" {
 		version = reflect.ValueOf(obj).Elem().FieldByName(versionField)
 		loaded := reflect.New(version.Type()).Elem()
 		loaded.Set(version)
-		versionArgs = []interface{}{loaded.Interface()}
+		versionArgs = []any{loaded.Interface()}
 		defer func() {
 			if err != nil {
 				version.Set(loaded)
@@ -205,7 +205,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 // setObjUUID sets the ID of a new object to a new UUIDv7, which starts with the time, so that new rows are added at
 // the end of the index. The ID of an existing object has to be a UUID, and is set to its standard form, as SQLite
 // compares UUIDs as text.
-func setObjUUID(obj interface{}, isNew bool) error {
+func setObjUUID(obj any, isNew bool) error {
 	idField := reflect.ValueOf(obj).Elem().FieldByName(IDField)
 
 	if isNew {
@@ -228,7 +228,7 @@ func setObjUUID(obj interface{}, isNew bool) error {
 
 // normalizeObjUUIDs sets the UUIDs in the foreign keys of obj to their standard form, as SQLite compares them as text.
 // A value that is not a UUID, e.g. an empty string, is a type violation. Use a *string for a key that can be empty.
-func normalizeObjUUIDs(obj interface{}, uuidFields []string) error {
+func normalizeObjUUIDs(obj any, uuidFields []string) error {
 	objValue := reflect.ValueOf(obj).Elem()
 
 	violations := map[string]string{}
@@ -265,7 +265,7 @@ func checkUniqueErr(builder *sqlbuilder.Builder, err error) *UniqError {
 
 // updateNotFoundError returns the error of an update by ID that changed no rows: ErrVersionConflict when the object has
 // a version and its row exists, as its stored version is another one, and ErrNotFound otherwise.
-func (c *CRUD) updateNotFoundError(ctx context.Context, obj interface{}, version reflect.Value) error {
+func (c *CRUD) updateNotFoundError(ctx context.Context, obj any, version reflect.Value) error {
 	if version.IsValid() {
 		count, err := c.GetCount(ctx, obj, GetCountOptions{Filters: &sqlfilters.Filters{
 			"ID": sqlfilters.OpVal{Op: sqlfilters.OpEqual, Val: ObjIDValue(obj)},
@@ -304,7 +304,7 @@ func modificationTime(modifiedAt time.Time) time.Time {
 	return modifiedAt.UTC()
 }
 
-func setModificationFields(obj interface{}, isNew bool, modifiedAt time.Time, modifiedBy interface{}) error {
+func setModificationFields(obj any, isNew bool, modifiedAt time.Time, modifiedBy any) error {
 	if err := setObjModified(obj, modifiedAt, modifiedBy); err != nil {
 		return getCRUDFuncCRUDError("set modification fields", err)
 	}
@@ -320,7 +320,7 @@ func setModificationFields(obj interface{}, isNew bool, modifiedAt time.Time, mo
 }
 
 // hashObjPasswords replaces the passwords of obj with their bcrypt hashes, and puts the passwords in passwords.
-func hashObjPasswords(obj interface{}, passFields []string, passwords map[string]string) error {
+func hashObjPasswords(obj any, passFields []string, passwords map[string]string) error {
 	for _, passField := range passFields {
 		password := objFieldValue(obj, passField).(string)
 		// an empty password is not hashed: an update keeps the stored password, and a new object has no password

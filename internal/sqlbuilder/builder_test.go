@@ -263,7 +263,7 @@ func TestSQLUpdateQueries(t *testing.T) {
 	h := mustNew(t, testStructObj, Options{})
 
 	got, err := h.Update(
-		map[string]interface{}{"Price": 1234, "PostCode2": "12-345"},
+		map[string]any{"Price": 1234, "PostCode2": "12-345"},
 		&sqlfilters.Filters{
 			"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"},
 		},
@@ -277,7 +277,7 @@ func TestSQLUpdateQueries(t *testing.T) {
 	}
 
 	got, err = h.Update(
-		map[string]interface{}{"FirstName": "Jane", "LastName": "Doe"},
+		map[string]any{"FirstName": "Jane", "LastName": "Doe"},
 		&sqlfilters.Filters{
 			"PostCode": {Op: sqlfilters.OpEqual, Val: "11-111"},
 		},
@@ -372,7 +372,7 @@ func TestSQLAliasedColumnQueries(t *testing.T) {
 
 	selectQuery, _ := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
 	selectCountQuery, _ := h.SelectCount(aliasesTestFilters)
-	updateQuery, _ := h.Update(map[string]interface{}{"Price": 5}, aliasesTestFilters)
+	updateQuery, _ := h.Update(map[string]any{"Price": 5}, aliasesTestFilters)
 	deleteQuery, _ := h.DeleteReturningID(aliasesTestFilters)
 
 	tests := map[string][2]string{
@@ -419,7 +419,7 @@ func TestSQLiteAliasedColumnQueries(t *testing.T) {
 
 	selectQuery, _ := h.Select([]string{"Price", "desc"}, 10, 0, aliasesTestFilters)
 	selectCountQuery, _ := h.SelectCount(aliasesTestFilters)
-	updateQuery, _ := h.Update(map[string]interface{}{"Price": 5}, aliasesTestFilters)
+	updateQuery, _ := h.Update(map[string]any{"Price": 5}, aliasesTestFilters)
 	deleteQuery, _ := h.DeleteReturningID(aliasesTestFilters)
 
 	tests := map[string][2]string{
@@ -469,7 +469,7 @@ func TestSQLCustomDeleteByIDQuery(t *testing.T) {
 	}
 }
 
-func mustNew(t *testing.T, obj interface{}, options Options) *Builder {
+func mustNew(t *testing.T, obj any, options Options) *Builder {
 	t.Helper()
 
 	b, err := New(obj, options)
@@ -630,7 +630,7 @@ func TestSQLNullConditions(t *testing.T) {
 		})
 	}
 
-	wantValues := []interface{}{"Alice", 1.5, 5}
+	wantValues := []any{"Alice", 1.5, 5}
 	if got := sqlfilters.FiltersInterfaces(f); len(got) != 3 || got[0] != wantValues[0] || got[1] != wantValues[1] || got[2] != wantValues[2] {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
 	}
@@ -668,7 +668,7 @@ func TestSQLInConditions(t *testing.T) {
 		})
 	}
 
-	wantValues := []interface{}{"Alice", "Bob", 1.5, uint64(1), uint64(2)}
+	wantValues := []any{"Alice", "Bob", 1.5, uint64(1), uint64(2)}
 	if got := sqlfilters.FiltersInterfaces(f); !reflect.DeepEqual(got, wantValues) {
 		t.Fatalf("FiltersInterfaces returned %v, want %v", got, wantValues)
 	}
@@ -773,7 +773,7 @@ func TestSQLCustomBuilders(t *testing.T) {
 			selectQuery, _ := h.Select(nil, 0, 0, nil)
 			selectCountQuery, _ := h.SelectCount(nil)
 			deleteQuery, _ := h.Delete(nil)
-			updateQuery, _ := h.Update(map[string]interface{}{"Name": "x"}, nil)
+			updateQuery, _ := h.Update(map[string]any{"Name": "x"}, nil)
 
 			placeholder := map[string]string{DialectPostgres: "$1", DialectSQLite: "?"}[dialect]
 			tests := map[string][2]string{
@@ -933,7 +933,7 @@ func TestSQLColumnTypes_NamedTypes(t *testing.T) {
 type testMoney struct{}
 
 func (m testMoney) Value() (driver.Value, error) { return "0.00", nil }
-func (m *testMoney) Scan(interface{}) error      { return nil }
+func (m *testMoney) Scan(any) error              { return nil }
 
 type TestStructWithValuers struct {
 	ID       uint64
@@ -1058,7 +1058,7 @@ func TestSQLVersionQueries(t *testing.T) {
 		},
 	} {
 		h := mustNew(t, &VersionedDoc{}, Options{Dialect: dialect})
-		update, err := h.Update(map[string]interface{}{"Title": "x"}, nil)
+		update, err := h.Update(map[string]any{"Title": "x"}, nil)
 		if err != nil {
 			t.Fatalf("Update failed: %s", err.Error())
 		}
@@ -1086,7 +1086,7 @@ type Memo struct {
 
 func TestSQLInsertRows(t *testing.T) {
 	for _, test := range []struct {
-		obj     interface{}
+		obj     any
 		dialect string
 		want    string
 		limit   int

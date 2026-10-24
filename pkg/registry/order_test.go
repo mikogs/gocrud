@@ -46,16 +46,16 @@ type SvcCycleB struct {
 }
 
 func newOrderedService() *CRUD {
-	return New(map[string]func() interface{}{
-		"a_items":      func() interface{} { return &SvcItem{} },
-		"b_orders":     func() interface{} { return &SvcOrder{} },
-		"c_customers":  func() interface{} { return &SvcCustomer{} },
-		"d_categories": func() interface{} { return &SvcCategory{} },
+	return New(map[string]func() any{
+		"a_items":      func() any { return &SvcItem{} },
+		"b_orders":     func() any { return &SvcOrder{} },
+		"c_customers":  func() any { return &SvcCustomer{} },
+		"d_categories": func() any { return &SvcCategory{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 }
 
 func dropOrderedTables() {
-	for _, obj := range []interface{}{&SvcItem{}, &SvcOrder{}, &SvcCustomer{}, &SvcCategory{}} {
+	for _, obj := range []any{&SvcItem{}, &SvcOrder{}, &SvcCustomer{}, &SvcCategory{}} {
 		_ = testCRUD.DropTable(context.Background(), obj)
 	}
 }
@@ -69,8 +69,8 @@ func TestTableKeys_Order(t *testing.T) {
 		t.Fatalf("tableKeys returned %v, want %v", keys, want)
 	}
 
-	svc := New(map[string]func() interface{}{
-		"invoices": func() interface{} { return &SvcInvoice{} },
+	svc := New(map[string]func() any{
+		"invoices": func() any { return &SvcInvoice{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 	if keys, err := svc.tableKeys(); err != nil || !reflect.DeepEqual(keys, []string{"invoices"}) {
 		t.Fatalf("tableKeys returned %v, %v for a table that is not in the registry, want [invoices]", keys, err)
@@ -156,9 +156,9 @@ func TestCheckSchema(t *testing.T) {
 }
 
 func TestCreateTables_ForeignKeyCycle(t *testing.T) {
-	svc := New(map[string]func() interface{}{
-		"a": func() interface{} { return &SvcCycleA{} },
-		"b": func() interface{} { return &SvcCycleB{} },
+	svc := New(map[string]func() any{
+		"a": func() any { return &SvcCycleA{} },
+		"b": func() any { return &SvcCycleB{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	if err := svc.CreateTables(context.Background()); !errors.Is(err, ErrForeignKeyCycle) {

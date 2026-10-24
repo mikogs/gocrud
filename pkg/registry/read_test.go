@@ -18,17 +18,17 @@ func TestRead(t *testing.T) {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 
-	for _, id := range []interface{}{saved.ID, int(saved.ID), "1"} { // #nosec G115 -- the first ID
-		obj, _, err := testService.Read(ctx, "teststruct", id, nil, nil)
+	for _, id := range []any{saved.ID, int(saved.ID), "1"} { // #nosec G115 -- the first ID
+		obj, err := testService.Read(ctx, "teststruct", id, nil)
 		if err != nil || !fixtures.AreTestStructObjectsSame(saved, obj.(*fixtures.TestStruct)) {
 			t.Fatalf("Read(%#v) returned %+v, %v, want the object", id, obj, err)
 		}
 	}
 
-	if _, _, err := testService.Read(ctx, "teststruct", 444, nil, nil); !errors.Is(err, ErrNotFound) || !errors.Is(err, gocrud.ErrNotFound) {
+	if _, err := testService.Read(ctx, "teststruct", 444, nil); !errors.Is(err, ErrNotFound) || !errors.Is(err, gocrud.ErrNotFound) {
 		t.Fatalf("Read of an ID that does not exist returned %v, want %v", err, ErrNotFound)
 	}
-	if _, _, err := testService.Read(ctx, "teststruct", "one", nil, nil); !errors.Is(err, ErrInvalidID) {
+	if _, err := testService.Read(ctx, "teststruct", "one", nil); !errors.Is(err, ErrInvalidID) {
 		t.Fatalf("Read of a text ID returned %v, want %v", err, ErrInvalidID)
 	}
 }

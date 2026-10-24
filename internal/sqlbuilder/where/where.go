@@ -39,7 +39,7 @@ type Dialect struct {
 	Relation func(field string, alias string) (Related, error)
 	// Subquery returns the rows of the struct of obj for a subquery, with alias as the name of their table. When it is
 	// nil, subqueries cannot be used.
-	Subquery func(obj interface{}, field string, alias string) (Selected, error)
+	Subquery func(obj any, field string, alias string) (Selected, error)
 }
 
 // Related describes the related rows of a relation field.

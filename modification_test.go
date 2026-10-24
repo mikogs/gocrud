@@ -12,7 +12,7 @@ func loadTestStruct(t *testing.T, crud *CRUD, id uint64) *fixtures.TestStruct {
 	t.Helper()
 
 	loaded := &fixtures.TestStruct{}
-	if _, err := crud.Load(context.Background(), loaded, id, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), loaded, id, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 	if loaded.ID != id {

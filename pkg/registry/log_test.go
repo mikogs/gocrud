@@ -56,8 +56,8 @@ func TestWithLogger(t *testing.T) {
 		run  func(svc *CRUD) error
 		want []string
 	}{
-		"invalid key": {func(svc *CRUD) error { _, _, err := svc.Read(ctx, "unknown", 1, nil, nil); return err }, []string{"DEBUG key not found " + service + "Read"}},
-		"not found":   {func(svc *CRUD) error { _, _, err := svc.Read(ctx, "teststruct", 999, nil, nil); return err }, []string{"DEBUG not found " + service + "Read"}},
+		"invalid key": {func(svc *CRUD) error { _, err := svc.Read(ctx, "unknown", 1, nil); return err }, []string{"DEBUG key not found " + service + "Read"}},
+		"not found":   {func(svc *CRUD) error { _, err := svc.Read(ctx, "teststruct", 999, nil); return err }, []string{"DEBUG not found " + service + "Read"}},
 		"invalid filter": {func(svc *CRUD) error {
 			_, err := svc.Num(ctx, "teststruct", Filters{Vals: map[string]string{"Age": "x"}})
 			return err
@@ -68,7 +68,7 @@ func TestWithLogger(t *testing.T) {
 		}, []string{"DEBUG invalid filters " + service + "Num"}},
 		"invalid object": {func(svc *CRUD) error { return svc.Save(ctx, &fixtures.TestStruct{}, nil) }, []string{"DEBUG error with validation " + service + "Save"}},
 		"in a transaction": {func(svc *CRUD) error {
-			return svc.RunInTx(ctx, func(tx *CRUD) error { _, _, err := tx.Read(ctx, "teststruct", 999, nil, nil); return err })
+			return svc.RunInTx(ctx, func(tx *CRUD) error { _, err := tx.Read(ctx, "teststruct", 999, nil); return err })
 		}, []string{"DEBUG not found " + service + "Read"}},
 		"with a transaction": {func(svc *CRUD) error {
 			tx, err := testDB.BeginTx(ctx, nil)
@@ -76,7 +76,7 @@ func TestWithLogger(t *testing.T) {
 				return err
 			}
 			defer func() { _ = tx.Rollback() }()
-			_, _, err = svc.WithTx(tx).Read(ctx, "teststruct", 999, nil, nil)
+			_, err = svc.WithTx(tx).Read(ctx, "teststruct", 999, nil)
 			return err
 		}, []string{"DEBUG not found " + service + "Read"}},
 	} {
@@ -96,7 +96,7 @@ func TestWithLogger(t *testing.T) {
 		t.Fatalf("sql.Open failed: %s", err.Error())
 	}
 	_ = closed.Close()
-	broken := New(map[string]func() interface{}{"teststruct": func() interface{} { return &fixtures.TestStruct{} }},
+	broken := New(map[string]func() any{"teststruct": func() any { return &fixtures.TestStruct{} }},
 		closed, gocrud.Options{Dialect: gocrud.DialectPostgres}).WithLogger(slog.New(handler))
 	if _, err := broken.Num(ctx, "teststruct", Filters{}); err == nil || errors.Is(err, gocrud.ErrNotFound) {
 		t.Fatalf("Num on a closed database returned %v", err)

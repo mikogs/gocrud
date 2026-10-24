@@ -70,7 +70,7 @@ func New(db *sql.DB, options Options) *CRUD {
 }
 
 // PasswordFieldsFor returns the names of the password fields of obj.
-func (c *CRUD) PasswordFieldsFor(obj interface{}) []string {
+func (c *CRUD) PasswordFieldsFor(obj any) []string {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil
@@ -81,7 +81,7 @@ func (c *CRUD) PasswordFieldsFor(obj interface{}) []string {
 // RelatedType returns the type of the related struct of the relation field of obj, e.g. Customer for the field
 // Customer of an order, or Order for the field Orders of a customer. It returns false when field is not a relation
 // field.
-func (c *CRUD) RelatedType(obj interface{}, field string) (reflect.Type, bool) {
+func (c *CRUD) RelatedType(obj any, field string) (reflect.Type, bool) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, false

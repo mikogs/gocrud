@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type UniqueErrorsWithAVeryLongStructNameForTruncationOfNames struct {
@@ -81,6 +83,12 @@ func testUniqueErrors(t *testing.T, crud *CRUD) {
 	var uniqErr *UniqError
 	if !errors.As(err, &uniqErr) || uniqErr.Field != "Email" {
 		t.Fatalf("Save of an update returned err %v, want a UniqError for Email", err)
+	}
+
+	err = UpdateMultiple[item](ctx, crud, map[string]any{"Email": "a"},
+		UpdateMultipleOptions{Filters: sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: other.ID}}})
+	if !errors.As(err, &uniqErr) || uniqErr.Field != "Email" || !reflect.DeepEqual(uniqErr.Fields, []string{"Email"}) {
+		t.Fatalf("UpdateMultiple of a duplicate returned err %v, want a UniqError for Email", err)
 	}
 
 	_ = DropTable[UniqueAdded](ctx, crud)

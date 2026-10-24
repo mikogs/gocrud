@@ -39,7 +39,7 @@ func TestNew_InvalidTableNamePrefix(t *testing.T) {
 
 func TestRelatedType(t *testing.T) {
 	tests := []struct {
-		obj   interface{}
+		obj   any
 		field string
 		want  reflect.Type
 	}{

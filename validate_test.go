@@ -135,7 +135,7 @@ func TestValidate_ViolationTags(t *testing.T) {
 
 func TestValidateValues(t *testing.T) {
 	ts := validationTestStructWithData()
-	ok, violations, err := ValidateValues(ts, map[string]interface{}{
+	ok, violations, err := ValidateValues(ts, map[string]any{
 		"FirstName": "x",
 		"Age":       "notanint",
 		"Price":     500,
@@ -234,11 +234,11 @@ func TestValidate_OmitEmpty(t *testing.T) {
 
 func TestValidate_InvalidObject(t *testing.T) {
 	var nilObj *validationEdgeCasesTestStruct
-	for name, obj := range map[string]interface{}{"nil pointer": nilObj, "not a struct": "string"} {
+	for name, obj := range map[string]any{"nil pointer": nilObj, "not a struct": "string"} {
 		if _, _, err := Validate(obj, nil, "crud"); err == nil {
 			t.Fatalf("Validate did not return an err for %s", name)
 		}
-		if _, _, err := ValidateValues(obj, map[string]interface{}{"Phone": "1234567"}, "crud"); err == nil {
+		if _, _, err := ValidateValues(obj, map[string]any{"Phone": "1234567"}, "crud"); err == nil {
 			t.Fatalf("ValidateValues did not return an err for %s", name)
 		}
 	}

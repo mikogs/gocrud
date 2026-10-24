@@ -8,14 +8,14 @@ import (
 
 // TimeValue returns t in the form that the database expects in the arguments of a query. gocrud converts times
 // itself, so it is needed only for queries run directly on the database, e.g. with Tx().ExecContext.
-func (c *CRUD) TimeValue(t time.Time) interface{} {
-	return c.args([]interface{}{t})[0]
+func (c *CRUD) TimeValue(t time.Time) any {
+	return c.args([]any{t})[0]
 }
 
 // args prepares the arguments of a query for the database. A database that stores times as text, SQLite, compares
 // them as text, so they are converted to a format in which the texts are ordered the same way as the times, also the
 // times of Valuers, e.g. sql.NullTime, which the driver would write in another format.
-func (c *CRUD) args(args []interface{}) []interface{} {
+func (c *CRUD) args(args []any) []any {
 	format := c.sqlDialect.TimeFormat()
 	if format == "" {
 		return args

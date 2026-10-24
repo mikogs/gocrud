@@ -28,7 +28,7 @@ type QueryEvent struct {
 	Query string
 	// Args are the values of the placeholders, as database/sql converts them for the driver, e.g. the value of a
 	// pointer to a field, or of the Value method of a Valuer. They include the hashes of the passwords that are saved.
-	Args     []interface{}
+	Args     []any
 	Duration time.Duration
 	Err      error
 }
@@ -47,14 +47,14 @@ type hookedConn struct {
 	hook QueryHook
 }
 
-func (h hookedConn) run(ctx context.Context, query string, args []interface{}, fn func(ctx context.Context) error) {
+func (h hookedConn) run(ctx context.Context, query string, args []any, fn func(ctx context.Context) error) {
 	runHooked(ctx, h.hook, query, args, fn)
 }
 
 // runHooked runs fn, the query, with the hook.
-func runHooked(ctx context.Context, hook QueryHook, query string, args []interface{}, fn func(ctx context.Context) error) {
+func runHooked(ctx context.Context, hook QueryHook, query string, args []any, fn func(ctx context.Context) error) {
 	info, _ := ctx.Value(queryInfoKey{}).(queryInfo)
-	event := &QueryEvent{Op: info.op, Table: info.table, Query: query, Args: make([]interface{}, len(args))}
+	event := &QueryEvent{Op: info.op, Table: info.table, Query: query, Args: make([]any, len(args))}
 	for i, arg := range args {
 		// the argument as it is when it cannot be converted, as the driver may convert it itself
 		event.Args[i] = arg
@@ -98,7 +98,7 @@ func (c *CRUD) runTxStatement(ctx context.Context, statement string, fn func(ctx
 	return err
 }
 
-func (h hookedConn) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (h hookedConn) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	var result sql.Result
 	var err error
 	h.run(ctx, query, args, func(ctx context.Context) error {
@@ -108,7 +108,7 @@ func (h hookedConn) ExecContext(ctx context.Context, query string, args ...inter
 	return result, err
 }
 
-func (h hookedConn) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (h hookedConn) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	var rows *sql.Rows
 	var err error
 	h.run(ctx, query, args, func(ctx context.Context) error {
@@ -118,7 +118,7 @@ func (h hookedConn) QueryContext(ctx context.Context, query string, args ...inte
 	return rows, err
 }
 
-func (h hookedConn) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (h hookedConn) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	var row *sql.Row
 	h.run(ctx, query, args, func(ctx context.Context) error {
 		row = h.conn.QueryRowContext(ctx, query, args...)

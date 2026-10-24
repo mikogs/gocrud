@@ -23,7 +23,7 @@ func TestList_After(t *testing.T) {
 		}
 	}
 
-	all, _, err := testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "desc", Limit: 100})
+	all, err := testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "desc", Limit: 100})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -34,7 +34,7 @@ func TestList_After(t *testing.T) {
 
 	after := ""
 	for page := 0; page < 10; page++ {
-		objs, _, err := testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "desc", Limit: 5, After: after})
+		objs, err := testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "desc", Limit: 5, After: after})
 		if err != nil {
 			t.Fatalf("List of the page %d failed: %s", page, err.Error())
 		}
@@ -52,7 +52,7 @@ func TestList_After(t *testing.T) {
 		t.Fatalf("the pages returned %v, want %v", got, want)
 	}
 
-	_, _, err = testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "asc", Limit: 5, After: after})
+	_, err = testService.List(ctx, "teststruct", ListOptions{Order: "Age", OrderDirection: "asc", Limit: 5, After: after})
 	var filterErr *FilterValidationError
 	if !errors.As(err, &filterErr) || filterErr.Violations["after"] != gocrud.ViolationType || !errors.Is(err, gocrud.ErrCursor) {
 		t.Fatalf("List with a cursor of another order returned %v, want a FilterValidationError of after", err)

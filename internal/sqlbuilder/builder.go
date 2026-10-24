@@ -67,7 +67,7 @@ type Builder struct {
 }
 
 // New returns the Builder of obj, a pointer to a struct, or an error when the struct cannot be mapped to a table.
-func New(obj interface{}, options Options) (*Builder, error) {
+func New(obj any, options Options) (*Builder, error) {
 	b := &Builder{}
 
 	b.relatedBuilder = options.RelatedBuilder
@@ -192,7 +192,7 @@ func (b *Builder) relation(outer string, field string, alias string, placeholder
 }
 
 // subquery returns the rows of the struct of obj, for where.Dialect.Subquery, with its columns qualified with alias.
-func (b *Builder) subquery(obj interface{}, field string, alias string, placeholder func() string) (where.Selected, error) {
+func (b *Builder) subquery(obj any, field string, alias string, placeholder func() string) (where.Selected, error) {
 	if b.relatedBuilder == nil {
 		return where.Selected{}, fmt.Errorf("%w: other structs are not available", where.ErrSubquery)
 	}
@@ -394,7 +394,7 @@ func (b *Builder) DeleteReturningID(filters sqlfilters.Filter) (string, error) {
 
 // Update returns an UPDATE query of the fields in values, of the rows that match filters. The values of the
 // placeholders are values sorted by field name, followed by the values of filters.
-func (b *Builder) Update(values map[string]interface{}, filters sqlfilters.Filter) (string, error) {
+func (b *Builder) Update(values map[string]any, filters sqlfilters.Filter) (string, error) {
 	query, err := b.updateQuery(values, filters)
 	if err != nil {
 		return "", getQueryBuilderError("Update", err)

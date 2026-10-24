@@ -11,8 +11,8 @@ import (
 func TestNew_Options(t *testing.T) {
 	ctx := context.Background()
 	var queries []string
-	svc := New(map[string]func() interface{}{
-		"events": func() interface{} { return &Event{} },
+	svc := New(map[string]func() any{
+		"events": func() any { return &Event{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres, TableNamePrefix: "opt_", QueryHook: gocrud.QueryHookFunc(func(_ context.Context, event *gocrud.QueryEvent) {
 		queries = append(queries, event.Query)
 	})})

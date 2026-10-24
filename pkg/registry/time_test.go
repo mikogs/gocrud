@@ -16,8 +16,8 @@ type Event struct {
 
 func TestList_TimeFilters(t *testing.T) {
 	ctx := context.Background()
-	svc := New(map[string]func() interface{}{
-		"events": func() interface{} { return &Event{} },
+	svc := New(map[string]func() any{
+		"events": func() any { return &Event{} },
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})
 
 	_ = testCRUD.DropTable(ctx, &Event{})
@@ -35,7 +35,7 @@ func TestList_TimeFilters(t *testing.T) {
 		}
 	}
 
-	objs, _, err := svc.List(ctx, "events", ListOptions{Limit: 10, Order: "StartsAt", OrderDirection: "asc", Filters: Filters{Vals: map[string]string{"StartsAt": "2024-05-01"}, Ops: map[string]string{"StartsAt": "ge"}}})
+	objs, err := svc.List(ctx, "events", ListOptions{Limit: 10, Order: "StartsAt", OrderDirection: "asc", Filters: Filters{Vals: map[string]string{"StartsAt": "2024-05-01"}, Ops: map[string]string{"StartsAt": "ge"}}})
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
@@ -43,6 +43,6 @@ func TestList_TimeFilters(t *testing.T) {
 		t.Fatalf("List returned %+v, want Today and Future", objs)
 	}
 
-	_, _, err = svc.List(ctx, "events", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"StartsAt": "May 1st"}, Ops: map[string]string{"StartsAt": "ge"}}})
+	_, err = svc.List(ctx, "events", ListOptions{Limit: 10, Filters: Filters{Vals: map[string]string{"StartsAt": "May 1st"}, Ops: map[string]string{"StartsAt": "ge"}}})
 	fatalIfNotFilterViolations(t, err, map[string]string{"StartsAt": gocrud.ViolationType})
 }

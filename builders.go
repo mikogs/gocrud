@@ -6,7 +6,7 @@ import (
 	"github.com/mikogs/gocrud/internal/sqlbuilder"
 )
 
-func (c *CRUD) builder(obj interface{}) (*sqlbuilder.Builder, error) {
+func (c *CRUD) builder(obj any) (*sqlbuilder.Builder, error) {
 	objType := reflect.TypeOf(obj)
 
 	c.builders.mu.RLock()

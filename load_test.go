@@ -13,15 +13,15 @@ func testLoad(t *testing.T, crud *CRUD) {
 	ctx := context.Background()
 
 	loaded := &fixtures.TestStruct{}
-	if _, err := crud.Load(ctx, loaded, "1", LoadOptions{}); err != nil || loaded.ID != 1 || loaded.FirstName != "John" {
+	if err := crud.Load(ctx, loaded, "1", LoadOptions{}); err != nil || loaded.ID != 1 || loaded.FirstName != "John" {
 		t.Fatalf("Load returned %v and %+v, want the object", err, loaded)
 	}
 
-	if _, err := crud.Load(ctx, loaded, 2, LoadOptions{}); err != nil || !ObjIDIsZero(loaded) || loaded.FirstName != "" {
+	if err := crud.Load(ctx, loaded, 2, LoadOptions{}); err != nil || !ObjIDIsZero(loaded) || loaded.FirstName != "" {
 		t.Fatalf("Load of an ID that does not exist returned %v and %+v, want the fields zeroed", err, loaded)
 	}
 
-	if _, err := crud.Load(ctx, loaded, "one", LoadOptions{}); !errors.Is(err, ErrInvalidID) {
+	if err := crud.Load(ctx, loaded, "one", LoadOptions{}); !errors.Is(err, ErrInvalidID) {
 		t.Fatalf("Load of an invalid ID returned %v, want %v", err, ErrInvalidID)
 	}
 }

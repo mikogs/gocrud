@@ -42,14 +42,14 @@ func createCRUD() {
 }
 
 func createService() {
-	testService = New(map[string]func() interface{}{
-		"teststruct": func() interface{} {
+	testService = New(map[string]func() any{
+		"teststruct": func() any {
 			return &fixtures.TestStruct{}
 		},
-		"passwordstruct": func() interface{} {
+		"passwordstruct": func() any {
 			return &PasswordStruct{}
 		},
-		"passwordstructtouch": func() interface{} {
+		"passwordstructtouch": func() any {
 			return &PasswordStruct_Touch{}
 		},
 	}, testDB, gocrud.Options{Dialect: gocrud.DialectPostgres})

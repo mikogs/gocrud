@@ -111,7 +111,7 @@ type statements struct {
 	UpdatePrefix      string
 }
 
-func newStatements(obj interface{}, structInfo *structinfo.StructInfo, tableNamePrefix string, d dialect.Dialect) (*statements, error) {
+func newStatements(obj any, structInfo *structinfo.StructInfo, tableNamePrefix string, d dialect.Dialect) (*statements, error) {
 	q := &statements{}
 
 	objType := reflect.TypeOf(obj).Elem()
@@ -326,7 +326,7 @@ func joinSet(set string, assignment string) string {
 
 // setQueries sets the queries of the struct. The INSERT of a struct with a UUID includes the ID, which is generated
 // before the object is inserted, instead of the one assigned by the database.
-func (q *statements) setQueries(obj interface{}, tableNamePrefix string, uuid bool, d dialect.Dialect) (err error) {
+func (q *statements) setQueries(obj any, tableNamePrefix string, uuid bool, d dialect.Dialect) (err error) {
 	numColumn := len(q.ColumnNames)
 	numUpdateColumn := len(q.UpdateColumnNames)
 

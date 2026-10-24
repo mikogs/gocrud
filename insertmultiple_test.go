@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type BatchUser struct {
@@ -85,9 +87,12 @@ func testInsertMultiple(t *testing.T, db *sql.DB, dialect string) {
 			t.Fatalf("the object %d got the ID %d of %s", i, user.ID, emails[user.ID])
 		}
 	}
-	passwords, err := crud.Load(ctx, &BatchUser{}, users[0].ID, LoadOptions{VerifyPasswordFields: map[string]string{"Password": "secret"}})
-	if err != nil || passwords["Password"] != PassOK {
-		t.Fatalf("Load returned %v, %v, want the password verified", passwords, err)
+	verified, err := crud.VerifyPasswords(ctx, &BatchUser{}, VerifyPasswordsOptions{
+		Filters:   sqlfilters.Filters{"ID": {Op: sqlfilters.OpEqual, Val: users[0].ID}},
+		Passwords: map[string]string{"Password": "secret"},
+	})
+	if err != nil || !verified {
+		t.Fatalf("VerifyPasswords returned %t, %v, want the password verified", verified, err)
 	}
 
 	failing := map[string]struct {
@@ -129,7 +134,7 @@ func testInsertMultiple(t *testing.T, db *sql.DB, dialect string) {
 		})
 	}
 
-	err = crud.InsertMultiple(ctx, []interface{}{&BatchUser{Email: "a"}, &BatchNote{Text: "a"}}, InsertMultipleOptions{})
+	err = crud.InsertMultiple(ctx, []any{&BatchUser{Email: "a"}, &BatchNote{Text: "a"}}, InsertMultipleOptions{})
 	if !errors.Is(err, ErrInsertMultiple) {
 		t.Fatalf("InsertMultiple of different types returned %v, want ErrInsertMultiple", err)
 	}

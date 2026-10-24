@@ -52,12 +52,12 @@ type countingConn struct {
 	queries int
 }
 
-func (c *countingConn) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (c *countingConn) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	c.queries++
 	return c.DBTX.QueryContext(ctx, query, args...)
 }
 
-func (c *countingConn) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (c *countingConn) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	c.queries++
 	return c.DBTX.QueryRowContext(ctx, query, args...)
 }
@@ -73,14 +73,14 @@ func createPreloadData(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&PreCustomer{}, &PreShipper{}, &PreOrder{}, &PreItem{}, &PreNote{}} {
+	for _, obj := range []any{&PreCustomer{}, &PreShipper{}, &PreOrder{}, &PreItem{}, &PreNote{}} {
 		_ = crud.DropTable(ctx, obj)
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
 		}
 	}
 
-	save := func(obj interface{}) {
+	save := func(obj any) {
 		if err := crud.Save(ctx, obj, SaveOptions{}); err != nil {
 			t.Fatalf("Save failed: %s", err.Error())
 		}
@@ -215,7 +215,7 @@ func testPreloadLoad(t *testing.T, crud *CRUD) {
 	}
 
 	untyped := &PreOrder{}
-	if _, err := crud.Load(ctx, untyped, 3, LoadOptions{Preload: []string{"Customer"}}); err != nil || untyped.Customer.Name != "Globex" {
+	if err := crud.Load(ctx, untyped, 3, LoadOptions{Preload: []string{"Customer"}}); err != nil || untyped.Customer.Name != "Globex" {
 		t.Fatalf("Load returned %v and customer %+v, want Globex", err, untyped.Customer)
 	}
 
@@ -255,11 +255,11 @@ func testPreloadInTx(t *testing.T, crud *CRUD) {
 func testPreloadTransform(t *testing.T, crud *CRUD) {
 	createPreloadData(t, crud)
 
-	objs, _, err := crud.Get(context.Background(), func() interface{} { return &PreOrder{} }, GetOptions{
+	objs, err := crud.Get(context.Background(), func() any { return &PreOrder{} }, GetOptions{
 		Order:   []string{"ID", "asc"},
 		Limit:   1,
 		Preload: []string{"Customer"},
-		RowObjTransformFunc: func(obj interface{}) interface{} {
+		RowObjTransformFunc: func(obj any) any {
 			return obj.(*PreOrder).Status + " by " + obj.(*PreOrder).Customer.Name
 		},
 	})

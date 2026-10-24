@@ -23,7 +23,7 @@ type hookKey struct{}
 type recordingHook struct {
 	mu     sync.Mutex
 	events []QueryEvent
-	values []interface{}
+	values []any
 	cancel bool
 }
 
@@ -161,7 +161,7 @@ func testQueryHook(t *testing.T, db *sql.DB, dialect string) {
 		}
 	}
 	hook.take()
-	err = UpdateMultiple[HookedItem](ctx, crud, map[string]interface{}{"Name": "b"}, UpdateMultipleOptions{})
+	err = UpdateMultiple[HookedItem](ctx, crud, map[string]any{"Name": "b"}, UpdateMultipleOptions{})
 	if events := hook.take(); err == nil || len(events) != 1 || events[0].Err == nil {
 		t.Fatalf("UpdateMultiple of duplicates returned %v, with the queries %+v, want the error of the query", err, events)
 	}

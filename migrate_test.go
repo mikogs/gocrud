@@ -52,7 +52,7 @@ type MigCustomer_V3 struct {
 	Extra string
 }
 
-func mustMigrate(t *testing.T, crud *CRUD, obj interface{}) *Migration {
+func mustMigrate(t *testing.T, crud *CRUD, obj any) *Migration {
 	t.Helper()
 
 	migration, err := crud.Migrate(context.Background(), obj)

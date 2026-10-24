@@ -97,7 +97,7 @@ func Aggregate[T any, R any](ctx context.Context, c *CRUD, options AggregateOpti
 
 // aggregateQuery returns the query of Aggregate, its arguments, and the fields of the result struct in the order of the
 // selected columns.
-func (c *CRUD) aggregateQuery(builder *sqlbuilder.Builder, objType reflect.Type, resultType reflect.Type, filter sqlfilters.Filter, options AggregateOptions) (string, []interface{}, []aggregateField, error) {
+func (c *CRUD) aggregateQuery(builder *sqlbuilder.Builder, objType reflect.Type, resultType reflect.Type, filter sqlfilters.Filter, options AggregateOptions) (string, []any, []aggregateField, error) {
 	if resultType.Kind() != reflect.Struct {
 		return "", nil, nil, fmt.Errorf("%w: the result must be a struct, got %s", ErrAggregate, resultType)
 	}
@@ -367,7 +367,7 @@ func coalesce(d dialect.Dialect, expression string, fieldType reflect.Type) stri
 // scanAggregateRow scans a row of Aggregate into result. A database that stores times as text in timeFormat, SQLite,
 // returns the times of expressions as text.
 func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateField, timeFormat string) error {
-	destinations := make([]interface{}, len(fields))
+	destinations := make([]any, len(fields))
 	texts := make([]sql.NullString, len(fields))
 	for i, field := range fields {
 		if field.isTime && timeFormat != "" {
@@ -417,7 +417,7 @@ func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateFi
 
 // setTimeText sets a field of a time to a time as text in timeFormat. A field of a Valuer type scans the time, or NULL.
 func setTimeText(value reflect.Value, text sql.NullString, timeFormat string) error {
-	var t interface{}
+	var t any
 	if text.Valid {
 		parsed, err := time.Parse(timeFormat, text.String)
 		if err != nil {

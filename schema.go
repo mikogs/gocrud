@@ -37,7 +37,7 @@ func (e *SchemaError) Unwrap() error {
 // CheckSchema checks that the tables of objs match the structs: that Migrate would not change them, and would not
 // report differences. Otherwise, it returns a *SchemaError, which matches ErrSchemaDiffers. Use it in a test, or at
 // the start of an application, when the tables are changed by a migration tool instead of Migrate.
-func (c *CRUD) CheckSchema(ctx context.Context, objs ...interface{}) error {
+func (c *CRUD) CheckSchema(ctx context.Context, objs ...any) error {
 	migrations := make([]*Migration, 0, len(objs))
 	for _, obj := range objs {
 		migration, err := c.PlanMigration(ctx, obj)

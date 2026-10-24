@@ -9,7 +9,7 @@ import (
 
 // CreateTable creates a database table for the specified object, along with any
 // indexes declared via 'idx'/'uidx' struct tags.
-func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
+func (c *CRUD) CreateTable(ctx context.Context, obj any) error {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
@@ -33,7 +33,7 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 // createTableStatements returns the statements that create the table of obj and its indexes. The query may consist
 // of multiple ';'-separated statements, so they are returned separately rather than relying on driver support for
 // multi-statement Exec calls.
-func createTableStatements(obj interface{}, builder *sqlbuilder.Builder) ([]string, error) {
+func createTableStatements(obj any, builder *sqlbuilder.Builder) ([]string, error) {
 	query := builder.CreateTable()
 
 	if createTableerImpl, ok := obj.(createTableQueryBuilder); ok {
@@ -54,7 +54,7 @@ func createTableStatements(obj interface{}, builder *sqlbuilder.Builder) ([]stri
 	return statements, nil
 }
 
-func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
+func (c *CRUD) DropTable(ctx context.Context, obj any) error {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
@@ -79,7 +79,7 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 	return nil
 }
 
-func (c *CRUD) TableName(obj interface{}) (string, error) {
+func (c *CRUD) TableName(obj any) (string, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return "", getBuilderObjectCRUDError(err)
@@ -89,7 +89,7 @@ func (c *CRUD) TableName(obj interface{}) (string, error) {
 }
 
 // ReferencedTables returns the names of the tables that the foreign keys of obj reference, without duplicates.
-func (c *CRUD) ReferencedTables(obj interface{}) ([]string, error) {
+func (c *CRUD) ReferencedTables(obj any) ([]string, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)

@@ -30,7 +30,7 @@ func Or(filters ...Filter) Group {
 // RawFilter is a fragment of SQL. It is made with Raw.
 type RawFilter struct {
 	SQL    string
-	Values []interface{}
+	Values []any
 }
 
 func (RawFilter) isFilter() {}
@@ -38,13 +38,13 @@ func (RawFilter) isFilter() {}
 // Raw returns a fragment of SQL, e.g. Raw(".Price > ? OR .Stock IN (?)", 100, []int{1, 2}). Fields are written as
 // .FieldName, and each ? is replaced with a value, or with a list of values when the value is a slice or an array.
 // The SQL is used as it is, so it must never be built from user input.
-func Raw(sql string, values ...interface{}) RawFilter {
+func Raw(sql string, values ...any) RawFilter {
 	return RawFilter{SQL: sql, Values: values}
 }
 
 // SubqueryValue is the value of an OpIn condition that is a subquery. It is made with Subquery.
 type SubqueryValue struct {
-	Obj    interface{}
+	Obj    any
 	Field  string
 	Filter Filter
 }
@@ -53,7 +53,7 @@ type SubqueryValue struct {
 // that match a filter, e.g. the customers that have paid orders:
 //
 //	Filters{"ID": {Op: OpIn, Val: Subquery(&Order{}, "CustomerID", Filters{"Status": {Op: OpEqual, Val: "paid"}})}}
-func Subquery(obj interface{}, field string, filter Filter) SubqueryValue {
+func Subquery(obj any, field string, filter Filter) SubqueryValue {
 	return SubqueryValue{Obj: obj, Field: field, Filter: filter}
 }
 
@@ -103,8 +103,8 @@ func walk(f Filter, condFunc func(Condition), rawFunc func(RawFilter)) {
 // FiltersInterfaces returns the values of a filter, in the order of the placeholders in the query: one value for each
 // condition, none for IS NULL and IS NOT NULL conditions, one for each element of OpIn, the values of the filter of a
 // subquery, and the values of raw filters, with one for each element of a slice or an array.
-func FiltersInterfaces(f Filter) []interface{} {
-	var interfaces []interface{}
+func FiltersInterfaces(f Filter) []any {
+	var interfaces []any
 
 	walk(f, func(c Condition) {
 		switch {

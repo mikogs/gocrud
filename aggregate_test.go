@@ -31,10 +31,10 @@ func createAggregateData(t *testing.T, crud *CRUD) {
 	t.Helper()
 	ctx := context.Background()
 
-	for _, obj := range []interface{}{&AggOrder{}, &AggCustomer{}} {
+	for _, obj := range []any{&AggOrder{}, &AggCustomer{}} {
 		_ = crud.DropTable(ctx, obj)
 	}
-	for _, obj := range []interface{}{&AggCustomer{}, &AggOrder{}} {
+	for _, obj := range []any{&AggCustomer{}, &AggOrder{}} {
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed: %s", err.Error())
 		}
@@ -42,7 +42,7 @@ func createAggregateData(t *testing.T, crud *CRUD) {
 
 	discount := int64(10)
 	warsaw := mustLoadLocation(t, "Europe/Warsaw")
-	for _, obj := range []interface{}{
+	for _, obj := range []any{
 		&AggCustomer{Name: "Acme", Country: "PL"},
 		&AggCustomer{Name: "Globex", Country: "DE"},
 		&AggOrder{CustomerID: 1, Status: "paid", Total: 100, PlacedAt: time.Date(2024, 5, 3, 10, 0, 0, 0, time.UTC)},

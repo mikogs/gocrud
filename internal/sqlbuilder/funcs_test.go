@@ -155,7 +155,7 @@ func TestStructFieldValueFromString_NumbersThatDoNotFit(t *testing.T) {
 type hexBytes []byte
 
 func (h hexBytes) Value() (driver.Value, error) { return []byte(h), nil }
-func (h *hexBytes) Scan(src interface{}) error  { *h = src.([]byte); return nil }
+func (h *hexBytes) Scan(src any) error          { *h = src.([]byte); return nil }
 func (h *hexBytes) UnmarshalText(text []byte) (err error) {
 	*h, err = hex.DecodeString(string(text))
 	return err
@@ -176,7 +176,7 @@ func TestSetStructFieldValueFromString_Valuers(t *testing.T) {
 	tests := []struct {
 		field string
 		value string
-		want  interface{}
+		want  any
 	}{
 		{"Ref", strings.ToUpper(ref.String()), ref},
 		{"Hex", "ab01", hexBytes{0xab, 1}},

@@ -25,7 +25,7 @@ var timeFormats = []string{
 }
 var floatRegex = regexp.MustCompile(`^-?\d*\.\d+$`)
 
-func IsStructField(u interface{}, field string) bool {
+func IsStructField(u any, field string) bool {
 	v := reflect.ValueOf(u)
 	i := reflect.Indirect(v)
 	s := i.Type()
@@ -45,11 +45,11 @@ func IsStructField(u interface{}, field string) bool {
 }
 
 // StructFieldValueFromString takes a field value as string and converts it (if possible) to a value type of that field.
-func StructFieldValueFromString(obj interface{}, name string, value string) (bool, interface{}) {
+func StructFieldValueFromString(obj any, name string, value string) (bool, any) {
 	return valueFromString(obj, name, value, false)
 }
 
-func SetStructFieldValueFromString(obj interface{}, name string, value string) (bool, interface{}) {
+func SetStructFieldValueFromString(obj any, name string, value string) (bool, any) {
 	return valueFromString(obj, name, value, true)
 }
 
@@ -74,8 +74,8 @@ func PrettifyCreateTable(sql string) string {
 	return sql
 }
 
-func MapInterfaces(mapObj map[string]interface{}) []interface{} {
-	var interfaces []interface{}
+func MapInterfaces(mapObj map[string]any) []any {
+	var interfaces []any
 
 	numObjs := len(mapObj)
 	sorted := make([]string, 0, numObjs)
@@ -91,7 +91,7 @@ func MapInterfaces(mapObj map[string]interface{}) []interface{} {
 	return interfaces
 }
 
-func valueFromString(obj interface{}, name string, value string, set bool) (bool, interface{}) {
+func valueFromString(obj any, name string, value string, set bool) (bool, any) {
 	objIndirect := reflect.Indirect(reflect.ValueOf(obj))
 	if objValue, ok := obj.(reflect.Value); ok {
 		objIndirect = reflect.Indirect(objValue)
@@ -132,7 +132,7 @@ func valueFromString(obj interface{}, name string, value string, set bool) (bool
 
 // valuerFromString converts value to a value of the Valuer type t: with its UnmarshalText method, e.g. of a UUID, or
 // scanned from value converted to the type that t is written as, e.g. a time for sql.NullTime.
-func valuerFromString(t reflect.Type, value string) (interface{}, bool) {
+func valuerFromString(t reflect.Type, value string) (any, bool) {
 	pointer := reflect.New(t)
 	if unmarshaler, ok := pointer.Interface().(encoding.TextUnmarshaler); ok {
 		if err := unmarshaler.UnmarshalText([]byte(value)); err != nil {
@@ -141,7 +141,7 @@ func valuerFromString(t reflect.Type, value string) (interface{}, bool) {
 		return pointer.Elem().Interface(), true
 	}
 
-	var converted interface{} = value
+	var converted any = value
 	if valueType := structinfo.ValuerValueType(t); valueType != nil {
 		var ok bool
 		if converted, ok = convertFromString(valueType, value); !ok {
@@ -159,7 +159,7 @@ func valuerFromString(t reflect.Type, value string) (interface{}, bool) {
 // convertFromString converts value to a value of a type of the same kind as t: uint64 for unsigned integers,
 // int64 for integers, float64 for floats, bool, string or time.Time. A number has to fit in t, e.g. 300 does not fit
 // in an uint8, as it would be a different number after the conversion to t. A value of a Valuer type is a value of t.
-func convertFromString(t reflect.Type, value string) (interface{}, bool) {
+func convertFromString(t reflect.Type, value string) (any, bool) {
 	if structinfo.IsTimeType(t) {
 		return TimeFromString(value)
 	}

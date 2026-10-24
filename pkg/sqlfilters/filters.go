@@ -14,7 +14,7 @@ func (f Filters) Add(name string, value OpVal) {
 	f[name] = value
 }
 
-func SetObjFields(obj interface{}, values *Filters) error {
+func SetObjFields(obj any, values *Filters) error {
 	if values == nil || len(*values) == 0 {
 		return nil
 	}
@@ -160,7 +160,7 @@ func numberFits(v reflect.Value, t reflect.Type) bool {
 	return !dest.OverflowFloat(f)
 }
 
-func isNil(v interface{}) bool {
+func isNil(v any) bool {
 	if v == nil {
 		return true
 	}

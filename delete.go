@@ -6,7 +6,7 @@ type DeleteOptions struct{}
 
 // Delete deletes the object with the ID of obj, and sets the fields of obj to their zero values. An object without an
 // ID is not deleted.
-func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOptions) error {
+func (c *CRUD) Delete(ctx context.Context, obj any, options DeleteOptions) error {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)

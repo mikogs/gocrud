@@ -7,7 +7,7 @@ import (
 )
 
 func TestStructJSON() []byte {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"Flags":          4,
 		"PrimaryEmail":   "primary@example.com",
 		"EmailSecondary": "secondary@example.com",

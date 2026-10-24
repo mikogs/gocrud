@@ -108,7 +108,7 @@ func testGenericCountUpdateDelete(t *testing.T, crud *CRUD) {
 	}
 
 	publishedAt := time.Date(2024, 6, 1, 10, 0, 0, 0, time.UTC)
-	err = UpdateMultiple[Article](ctx, crud, map[string]interface{}{"PublishedAt": publishedAt}, UpdateMultipleOptions{Filters: drafts})
+	err = UpdateMultiple[Article](ctx, crud, map[string]any{"PublishedAt": publishedAt}, UpdateMultipleOptions{Filters: drafts})
 	if err != nil {
 		t.Fatalf("UpdateMultiple failed: %s", err.Error())
 	}
@@ -164,8 +164,7 @@ func testGenericInvalidUse(t *testing.T, crud *CRUD) {
 	ctx := context.Background()
 
 	for name, options := range map[string]GetOptions{
-		"RowObjTransformFunc":  {RowObjTransformFunc: func(obj interface{}) interface{} { return obj }},
-		"VerifyPasswordFields": {VerifyPasswordFields: map[string]string{"Password": "secret"}},
+		"RowObjTransformFunc": {RowObjTransformFunc: func(obj any) any { return obj }},
 	} {
 		if _, err := Get[Article](ctx, crud, options); !errors.Is(err, ErrUnsupportedOption) {
 			t.Fatalf("Get with %s returned err %v, want %v", name, err, ErrUnsupportedOption)

@@ -37,7 +37,7 @@ func TestNew_ForeignKeys(t *testing.T) {
 }
 
 func TestNew_InvalidForeignKeys(t *testing.T) {
-	tests := map[string]interface{}{
+	tests := map[string]any{
 		"on_delete without fk": &struct {
 			ID         uint64
 			CustomerID uint64 `crud:"on_delete:cascade"`

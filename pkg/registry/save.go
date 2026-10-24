@@ -9,7 +9,7 @@ import (
 
 // Save saves obj in the database. userID is stored in the ModifiedBy and CreatedBy fields, when obj has them: a
 // non-negative integer for fields of type uint64, and a string for fields of type string, see gocrud.SaveOptions.
-func (c *CRUD) Save(ctx context.Context, obj interface{}, userID interface{}) error {
+func (c *CRUD) Save(ctx context.Context, obj any, userID any) error {
 	err := c.crud.Save(ctx, obj, gocrud.SaveOptions{
 		ModifiedBy: userID,
 	})

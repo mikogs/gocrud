@@ -20,20 +20,21 @@ type GetOptions struct {
 	// It cannot be combined with an Offset.
 	After                    string
 	Filters                  sqlfilters.Filter
-	RowObjTransformFunc      func(interface{}) interface{}
+	RowObjTransformFunc      func(any) any
 	ConvertFiltersFromString bool
-
-	// VerifyPasswordFields maps the names of password fields to the passwords to verify with their hashes, when exactly
-	// one object matches.
-	VerifyPasswordFields map[string]string
 
 	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
 	Preload []string
 }
 
-// Get returns the matching objects, and PassOK or PassInvalid for each password field in
-// options.VerifyPasswordFields when exactly one object matches. Other keys of VerifyPasswordFields are ignored.
-func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options GetOptions) ([]interface{}, map[string]int, error) {
+// Get returns the matching objects. Their password fields are empty, see VerifyPasswords.
+func (c *CRUD) Get(ctx context.Context, newObjFunc func() any, options GetOptions) ([]any, error) {
+	objs, _, err := c.get(ctx, newObjFunc, options, false)
+	return objs, err
+}
+
+// get returns the matching objects, and the hashes of their password fields, by field name, when withHashes is set.
+func (c *CRUD) get(ctx context.Context, newObjFunc func() any, options GetOptions, withHashes bool) ([]any, []map[string]string, error) {
 	obj := newObjFunc()
 
 	builder, err := c.builder(obj)
@@ -76,7 +77,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		return nil, nil, err
 	}
 
-	var returnValue []interface{}
+	var returnValue []any
 	var passwordHashesByRow []map[string]string
 
 	var query string
@@ -101,8 +102,8 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	passwordFields := builder.PasswordFields()
 
-	var objs []interface{}
-	var pointers []interface{}
+	var objs []any
+	var pointers []any
 	for rows.Next() {
 		newObj := newObjFunc()
 		pointers = objScanPointers(newObj, builder.ColumnIndexes(), builder.FieldKinds(), pointers)
@@ -111,12 +112,9 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 			return nil, nil, getDBFuncCRUDError("rows scan", err)
 		}
 
-		if len(options.VerifyPasswordFields) > 0 {
-			hashes := map[string]string{}
+		if withHashes {
+			hashes := make(map[string]string, len(passwordFields))
 			for _, fieldName := range passwordFields {
-				if _, ok := options.VerifyPasswordFields[fieldName]; !ok {
-					continue
-				}
 				hashes[fieldName], _ = objFieldValue(newObj, fieldName).(string)
 			}
 			passwordHashesByRow = append(passwordHashesByRow, hashes)
@@ -151,20 +149,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		returnValue = append(returnValue, obj)
 	}
 
-	// the passwords are compared also when they are not verified, so that the time of Get does not show how many
-	// objects match the filters, e.g. whether a user with the e-mail of a login exists
-	verifiedPasswordFields := map[string]int{}
-	if len(options.VerifyPasswordFields) > 0 {
-		if len(returnValue) == 1 {
-			for fieldName, hash := range passwordHashesByRow[0] {
-				verifiedPasswordFields[fieldName] = verifyPassword(hash, options.VerifyPasswordFields[fieldName])
-			}
-		} else {
-			verifyWithoutObject(passwordFields, options.VerifyPasswordFields)
-		}
-	}
-
-	return returnValue, verifiedPasswordFields, nil
+	return returnValue, passwordHashesByRow, nil
 }
 
 // checkOrder checks that the fields of order are stored fields of the struct of builder, or paths through belongs-to

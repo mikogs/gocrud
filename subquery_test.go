@@ -76,7 +76,7 @@ func testSubqueries(t *testing.T, crud *CRUD) {
 		t.Fatalf("Aggregate with a subquery returned %v, %v, want the paid orders of the customer from PL", deref(sales), err)
 	}
 
-	if err := UpdateMultiple[AggOrder](ctx, crud, map[string]interface{}{"Status": "archived"}, UpdateMultipleOptions{Filters: fromPL}); err != nil {
+	if err := UpdateMultiple[AggOrder](ctx, crud, map[string]any{"Status": "archived"}, UpdateMultipleOptions{Filters: fromPL}); err != nil {
 		t.Fatalf("UpdateMultiple with a subquery failed: %s", err.Error())
 	}
 	archived := sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "archived"}}

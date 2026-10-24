@@ -13,7 +13,7 @@ Everything else is reported, but not changed. See [Changes that are not made](#c
 ## Migrate
 
 ```go
-func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
+func (c *CRUD) Migrate(ctx context.Context, obj any) (*Migration, error)
 func Migrate[T any](ctx context.Context, c *CRUD) (*Migration, error)
 ```
 
@@ -34,7 +34,7 @@ A good place to run it is the start of the application, before it serves request
 
 ```go
 func migrate(ctx context.Context, crud *gocrud.CRUD) error {
-    for _, obj := range []interface{}{&User{}, &Order{}, &OrderItem{}, &Product{}} {
+    for _, obj := range []any{&User{}, &Order{}, &OrderItem{}, &Product{}} {
         migration, err := crud.Migrate(ctx, obj)
         if err != nil {
             return fmt.Errorf("migrating %T: %w", obj, err)
@@ -61,7 +61,7 @@ If several instances of the application start at the same time, run the migratio
 `PlanMigration` returns the same `Migration` as `Migrate`, without changing anything, so that the changes can be checked first, or written to the file of a migration tool:
 
 ```go
-func (c *CRUD) PlanMigration(ctx context.Context, obj interface{}) (*Migration, error)
+func (c *CRUD) PlanMigration(ctx context.Context, obj any) (*Migration, error)
 func PlanMigration[T any](ctx context.Context, c *CRUD) (*Migration, error)
 ```
 
@@ -101,7 +101,7 @@ See [Versioned migrations](versioned-migrations.md) for a complete workflow with
 `CheckSchema` checks that the tables match the structs: that `Migrate` would not change them, and would not report any differences.
 
 ```go
-func (c *CRUD) CheckSchema(ctx context.Context, objs ...interface{}) error
+func (c *CRUD) CheckSchema(ctx context.Context, objs ...any) error
 ```
 
 When a table does not match, it returns a `*gocrud.SchemaError`, which matches `gocrud.ErrSchemaDiffers`. Its `Migrations` are the plans of the tables that do not match, and its message lists their statements and differences, e.g.:

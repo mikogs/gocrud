@@ -16,23 +16,23 @@ import (
 type money struct{}
 
 func (m money) Value() (driver.Value, error) { return "0.00", nil }
-func (m *money) Scan(interface{}) error      { return nil }
+func (m *money) Scan(any) error              { return nil }
 
 // nullValuer is written as NULL when it is zero, and is not a struct of a value and Valid
 type nullValuer struct{}
 
 func (n nullValuer) Value() (driver.Value, error) { return nil, nil }
-func (n *nullValuer) Scan(interface{}) error      { return nil }
+func (n *nullValuer) Scan(any) error              { return nil }
 
 type panickingValuer struct{ value *string }
 
 func (p panickingValuer) Value() (driver.Value, error) { return *p.value, nil }
-func (p *panickingValuer) Scan(interface{}) error      { return nil }
+func (p *panickingValuer) Scan(any) error              { return nil }
 
 type pointerValuer struct{}
 
 func (*pointerValuer) Value() (driver.Value, error) { return int64(0), nil }
-func (*pointerValuer) Scan(interface{}) error       { return nil }
+func (*pointerValuer) Scan(any) error               { return nil }
 
 // valuerOnly cannot be read, as it is not a sql.Scanner
 type valuerOnly struct{}
@@ -205,7 +205,7 @@ func TestNew_AliasedColumnNames(t *testing.T) {
 	}
 }
 
-func mustNew(t *testing.T, obj interface{}, tagName string) *StructInfo {
+func mustNew(t *testing.T, obj any, tagName string) *StructInfo {
 	t.Helper()
 
 	info, err := New(obj, tagName)
@@ -279,7 +279,7 @@ func TestNew_InvalidStruct(t *testing.T) {
 	var nilPointer *idOnly
 
 	tests := map[string]struct {
-		obj  interface{}
+		obj  any
 		want error
 	}{
 		"nil":                 {nil, ErrNotStructPointer},
@@ -386,7 +386,7 @@ func TestNew_NullableFields(t *testing.T) {
 }
 
 func TestNew_PasswordFieldOfWrongType(t *testing.T) {
-	for _, obj := range []interface{}{
+	for _, obj := range []any{
 		&struct {
 			ID       uint64
 			Password *string `crud:"pass"`
@@ -477,7 +477,7 @@ func TestColumnGoType(t *testing.T) {
 type int64Only struct{ value int64 }
 
 func (i int64Only) Value() (driver.Value, error) { return i.value, nil }
-func (i *int64Only) Scan(src interface{}) error {
+func (i *int64Only) Scan(src any) error {
 	value, ok := src.(int64)
 	if !ok {
 		return errors.New("not an int64")

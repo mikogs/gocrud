@@ -18,14 +18,14 @@ var (
 )
 
 type CRUD struct {
-	registry map[string]func() interface{}
+	registry map[string]func() any
 	crud     *gocrud.CRUD
 	// logger is nil for slog.Default(), which can be set after the registry is created.
 	logger *slog.Logger
 }
 
 // New returns the registry of the structs, with a gocrud.CRUD of the options, e.g. its dialect and query hook.
-func New(registry map[string]func() interface{}, dbConn *sql.DB, options gocrud.Options) *CRUD {
+func New(registry map[string]func() any, dbConn *sql.DB, options gocrud.Options) *CRUD {
 	return &CRUD{
 		registry: registry,
 		crud:     gocrud.New(dbConn, options),
@@ -52,7 +52,7 @@ func (c *CRUD) CreateTables(ctx context.Context) error {
 	return nil
 }
 
-func (c *CRUD) New(key string) interface{} {
+func (c *CRUD) New(key string) any {
 	constructor, ok := c.registry[key]
 	if !ok {
 		return nil
@@ -61,7 +61,7 @@ func (c *CRUD) New(key string) interface{} {
 }
 
 // ID returns the ID of obj: a uint64, or a string with a UUID.
-func (c *CRUD) ID(obj interface{}) interface{} {
+func (c *CRUD) ID(obj any) any {
 	return gocrud.ObjIDValue(obj)
 }
 
@@ -77,7 +77,7 @@ func (c *CRUD) PasswordFieldNames(key string) []string {
 
 // RelatedType returns the type of the related struct of the relation field of obj, and false when field is not a
 // relation field, see gocrud.CRUD.RelatedType.
-func (c *CRUD) RelatedType(obj interface{}, field string) (reflect.Type, bool) {
+func (c *CRUD) RelatedType(obj any, field string) (reflect.Type, bool) {
 	return c.crud.RelatedType(obj, field)
 }
 

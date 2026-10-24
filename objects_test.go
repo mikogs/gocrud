@@ -8,7 +8,7 @@ import (
 )
 
 func TestObjSetIDValue(t *testing.T) {
-	for _, id := range []interface{}{uint64(42), 42, int8(42), uint16(42), "42"} {
+	for _, id := range []any{uint64(42), 42, int8(42), uint16(42), "42"} {
 		obj := &fixtures.TestStruct{}
 		if err := ObjSetIDValue(obj, id); err != nil || obj.ID != 42 || ObjIDValue(obj) != uint64(42) {
 			t.Fatalf("ObjSetIDValue(%#v) returned %v and set ID %d, want 42", id, err, obj.ID)
@@ -20,15 +20,15 @@ func TestObjSetIDValue(t *testing.T) {
 		t.Fatalf("ObjSetIDValue returned %v and set ID %q, want the UUID in its standard form", err, ticket.ID)
 	}
 
-	for _, obj := range []interface{}{&fixtures.TestStruct{ID: 42}, ticket} {
+	for _, obj := range []any{&fixtures.TestStruct{ID: 42}, ticket} {
 		if err := ObjSetIDValue(obj, nil); err != nil || !ObjIDIsZero(obj) {
 			t.Fatalf("ObjSetIDValue(nil) returned %v and left ID %v, want it cleared", err, ObjIDValue(obj))
 		}
 	}
 
 	invalid := map[string]struct {
-		obj interface{}
-		id  interface{}
+		obj any
+		id  any
 	}{
 		"negative number":       {&fixtures.TestStruct{}, -1},
 		"text for a number":     {&fixtures.TestStruct{}, "forty-two"},

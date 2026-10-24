@@ -89,7 +89,7 @@ func (t *HookTag) InsertOnConflictUpdateQuery() (string, error) {
 func (t *HookTag) UpdateByIDQuery() (string, error) {
 	return `UPDATE "hook_tag" SET "name"=? || '!' WHERE "id" = ?`, nil
 }
-func (t *HookTag) UpdateQuery(map[string]interface{}, sqlfilters.Filter) (string, error) {
+func (t *HookTag) UpdateQuery(map[string]any, sqlfilters.Filter) (string, error) {
 	return `UPDATE "hook_tag" SET "name"=? || '#'`, nil
 }
 func (t *HookTag) SelectByIDQuery() (string, error) {
@@ -130,7 +130,7 @@ func TestSQLite_ObjectQueryHooksForSaving(t *testing.T) {
 		{func() error { return crud.Save(ctx, &HookTag{ID: tag.ID, Name: "SQL"}, SaveOptions{}) }, "sql"},
 		{func() error { return crud.Save(ctx, &HookTag{ID: tag.ID, Name: "db"}, SaveOptions{NoInsert: true}) }, "db!"},
 		{func() error {
-			return UpdateMultiple[HookTag](ctx, crud, map[string]interface{}{"Name": "orm"}, UpdateMultipleOptions{})
+			return UpdateMultiple[HookTag](ctx, crud, map[string]any{"Name": "orm"}, UpdateMultipleOptions{})
 		}, "orm#"},
 	}
 	for _, step := range steps {

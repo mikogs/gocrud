@@ -20,32 +20,30 @@ type ListOptions struct {
 	After   string
 	Filters Filters
 	// RowFunc is called with each record, and List returns its results, see gocrud.GetOptions.RowObjTransformFunc.
-	RowFunc func(interface{}) interface{}
+	RowFunc func(any) any
 	// Constructor scans the rows into another struct than the one of the key, e.g. a projection.
-	Constructor func() interface{}
-	// VerifyPasswordFields is passed to gocrud.CRUD.Get.
-	VerifyPasswordFields map[string]string
+	Constructor func() any
 }
 
 // List returns a page of the records of key that match the options.
-func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]interface{}, map[string]int, error) {
+func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]any, error) {
 	constructor := options.Constructor
 	if constructor == nil {
 		var ok bool
 		constructor, ok = c.registry[key]
 		if !ok {
 			c.logError(ctx, "List", "key not found", ErrInvalidKey, slog.String("key", key))
-			return nil, map[string]int{}, ErrInvalidKey
+			return nil, ErrInvalidKey
 		}
 	}
 
 	filter, err := buildFilter(options.Filters)
 	if err != nil {
 		c.logError(ctx, "List", "invalid filters", err)
-		return nil, map[string]int{}, err
+		return nil, err
 	}
 
-	objs, passwordFields, err := c.crud.Get(ctx, constructor, gocrud.GetOptions{
+	objs, err := c.crud.Get(ctx, constructor, gocrud.GetOptions{
 		Limit:                    options.Limit,
 		Offset:                   options.Offset,
 		Order:                    listOrder(options.Order, options.OrderDirection),
@@ -53,7 +51,6 @@ func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]int
 		Filters:                  filter,
 		ConvertFiltersFromString: true,
 		RowObjTransformFunc:      options.RowFunc,
-		VerifyPasswordFields:     options.VerifyPasswordFields,
 	})
 
 	if err != nil {
@@ -64,7 +61,7 @@ func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]int
 				Violations: map[string]string{options.Order: gocrud.ViolationType},
 			}
 			c.logError(ctx, "List", "invalid order", err)
-			return nil, map[string]int{}, err
+			return nil, err
 		}
 		if errors.Is(err, gocrud.ErrCursor) {
 			err = &FilterValidationError{
@@ -72,7 +69,7 @@ func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]int
 				Violations: map[string]string{"after": gocrud.ViolationType},
 			}
 			c.logError(ctx, "List", "invalid order", err)
-			return nil, map[string]int{}, err
+			return nil, err
 		}
 
 		var crudErr *gocrud.CRUDError
@@ -84,20 +81,20 @@ func (c *CRUD) List(ctx context.Context, key string, options ListOptions) ([]int
 					Violations: validationErr.Violations,
 				}
 				c.logError(ctx, "List", "error with validation", err)
-				return nil, map[string]int{}, err
+				return nil, err
 			}
 		}
 
 		c.logError(ctx, "List", "error getting", err)
-		return nil, map[string]int{}, err
+		return nil, err
 	}
 
-	return objs, passwordFields, nil
+	return objs, nil
 }
 
 // NextCursor returns the cursor of the page after obj, the last record of a page of List with the order, for
 // ListOptions.After, see gocrud.CRUD.NextCursor.
-func (c *CRUD) NextCursor(obj interface{}, order string, orderDirection string) (string, error) {
+func (c *CRUD) NextCursor(obj any, order string, orderDirection string) (string, error) {
 	return c.crud.NextCursor(obj, listOrder(order, orderDirection))
 }
 

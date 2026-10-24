@@ -9,10 +9,10 @@ import (
 
 const idField = "ID"
 
-func objFieldInterfaces(obj interface{}, includeID bool) []interface{} {
+func objFieldInterfaces(obj any, includeID bool) []any {
 	objValue := reflect.ValueOf(obj).Elem()
 
-	var fieldInterfaces []interface{}
+	var fieldInterfaces []any
 
 	for i := 0; i < objValue.NumField(); i++ {
 		valueField := objValue.Field(i)
@@ -43,7 +43,7 @@ func FatalIfTestStructNotDeletedInTheDatabase(t *testing.T, db *sql.DB, id uint6
 
 func FatalIfNoTestStructInTheDatabase(t *testing.T, db *sql.DB) *TestStruct {
 	objLoaded := &TestStruct{}
-	fieldsPtrs := []interface{}{&objLoaded.ID}
+	fieldsPtrs := []any{&objLoaded.ID}
 	fieldsPtrs = append(fieldsPtrs, objFieldInterfaces(objLoaded, false)...)
 	err := db.QueryRowContext(context.Background(), "SELECT * FROM test_struct ORDER BY id DESC LIMIT 1").Scan(fieldsPtrs...)
 	if err != nil {

@@ -52,7 +52,7 @@ func loadProfile(t *testing.T, crud *CRUD, id uint64) *Profile {
 	t.Helper()
 
 	profile := &Profile{}
-	if _, err := crud.Load(context.Background(), profile, id, LoadOptions{}); err != nil {
+	if err := crud.Load(context.Background(), profile, id, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
 
@@ -62,7 +62,7 @@ func loadProfile(t *testing.T, crud *CRUD, id uint64) *Profile {
 func fatalIfNotProfiles(t *testing.T, crud *CRUD, options GetOptions, want []string) {
 	t.Helper()
 
-	objs, _, err := crud.Get(context.Background(), func() interface{} { return &Profile{} }, options)
+	objs, err := crud.Get(context.Background(), func() any { return &Profile{} }, options)
 	if err != nil {
 		t.Fatalf("Get failed: %s", err.Error())
 	}
@@ -184,7 +184,7 @@ func testNullableStringFilters(t *testing.T, crud *CRUD) {
 		})
 	}
 
-	_, _, err := crud.Get(context.Background(), func() interface{} { return &Profile{} }, GetOptions{
+	_, err := crud.Get(context.Background(), func() any { return &Profile{} }, GetOptions{
 		Filters:                  &sqlfilters.Filters{"Age": {Op: sqlfilters.OpEqual, Val: "old"}},
 		ConvertFiltersFromString: true,
 	})
@@ -201,7 +201,7 @@ func testNullableInvalidFilters(t *testing.T, crud *CRUD) {
 
 	for name, filters := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := crud.Get(context.Background(), func() interface{} { return &Profile{} }, GetOptions{Filters: &filters})
+			_, err := crud.Get(context.Background(), func() any { return &Profile{} }, GetOptions{Filters: &filters})
 			for field := range filters {
 				fatalIfNotViolations(t, err, map[string]string{field: ViolationType})
 			}
@@ -228,7 +228,7 @@ func testNullableUpdateMultiple(t *testing.T, crud *CRUD) {
 	saveProfiles(t, crud)
 	ctx := context.Background()
 
-	err := crud.UpdateMultiple(ctx, &Profile{}, map[string]interface{}{"Nickname": "bobby", "Age": nil}, UpdateMultipleOptions{
+	err := crud.UpdateMultiple(ctx, &Profile{}, map[string]any{"Nickname": "bobby", "Age": nil}, UpdateMultipleOptions{
 		Filters: &sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: "Bob"}},
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ func testNullableUpdateMultiple(t *testing.T, crud *CRUD) {
 		t.Fatalf("UpdateMultiple set %+v, want Nickname bobby and Age NULL", *bob)
 	}
 
-	err = crud.UpdateMultiple(ctx, &Profile{}, map[string]interface{}{"Nickname": "", "Score": "1.5"}, UpdateMultipleOptions{
+	err = crud.UpdateMultiple(ctx, &Profile{}, map[string]any{"Nickname": "", "Score": "1.5"}, UpdateMultipleOptions{
 		ConvertValuesFromString: true,
 		Filters:                 &sqlfilters.Filters{"Verified": {Op: sqlfilters.OpEqual, Val: nil}},
 	})
@@ -251,7 +251,7 @@ func testNullableUpdateMultiple(t *testing.T, crud *CRUD) {
 		t.Fatalf("UpdateMultiple set %+v, want Nickname NULL and Score 1.5", *carol)
 	}
 
-	err = crud.UpdateMultiple(ctx, &Profile{}, map[string]interface{}{"Name": nil, "Nickname": "x"}, UpdateMultipleOptions{})
+	err = crud.UpdateMultiple(ctx, &Profile{}, map[string]any{"Name": nil, "Nickname": "x"}, UpdateMultipleOptions{})
 	fatalIfNotViolations(t, err, map[string]string{"Name": ViolationType, "Nickname": "min"})
 }
 

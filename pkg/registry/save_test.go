@@ -90,7 +90,7 @@ func TestSave_ModificationFields(t *testing.T) {
 		t.Fatalf("Save failed to update: %s", err.Error())
 	}
 
-	loaded, _, err := testService.Read(ctx, "teststruct", obj.ID, nil, nil)
+	loaded, err := testService.Read(ctx, "teststruct", obj.ID, nil)
 	if err != nil {
 		t.Fatalf("Read failed: %s", err.Error())
 	}

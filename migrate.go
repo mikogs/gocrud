@@ -35,7 +35,7 @@ type Migration struct {
 // Migrate makes the table of obj match the struct, with changes that do not lose data: it creates the table
 // when it does not exist, adds the columns of new fields, and creates new indexes. Other differences are
 // returned in Migration.Differences. All the changes are made in a transaction.
-func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error) {
+func (c *CRUD) Migrate(ctx context.Context, obj any) (*Migration, error) {
 	var migration *Migration
 	err := c.RunInTx(ctx, func(tx *CRUD) error {
 		var err error
@@ -62,7 +62,7 @@ func (c *CRUD) Migrate(ctx context.Context, obj interface{}) (*Migration, error)
 // PlanMigration returns the changes that Migrate would make to the table of obj, without making them, e.g. to write
 // them to a file of a migration tool. The statements are planned for the database as it is, so they have to be run
 // in their order, and before the database changes in another way.
-func (c *CRUD) PlanMigration(ctx context.Context, obj interface{}) (*Migration, error) {
+func (c *CRUD) PlanMigration(ctx context.Context, obj any) (*Migration, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return nil, getBuilderObjectCRUDError(err)

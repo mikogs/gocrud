@@ -66,7 +66,7 @@ func TestSetObjFields_IncompatibleType(t *testing.T) {
 
 func TestSetObjFields_InvalidObject(t *testing.T) {
 	var nilObj *setObjFieldsTestStruct
-	for name, obj := range map[string]interface{}{"nil pointer": nilObj, "not a struct": "string"} {
+	for name, obj := range map[string]any{"nil pointer": nilObj, "not a struct": "string"} {
 		if err := SetObjFields(obj, &Filters{"Name": {Val: "John"}}); err == nil {
 			t.Fatalf("SetObjFields did not return an err for %s", name)
 		}
@@ -155,14 +155,14 @@ func TestSetObjFields_Nullable(t *testing.T) {
 
 func TestOpVal_InValues(t *testing.T) {
 	tests := map[string]struct {
-		val    interface{}
-		want   []interface{}
+		val    any
+		want   []any
 		wantOK bool
 	}{
-		"slice":              {[]uint64{1, 2}, []interface{}{uint64(1), uint64(2)}, true},
-		"array":              {[2]string{"a", "b"}, []interface{}{"a", "b"}, true},
-		"values of any type": {[]interface{}{1, "a"}, []interface{}{1, "a"}, true},
-		"empty slice":        {[]int{}, []interface{}{}, true},
+		"slice":              {[]uint64{1, 2}, []any{uint64(1), uint64(2)}, true},
+		"array":              {[2]string{"a", "b"}, []any{"a", "b"}, true},
+		"values of any type": {[]any{1, "a"}, []any{1, "a"}, true},
+		"empty slice":        {[]int{}, []any{}, true},
 		"not a list":         {"a,b", nil, false},
 		"nil":                {nil, nil, false},
 	}
@@ -186,7 +186,7 @@ type numbers struct {
 func TestSetObjFields_NumbersThatDoNotFit(t *testing.T) {
 	tests := []struct {
 		field string
-		value interface{}
+		value any
 		fits  bool
 	}{
 		{"Uint8", 255, true},

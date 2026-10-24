@@ -82,7 +82,7 @@ func testInFilters(t *testing.T, crud *CRUD) {
 		"strings":            {sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{"paid", "shipped"}}}, []uint64{2, 3}},
 		"IDs":                {sqlfilters.Filters{"ID": {Op: sqlfilters.OpIn, Val: []uint64{1, 4, 99}}}, []uint64{1, 4}},
 		"array":              {sqlfilters.Filters{"Weight": {Op: sqlfilters.OpIn, Val: [2]int64{2, 4}}}, []uint64{2, 4}},
-		"values of any type": {sqlfilters.Filters{"Weight": {Op: sqlfilters.OpIn, Val: []interface{}{1, int64(3)}}}, []uint64{1, 3}},
+		"values of any type": {sqlfilters.Filters{"Weight": {Op: sqlfilters.OpIn, Val: []any{1, int64(3)}}}, []uint64{1, 3}},
 		"one value":          {sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{"new"}}}, []uint64{1}},
 		"empty list":         {sqlfilters.Filters{"Status": {Op: sqlfilters.OpIn, Val: []string{}}}, []uint64{}},
 		"nullable column":    {sqlfilters.Filters{"Carrier": {Op: sqlfilters.OpIn, Val: []string{"dhl"}}}, []uint64{2, 4}},
@@ -143,8 +143,8 @@ func testInFiltersValidation(t *testing.T, crud *CRUD) {
 		want   string
 	}{
 		"value breaks a rule":   {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: []string{"paid", "lost"}}, "oneof"},
-		"value of another type": {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: []interface{}{"paid", 5}}, ViolationType},
-		"nil value":             {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: []interface{}{"paid", nil}}, ViolationType},
+		"value of another type": {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: []any{"paid", 5}}, ViolationType},
+		"nil value":             {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: []any{"paid", nil}}, ViolationType},
 		"not a list":            {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: "paid"}, ViolationType},
 		"nil list":              {sqlfilters.OpVal{Op: sqlfilters.OpIn, Val: nil}, ViolationType},
 	}
@@ -163,7 +163,7 @@ func testInFiltersUpdateAndDelete(t *testing.T, crud *CRUD) {
 	createShipments(t, crud)
 	ctx := context.Background()
 
-	err := UpdateMultiple[Shipment](ctx, crud, map[string]interface{}{"Status": "shipped"}, UpdateMultipleOptions{
+	err := UpdateMultiple[Shipment](ctx, crud, map[string]any{"Status": "shipped"}, UpdateMultipleOptions{
 		Filters: &sqlfilters.Filters{"ID": {Op: sqlfilters.OpIn, Val: []uint64{1, 2}}},
 	})
 	if err != nil {

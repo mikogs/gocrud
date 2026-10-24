@@ -41,7 +41,7 @@ type PathProduct struct {
 }
 
 // newPathBuilder returns a builder of obj that gets the builders of related structs as gocrud does.
-func newPathBuilder(t *testing.T, obj interface{}, dialect string) *Builder {
+func newPathBuilder(t *testing.T, obj any, dialect string) *Builder {
 	t.Helper()
 
 	builders := map[reflect.Type]*Builder{}
@@ -64,7 +64,7 @@ func newPathBuilder(t *testing.T, obj interface{}, dialect string) *Builder {
 
 func TestSQLRelationPaths(t *testing.T) {
 	tests := map[string]struct {
-		obj    interface{}
+		obj    any
 		filter sqlfilters.Filter
 		want   string
 	}{
@@ -122,7 +122,7 @@ func TestSQLRelationPathsOrderOfValues(t *testing.T) {
 	if err != nil || !strings.HasSuffix(got, want) {
 		t.Fatalf("SelectCount returned %v\n%s\nwant the conditions in the order of the values\n%s", err, got, want)
 	}
-	if values := sqlfilters.FiltersInterfaces(f); !reflect.DeepEqual(values, []interface{}{"A%", 0, "paid"}) {
+	if values := sqlfilters.FiltersInterfaces(f); !reflect.DeepEqual(values, []any{"A%", 0, "paid"}) {
 		t.Fatalf("FiltersInterfaces returned %v, want the values in the order of the conditions", values)
 	}
 }
@@ -131,7 +131,7 @@ func TestSQLRelationPathsInUpdateAndDelete(t *testing.T) {
 	f := sqlfilters.Filters{"Customer.Country": {Op: sqlfilters.OpEqual, Val: "PL"}}
 	b := newPathBuilder(t, &PathOrder{}, DialectPostgres)
 
-	update, err := b.Update(map[string]interface{}{"Status": "cancelled"}, f)
+	update, err := b.Update(map[string]any{"Status": "cancelled"}, f)
 	if want := `UPDATE "path_order" SET "status"=$1 WHERE EXISTS (SELECT 1 FROM "path_customer" r1 WHERE r1."id" = "path_order"."customer_id" AND r1."country"=$2);`; err != nil || update != want {
 		t.Fatalf("Update returned %v\n%s\nwant\n%s", err, update, want)
 	}
@@ -184,7 +184,7 @@ func TestSQLRelationPathsWithOwnSelectQuery(t *testing.T) {
 
 func TestSQLRelationPathsInOrder(t *testing.T) {
 	tests := map[string]struct {
-		obj   interface{}
+		obj   any
 		order []string
 		want  string
 	}{
@@ -226,7 +226,7 @@ func TestSQLRelationPathsInOrder(t *testing.T) {
 func TestSQLSubqueries(t *testing.T) {
 	paid := sqlfilters.Filters{"Status": {Op: sqlfilters.OpEqual, Val: "paid"}}
 	tests := map[string]struct {
-		obj    interface{}
+		obj    any
 		filter sqlfilters.Filter
 		want   string
 	}{
@@ -272,7 +272,7 @@ func TestSQLSubqueries(t *testing.T) {
 	}
 
 	values := sqlfilters.FiltersInterfaces(tests["in the order of the values"].filter)
-	if !reflect.DeepEqual(values, []interface{}{"PL", "paid", "A%"}) {
+	if !reflect.DeepEqual(values, []any{"PL", "paid", "A%"}) {
 		t.Fatalf("FiltersInterfaces returned %v, want the values of the subquery between the values around it", values)
 	}
 }
@@ -316,7 +316,7 @@ type PathSession struct {
 func TestSQLPasswordFields(t *testing.T) {
 	for _, dialect := range []string{DialectPostgres, DialectSQLite} {
 		tests := map[string]struct {
-			obj    interface{}
+			obj    any
 			order  []string
 			filter sqlfilters.Filter
 		}{

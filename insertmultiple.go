@@ -14,7 +14,7 @@ import (
 type InsertMultipleOptions struct {
 	// ModifiedBy is the ID of the user who inserts the objects, stored in their CreatedBy and ModifiedBy fields, as in
 	// SaveOptions.
-	ModifiedBy interface{}
+	ModifiedBy any
 	// ModifiedAt is the time stored in the CreatedAt and ModifiedAt fields, or the current time when it is zero.
 	ModifiedAt time.Time
 }
@@ -40,7 +40,7 @@ var ErrInsertMultiple = errors.New("objects of different types")
 // gets a UUID for a string ID, its creation and modification fields, version 1, and its passwords are hashed. The IDs
 // of the inserted objects are set on them, and their password fields are empty. When it fails, the objects are as
 // they were.
-func (c *CRUD) InsertMultiple(ctx context.Context, objs []interface{}, options InsertMultipleOptions) (err error) {
+func (c *CRUD) InsertMultiple(ctx context.Context, objs []any, options InsertMultipleOptions) (err error) {
 	if len(objs) == 0 {
 		return nil
 	}
@@ -105,7 +105,7 @@ func (c *CRUD) InsertMultiple(ctx context.Context, objs []interface{}, options I
 
 // InsertMultiple inserts the new objects of type T, see CRUD.InsertMultiple.
 func InsertMultiple[T any](ctx context.Context, c *CRUD, objs []*T, options InsertMultipleOptions) error {
-	list := make([]interface{}, len(objs))
+	list := make([]any, len(objs))
 	for i, obj := range objs {
 		list[i] = obj
 	}
@@ -114,7 +114,7 @@ func InsertMultiple[T any](ctx context.Context, c *CRUD, objs []*T, options Inse
 
 // prepareNewObj sets the fields of a new object as Save does before it inserts it. A uint64 ID has to be 0, as the
 // database assigns it.
-func (c *CRUD) prepareNewObj(builder *sqlbuilder.Builder, obj interface{}, modifiedAt time.Time, modifiedBy interface{}) error {
+func (c *CRUD) prepareNewObj(builder *sqlbuilder.Builder, obj any, modifiedAt time.Time, modifiedBy any) error {
 	ok, violations, err := Validate(obj, nil, c.tagName)
 	if err != nil {
 		return getValidateObjCRUDError(err)
@@ -145,7 +145,7 @@ func (c *CRUD) prepareNewObj(builder *sqlbuilder.Builder, obj interface{}, modif
 }
 
 // insertObj inserts a prepared object, with its own insert query when it has one.
-func (c *CRUD) insertObj(ctx context.Context, builder *sqlbuilder.Builder, obj interface{}) error {
+func (c *CRUD) insertObj(ctx context.Context, builder *sqlbuilder.Builder, obj any) error {
 	query := builder.Insert()
 	if inserterImpl, ok := obj.(insertQueryBuilder); ok {
 		var err error
@@ -167,9 +167,9 @@ func (c *CRUD) insertObj(ctx context.Context, builder *sqlbuilder.Builder, obj i
 // insertRows inserts prepared objects with one query. The IDs that the database assigns are set on the objects in
 // their order: both databases assign increasing IDs to the rows of an INSERT in the order of its values, while the
 // order of the rows of RETURNING is not specified.
-func (c *CRUD) insertRows(ctx context.Context, builder *sqlbuilder.Builder, objs []interface{}) error {
+func (c *CRUD) insertRows(ctx context.Context, builder *sqlbuilder.Builder, objs []any) error {
 	indexes := insertIndexes(builder)
-	args := make([]interface{}, 0, len(objs)*len(indexes))
+	args := make([]any, 0, len(objs)*len(indexes))
 	for _, obj := range objs {
 		args = append(args, objArgs(obj, indexes, builder.FieldKinds())...)
 	}

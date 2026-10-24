@@ -34,13 +34,13 @@ type MigTicket_V3 struct {
 	EditorID *string `crud:"fk:mig_author on_delete:set_null"`
 }
 
-func recreateMigTicketTables(t *testing.T, crud *CRUD, ticket interface{}) {
+func recreateMigTicketTables(t *testing.T, crud *CRUD, ticket any) {
 	t.Helper()
 	ctx := context.Background()
 
 	_ = crud.DropTable(ctx, &MigTicket{})
 	_ = DropTable[MigAuthor](ctx, crud)
-	for _, obj := range []interface{}{&MigAuthor{}, ticket} {
+	for _, obj := range []any{&MigAuthor{}, ticket} {
 		if err := crud.CreateTable(ctx, obj); err != nil {
 			t.Fatalf("CreateTable failed for %T: %s", obj, err.Error())
 		}
@@ -137,7 +137,7 @@ func TestModificationFieldsUserIDs(t *testing.T) {
 	ctx := context.Background()
 	recreateTicketTable(t, testCRUDSQLite)
 
-	for _, by := range []interface{}{uint64(7), 7, "7"} {
+	for _, by := range []any{uint64(7), 7, "7"} {
 		ticket := &Ticket{Title: "a"}
 		if err := testCRUDSQLite.Save(ctx, ticket, SaveOptions{ModifiedBy: by}); err != nil || ticket.CreatedBy != 7 || ticket.ModifiedBy != 7 {
 			t.Fatalf("Save with ModifiedBy %#v returned %v and set %d, %d, want 7", by, err, ticket.CreatedBy, ticket.ModifiedBy)

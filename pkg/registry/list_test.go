@@ -10,14 +10,14 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestList_WithFilters(t *testing.T) {
 	recreateTestStructTable()
 
 	for i := 1; i < 51; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 10 + i
 		ts.Price = 444
@@ -26,7 +26,7 @@ func TestList_WithFilters(t *testing.T) {
 	}
 
 	for i := 1; i < 51; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 30 + i
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
@@ -45,8 +45,8 @@ func TestList_WithFilters(t *testing.T) {
 	if len(testStructs) != 10 {
 		t.Fatalf("List failed to return list of objects, want %v, got %v", 10, len(testStructs))
 	}
-	if testStructs[2].(*gocrudtest.TestStruct).Age != 53 {
-		t.Fatalf("List failed to return correct list of objects, want %v, got %v", 53, testStructs[2].(*gocrudtest.TestStruct).Age)
+	if testStructs[2].(*fixtures.TestStruct).Age != 53 {
+		t.Fatalf("List failed to return correct list of objects, want %v, got %v", 53, testStructs[2].(*fixtures.TestStruct).Age)
 	}
 }
 
@@ -54,7 +54,7 @@ func TestList_WithoutFilters(t *testing.T) {
 	recreateTestStructTable()
 
 	for i := 1; i < 51; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 30 + i
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
@@ -67,8 +67,8 @@ func TestList_WithoutFilters(t *testing.T) {
 	if len(testStructs) != 13 {
 		t.Fatalf("Get failed to return list of objects, want %v, got %v", 13, len(testStructs))
 	}
-	if testStructs[2].(*gocrudtest.TestStruct).Age != 47 {
-		t.Fatalf("Get failed to return correct list of objects, want %v, got %v", 47, testStructs[2].(*gocrudtest.TestStruct).Age)
+	if testStructs[2].(*fixtures.TestStruct).Age != 47 {
+		t.Fatalf("Get failed to return correct list of objects, want %v, got %v", 47, testStructs[2].(*fixtures.TestStruct).Age)
 	}
 }
 
@@ -76,7 +76,7 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 	recreateTestStructTable()
 
 	for i := 1; i < 3; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 30 + i
 		ts.FirstName = fmt.Sprintf("%s %d", ts.FirstName, i)
@@ -145,7 +145,7 @@ func TestList_InFilter(t *testing.T) {
 	recreateTestStructTable()
 
 	for _, age := range []int{20, 30, 40} {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.Age = age
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
@@ -154,7 +154,7 @@ func TestList_InFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List failed: %s", err.Error())
 	}
-	if len(objs) != 2 || objs[0].(*gocrudtest.TestStruct).Age != 20 || objs[1].(*gocrudtest.TestStruct).Age != 40 {
+	if len(objs) != 2 || objs[0].(*fixtures.TestStruct).Age != 20 || objs[1].(*fixtures.TestStruct).Age != 40 {
 		t.Fatalf("List returned %+v, want the objects with Age 20 and 40", objs)
 	}
 

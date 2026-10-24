@@ -15,7 +15,7 @@ The library is intended to provide a database persistence layer. Maps Go structs
 
 ## Motivation
 
-**gocrud** was created to address the need for rapidly building data persistence layers during prototyping phases for internal customer systems. The goal is to enable developers to go from a struct definition to a functional data management layer with minimal configuration—ideal for prototypes, internal tools, MVPs, or any scenario where speed and simplicity matter.
+**gocrud** was created to address the need for rapidly building data persistence layers during prototyping phases for internal customer systems. The goal is to enable developers to go from a struct definition to a functional data management layer with minimal configuration, for prototypes, internal tools and MVPs, and the applications that they grow into, with migrations, transactions, optimistic locking, observability and a stable API.
 
 ## Demo
 

@@ -21,7 +21,7 @@ type CRUD struct {
 	tableNamePrefix string
 	dialect         string
 	sqlDialect      dialect.Dialect
-	flags           uint64
+	getCountOnUniq  bool
 	hook            QueryHook
 }
 
@@ -62,17 +62,11 @@ func New(db *sql.DB, options Options) *CRUD {
 
 	crud.dialect = options.Dialect
 	crud.sqlDialect = dialect.For(options.Dialect)
-	crud.flags = options.Flags
+	crud.getCountOnUniq = options.GetCountOnUniq
 	crud.hook = options.QueryHook
 	crud.conn = crud.hooked(db)
 
 	return crud
-}
-
-func (c *CRUD) SetFlag(flag uint64) {
-	if c.flags&flag == 0 {
-		c.flags |= flag
-	}
 }
 
 // PasswordFieldsFor returns the names of the password fields of obj.

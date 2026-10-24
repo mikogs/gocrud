@@ -26,14 +26,3 @@ In package `github.com/mikogs/gocrud/pkg/sqlfilters`.
 | `SetObjFields(obj, values *Filters) error` | sets the fields of `obj` to the values of the filters, converting numbers between types |
 | `OpVal.IsNull() bool` | checks if the filter is an `IS NULL` or `IS NOT NULL` condition |
 | `OpVal.InValues() ([]interface{}, bool)` | returns the values of an `OpIn` filter |
-
-## Logging
-
-Package `github.com/mikogs/gocrud/pkg/logger` has helpers for `log/slog`, used by the registry:
-
-| Function | Description |
-|---|---|
-| `SetLogger(level string)` | sets the default logger to a text logger on stderr, with the level `err`, `warn`, `debug`, or info for any other value |
-| `AttrError(err)`, `AttrPath(path)` | return the `err` and `path` attributes |
-| `AttrModule(obj)`, `AttrHandler(obj)`, `AttrService(obj, action)` | return the `mod`, `hand` and `reg` attributes with the type of `obj` |
-| `LogError(msg string, attrs ...interface{}) string` | logs an error with a unique code in the `err_code` attribute, and returns the code, e.g. to show it to the user |

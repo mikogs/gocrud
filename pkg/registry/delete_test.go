@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestDelete(t *testing.T) {
 	recreateTestStructTable()
 
-	objSaved := gocrudtest.TestStructWithData()
+	objSaved := fixtures.TestStructWithData()
 	_ = testCRUD.Save(context.Background(), objSaved, gocrud.SaveOptions{})
 
 	err := testService.Delete(context.Background(), "teststruct", objSaved.ID)
@@ -19,5 +19,5 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("Delete failed to remove: %s", err.Error())
 	}
 
-	gocrudtest.FatalIfTestStructNotDeletedInTheDatabase(t, testDB, objSaved.ID)
+	fixtures.FatalIfTestStructNotDeletedInTheDatabase(t, testDB, objSaved.ID)
 }

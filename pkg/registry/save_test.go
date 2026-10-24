@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestSave(t *testing.T) {
 	recreateTestStructTable()
 
-	objSaved := gocrudtest.TestStructWithData()
+	objSaved := fixtures.TestStructWithData()
 	err := testService.Save(context.Background(), objSaved, 311)
 	if err != nil {
 		t.Fatalf("Save failed to insert struct to the table: %s", err.Error())
 	}
 
-	objLoaded := gocrudtest.FatalIfNoTestStructInTheDatabase(t, testDB)
-	if objLoaded.ID == 0 || !gocrudtest.AreTestStructObjectsSame(objSaved, objLoaded) {
+	objLoaded := fixtures.FatalIfNoTestStructInTheDatabase(t, testDB)
+	if objLoaded.ID == 0 || !fixtures.AreTestStructObjectsSame(objSaved, objLoaded) {
 		t.Fatalf("Save failed to insert struct to the table")
 	}
 
@@ -41,8 +41,8 @@ func TestSave(t *testing.T) {
 		t.Fatalf("Save failed to update struct")
 	}
 
-	objLoaded = gocrudtest.FatalIfNoTestStructInTheDatabase(t, testDB)
-	if objLoaded.ID == 0 || !gocrudtest.AreTestStructObjectsSame(objSaved, objLoaded) {
+	objLoaded = fixtures.FatalIfNoTestStructInTheDatabase(t, testDB)
+	if objLoaded.ID == 0 || !fixtures.AreTestStructObjectsSame(objSaved, objLoaded) {
 		t.Fatalf("Save failed to insert struct to the table")
 	}
 }
@@ -50,7 +50,7 @@ func TestSave(t *testing.T) {
 func TestSave_ModelValidationError(t *testing.T) {
 	recreateTestStructTable()
 
-	obj := gocrudtest.TestStructWithData()
+	obj := fixtures.TestStructWithData()
 	obj.EmailSecondary = "invalidemail"
 	obj.FirstName = "x"
 	err := testService.Save(context.Background(), obj, 311)
@@ -76,7 +76,7 @@ func TestSave_ModificationFields(t *testing.T) {
 	ctx := context.Background()
 	before := time.Now().Truncate(time.Microsecond)
 
-	obj := gocrudtest.TestStructWithData()
+	obj := fixtures.TestStructWithData()
 	if err := testService.Save(ctx, obj, 311); err != nil {
 		t.Fatalf("Save failed to insert: %s", err.Error())
 	}
@@ -84,7 +84,7 @@ func TestSave_ModificationFields(t *testing.T) {
 		t.Fatalf("Save set created %v by %d, modified %v by %d", obj.CreatedAt, obj.CreatedBy, obj.ModifiedAt, obj.ModifiedBy)
 	}
 
-	edited := gocrudtest.TestStructWithData()
+	edited := fixtures.TestStructWithData()
 	edited.ID = obj.ID
 	if err := testService.Save(ctx, edited, 312); err != nil {
 		t.Fatalf("Save failed to update: %s", err.Error())
@@ -94,7 +94,7 @@ func TestSave_ModificationFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read failed: %s", err.Error())
 	}
-	got := loaded.(*gocrudtest.TestStruct)
+	got := loaded.(*fixtures.TestStruct)
 	if !got.CreatedAt.Equal(obj.CreatedAt) || got.CreatedBy != 311 || got.ModifiedBy != 312 || got.ModifiedAt.Before(obj.ModifiedAt) {
 		t.Fatalf("Read returned created %v by %d, modified %v by %d, want created %v by 311, modified by 312",
 			got.CreatedAt, got.CreatedBy, got.ModifiedAt, got.ModifiedBy, obj.CreatedAt)

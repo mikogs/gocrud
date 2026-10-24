@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
@@ -14,7 +14,7 @@ func TestPasswordFieldsFor(t *testing.T) {
 	if got := testCRUDSQLite.PasswordFieldsFor(&PasswordStruct{}); !reflect.DeepEqual(got, []string{"Password"}) {
 		t.Fatalf("PasswordFieldsFor returned %v, want [Password]", got)
 	}
-	if got := testCRUDSQLite.PasswordFieldsFor(&gocrudtest.TestStruct{}); len(got) != 0 {
+	if got := testCRUDSQLite.PasswordFieldsFor(&fixtures.TestStruct{}); len(got) != 0 {
 		t.Fatalf("PasswordFieldsFor returned %v for a struct without password fields, want none", got)
 	}
 	if got := testCRUDSQLite.PasswordFieldsFor(nil); got != nil {

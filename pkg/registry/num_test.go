@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestNum(t *testing.T) {
 	recreateTestStructTable()
 
 	for i := 1; i < 51; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 10 + i
 		ts.Price = 444
@@ -21,7 +21,7 @@ func TestNum(t *testing.T) {
 	}
 
 	for i := 1; i < 151; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 30
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})

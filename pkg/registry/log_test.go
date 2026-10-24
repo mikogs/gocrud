@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/internal/fixtures"
 	"github.com/mikogs/gocrud/pkg/gocrudtest"
 )
 
@@ -65,7 +66,7 @@ func TestWithLogger(t *testing.T) {
 			_, err := svc.Num(ctx, "teststruct", Filters{Vals: map[string]string{"Age": "1"}, Ops: map[string]string{"Age": "x"}})
 			return err
 		}, []string{"DEBUG invalid filters " + service + "Num"}},
-		"invalid object": {func(svc *CRUD) error { return svc.Save(ctx, &gocrudtest.TestStruct{}, nil) }, []string{"DEBUG error with validation " + service + "Save"}},
+		"invalid object": {func(svc *CRUD) error { return svc.Save(ctx, &fixtures.TestStruct{}, nil) }, []string{"DEBUG error with validation " + service + "Save"}},
 		"in a transaction": {func(svc *CRUD) error {
 			return svc.RunInTx(ctx, func(tx *CRUD) error { _, _, err := tx.Read(ctx, "teststruct", 999, nil, nil); return err })
 		}, []string{"DEBUG not found " + service + "Read"}},
@@ -95,7 +96,7 @@ func TestWithLogger(t *testing.T) {
 		t.Fatalf("sql.Open failed: %s", err.Error())
 	}
 	_ = closed.Close()
-	broken := New(map[string]func() interface{}{"teststruct": func() interface{} { return &gocrudtest.TestStruct{} }},
+	broken := New(map[string]func() interface{}{"teststruct": func() interface{} { return &fixtures.TestStruct{} }},
 		closed, gocrud.Options{Dialect: gocrud.DialectPostgres}).WithLogger(slog.New(handler))
 	if _, err := broken.Num(ctx, "teststruct", Filters{}); err == nil || errors.Is(err, gocrud.ErrNotFound) {
 		t.Fatalf("Num on a closed database returned %v", err)

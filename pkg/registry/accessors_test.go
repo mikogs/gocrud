@@ -7,20 +7,20 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 func TestCRUD_Accessors(t *testing.T) {
 	obj := testService.New("teststruct")
-	if _, ok := obj.(*gocrudtest.TestStruct); !ok {
-		t.Fatalf("New returned %T, want *gocrudtest.TestStruct", obj)
+	if _, ok := obj.(*fixtures.TestStruct); !ok {
+		t.Fatalf("New returned %T, want *fixtures.TestStruct", obj)
 	}
 	if testService.New("unknown") != nil {
 		t.Fatal("New returned an object for an unknown key")
 	}
 
-	if id := testService.ID(&gocrudtest.TestStruct{ID: 42}); id != uint64(42) {
+	if id := testService.ID(&fixtures.TestStruct{ID: 42}); id != uint64(42) {
 		t.Fatalf("ID returned %#v, want uint64(42)", id)
 	}
 

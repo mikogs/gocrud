@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
-func loadTestStruct(t *testing.T, crud *CRUD, id uint64) *gocrudtest.TestStruct {
+func loadTestStruct(t *testing.T, crud *CRUD, id uint64) *fixtures.TestStruct {
 	t.Helper()
 
-	loaded := &gocrudtest.TestStruct{}
+	loaded := &fixtures.TestStruct{}
 	if _, err := crud.Load(context.Background(), loaded, id, LoadOptions{}); err != nil {
 		t.Fatalf("Load failed: %s", err.Error())
 	}
@@ -22,7 +22,7 @@ func loadTestStruct(t *testing.T, crud *CRUD, id uint64) *gocrudtest.TestStruct 
 	return loaded
 }
 
-func fatalIfModification(t *testing.T, obj *gocrudtest.TestStruct, createdAt time.Time, createdBy uint64, modifiedAt time.Time, modifiedBy uint64) {
+func fatalIfModification(t *testing.T, obj *fixtures.TestStruct, createdAt time.Time, createdBy uint64, modifiedAt time.Time, modifiedBy uint64) {
 	t.Helper()
 
 	if !obj.CreatedAt.Equal(createdAt) || obj.CreatedBy != createdBy || !obj.ModifiedAt.Equal(modifiedAt) || obj.ModifiedBy != modifiedBy {
@@ -33,14 +33,14 @@ func fatalIfModification(t *testing.T, obj *gocrudtest.TestStruct, createdAt tim
 
 func testModificationFields(t *testing.T, crud *CRUD) {
 	ctx := context.Background()
-	_ = crud.DropTable(ctx, &gocrudtest.TestStruct{})
-	_ = crud.CreateTable(ctx, &gocrudtest.TestStruct{})
+	_ = crud.DropTable(ctx, &fixtures.TestStruct{})
+	_ = crud.CreateTable(ctx, &fixtures.TestStruct{})
 
 	forgedAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// insert with the current time, ignoring the creation fields set on the object
 	before := time.Now().Truncate(time.Microsecond)
-	obj := gocrudtest.TestStructWithData()
+	obj := fixtures.TestStructWithData()
 	obj.CreatedAt = forgedAt
 	obj.CreatedBy = 99
 	if err := crud.Save(ctx, obj, SaveOptions{ModifiedBy: 4}); err != nil {
@@ -55,7 +55,7 @@ func testModificationFields(t *testing.T, crud *CRUD) {
 
 	// update with an object that does not have the creation fields, e.g. one decoded from an HTTP request
 	modifiedAt := time.Date(2030, 6, 1, 12, 0, 0, 0, time.UTC)
-	fromRequest := gocrudtest.TestStructWithData()
+	fromRequest := fixtures.TestStructWithData()
 	fromRequest.ID = obj.ID
 	if err := crud.Save(ctx, fromRequest, SaveOptions{ModifiedBy: 5, ModifiedAt: modifiedAt}); err != nil {
 		t.Fatalf("Save failed to update: %s", err.Error())
@@ -72,7 +72,7 @@ func testModificationFields(t *testing.T, crud *CRUD) {
 	fatalIfModification(t, loadTestStruct(t, crud, obj.ID), createdAt, 4, modifiedAt.Add(time.Hour), 6)
 
 	// "upsert" of an object with an ID that does not exist yet inserts it with the creation fields
-	newWithID := gocrudtest.TestStructWithData()
+	newWithID := fixtures.TestStructWithData()
 	newWithID.ID = 1000
 	if err := crud.Save(ctx, newWithID, SaveOptions{ModifiedBy: 7, ModifiedAt: modifiedAt}); err != nil {
 		t.Fatalf("Save failed to insert with an ID: %s", err.Error())

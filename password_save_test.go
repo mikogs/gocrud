@@ -222,3 +222,31 @@ func testPasswordTooLong(t *testing.T, crud *CRUD) {
 
 func TestPassword_TooLong(t *testing.T)        { testPasswordTooLong(t, testCRUD) }
 func TestSQLite_Password_TooLong(t *testing.T) { testPasswordTooLong(t, testCRUDSQLite) }
+
+// testPasswordNotVerified checks that a password of a lookup without exactly one object is not PassOK, also when the
+// result of its field is read from the map without checking that it is there, as a login could do.
+func testPasswordNotVerified(t *testing.T, crud *CRUD) {
+	recreatePasswordTable(t, crud)
+	ctx := context.Background()
+	for _, name := range []string{"twin", "twin"} {
+		savePasswordStruct(t, crud, &PasswordStruct{Name: name, Password: "secret"}, SaveOptions{})
+	}
+
+	for name, want := range map[string]int{"nobody": 0, "twin": 2} {
+		objs, verified, err := crud.Get(ctx, func() interface{} { return &PasswordStruct{} }, GetOptions{
+			Filters:              sqlfilters.Filters{"Name": {Op: sqlfilters.OpEqual, Val: name}},
+			VerifyPasswordFields: map[string]string{"Password": "secret"},
+		})
+		if err != nil || len(objs) != want || verified["Password"] == PassOK {
+			t.Fatalf("Get of %d objects named %s returned %v, %v, want the password not verified", want, name, verified, err)
+		}
+	}
+
+	verified, err := crud.Load(ctx, &PasswordStruct{}, 999, LoadOptions{VerifyPasswordFields: map[string]string{"Password": "secret"}})
+	if err != nil || verified["Password"] == PassOK {
+		t.Fatalf("Load of a missing object returned %v, %v, want the password not verified", verified, err)
+	}
+}
+
+func TestPassword_NotVerified(t *testing.T)        { testPasswordNotVerified(t, testCRUD) }
+func TestSQLite_Password_NotVerified(t *testing.T) { testPasswordNotVerified(t, testCRUDSQLite) }

@@ -139,6 +139,8 @@ type LoadOptions struct {
 * `PassOK`: the supplied plaintext matches the stored bcrypt hash.
 * `PassInvalid`: the supplied plaintext does not match the stored bcrypt hash.
 
+`PassInvalid` is `0`, the zero value of `int`, so a field that is not in the map, e.g. because no record was found, is never `PassOK`. Check the result with `== gocrud.PassOK`, e.g. `if passwords["Password"] == gocrud.PassOK`, and not with `!= gocrud.PassInvalid`.
+
 ## Get
 
 The `Get` method retrieves a collection of objects from the database. Unlike `Load`, which fetches a single record by `ID`, `Get` supports complex filtering, sorting, pagination, and result transformation.
@@ -157,7 +159,7 @@ func (c *CRUD) Get(
 
 * **Dynamic Instantiation**: Uses `newObjFunc` to create a fresh instance of the target struct for every row fetched. This ensures type safety and avoids shared state issues.
 * **Result Set**: Returns a slice of `interface{}` containing the populated objects (or transformed results).
-* **Password verification**: The second result holds `PassOK` or `PassInvalid` for each field named in `VerifyPasswordFields`, when exactly one record is found, and is empty otherwise.
+* **Password verification**: The second result holds `PassOK` or `PassInvalid` for each field named in `VerifyPasswordFields`, when exactly one record is found, and is empty otherwise, so a field that is not in it is `PassInvalid`, e.g. for a login with an e-mail that no user has.
 * **Filtering & Sorting**: Supports standard SQL-like filtering (`WHERE`), ordering (`ORDER BY`), and pagination (`LIMIT/OFFSET`).
 * **Transformation**: Allows custom processing of each row before it is added to the result slice via `RowObjTransformFunc`.
 * **Password Field Zeroing**: Any field tagged `crud:"pass"` is reset to `""` on every scanned row, before the transform function or the result slice is populated. Bcrypt hashes are never left in memory after a read.
@@ -567,7 +569,7 @@ err = crud.ValidateFilters(obj, filters)
 
 ## Errors
 
-Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed, e.g. `"database exec"`, and whose `Err` is the cause. `UniqError`, and `ErrNotFound` of `Load[T]`, are returned as they are. Use `errors.Is` and `errors.As` to check any of them:
+Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed, e.g. `"database exec"`, and whose `Err` is the cause. `Op` is for the message of the error, and can change in any version, so do not compare it. `UniqError`, and `ErrNotFound` of `Load[T]`, are returned as they are. Use `errors.Is` and `errors.As` to check any of them:
 
 | Error | When |
 |---|---|

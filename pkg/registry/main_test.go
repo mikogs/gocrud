@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
 	"github.com/mikogs/gocrud"
+	"github.com/mikogs/gocrud/internal/fixtures"
 	"github.com/mikogs/gocrud/pkg/gocrudtest"
 )
 
@@ -43,7 +44,7 @@ func createCRUD() {
 func createService() {
 	testService = New(map[string]func() interface{}{
 		"teststruct": func() interface{} {
-			return &gocrudtest.TestStruct{}
+			return &fixtures.TestStruct{}
 		},
 		"passwordstruct": func() interface{} {
 			return &PasswordStruct{}
@@ -55,8 +56,8 @@ func createService() {
 }
 
 func recreateTestStructTable() {
-	_ = testCRUD.DropTable(context.Background(), &gocrudtest.TestStruct{})
-	_ = testCRUD.CreateTable(context.Background(), &gocrudtest.TestStruct{})
+	_ = testCRUD.DropTable(context.Background(), &fixtures.TestStruct{})
+	_ = testCRUD.CreateTable(context.Background(), &fixtures.TestStruct{})
 }
 
 func recreatePasswordStructTable() {

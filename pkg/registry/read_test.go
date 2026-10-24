@@ -6,21 +6,21 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestRead(t *testing.T) {
 	recreateTestStructTable()
 	ctx := context.Background()
 
-	saved := gocrudtest.TestStructWithData()
+	saved := fixtures.TestStructWithData()
 	if err := testService.Save(ctx, saved, uint64(1)); err != nil {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 
 	for _, id := range []interface{}{saved.ID, int(saved.ID), "1"} { // #nosec G115 -- the first ID
 		obj, _, err := testService.Read(ctx, "teststruct", id, nil, nil)
-		if err != nil || !gocrudtest.AreTestStructObjectsSame(saved, obj.(*gocrudtest.TestStruct)) {
+		if err != nil || !fixtures.AreTestStructObjectsSame(saved, obj.(*fixtures.TestStruct)) {
 			t.Fatalf("Read(%#v) returned %+v, %v, want the object", id, obj, err)
 		}
 	}

@@ -5,14 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func testLoad(t *testing.T, crud *CRUD) {
-	recreateTestStructs(t, crud, 1, func(int) *gocrudtest.TestStruct { return gocrudtest.TestStructWithData() })
+	recreateTestStructs(t, crud, 1, func(int) *fixtures.TestStruct { return fixtures.TestStructWithData() })
 	ctx := context.Background()
 
-	loaded := &gocrudtest.TestStruct{}
+	loaded := &fixtures.TestStruct{}
 	if _, err := crud.Load(ctx, loaded, "1", LoadOptions{}); err != nil || loaded.ID != 1 || loaded.FirstName != "John" {
 		t.Fatalf("Load returned %v and %+v, want the object", err, loaded)
 	}
@@ -27,7 +27,7 @@ func testLoad(t *testing.T, crud *CRUD) {
 }
 
 func testDelete(t *testing.T, crud *CRUD) {
-	recreateTestStructs(t, crud, 2, func(int) *gocrudtest.TestStruct { return gocrudtest.TestStructWithData() })
+	recreateTestStructs(t, crud, 2, func(int) *fixtures.TestStruct { return fixtures.TestStructWithData() })
 	ctx := context.Background()
 
 	obj := loadTestStruct(t, crud, 1)
@@ -38,10 +38,10 @@ func testDelete(t *testing.T, crud *CRUD) {
 		t.Fatalf("Delete left the fields %+v, want them zeroed", obj)
 	}
 
-	if _, err := Load[gocrudtest.TestStruct](ctx, crud, 1); !errors.Is(err, ErrNotFound) {
+	if _, err := Load[fixtures.TestStruct](ctx, crud, 1); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Load of the deleted object returned %v, want %v", err, ErrNotFound)
 	}
-	if cnt, _ := GetCount[gocrudtest.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
+	if cnt, _ := GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{}); cnt != 1 {
 		t.Fatalf("Delete left %d objects, want 1", cnt)
 	}
 }

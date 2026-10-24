@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestList_After(t *testing.T) {
 	ctx := context.Background()
 	recreateTestStructTable()
 	for i := 0; i < 12; i++ {
-		ts := gocrudtest.TestStructWithData()
+		ts := fixtures.TestStructWithData()
 		ts.ID = 0
 		ts.Age = 1 + i%3
 		ts.Key += string(rune('a' + i))
@@ -29,7 +29,7 @@ func TestList_After(t *testing.T) {
 	}
 	var want, got []uint64
 	for _, obj := range all {
-		want = append(want, obj.(*gocrudtest.TestStruct).ID)
+		want = append(want, obj.(*fixtures.TestStruct).ID)
 	}
 
 	after := ""
@@ -39,7 +39,7 @@ func TestList_After(t *testing.T) {
 			t.Fatalf("List of the page %d failed: %s", page, err.Error())
 		}
 		for _, obj := range objs {
-			got = append(got, obj.(*gocrudtest.TestStruct).ID)
+			got = append(got, obj.(*fixtures.TestStruct).ID)
 		}
 		if len(objs) < 5 {
 			break

@@ -1,12 +1,10 @@
-package gocrudtest
+package fixtures
 
 import (
 	"context"
 	"database/sql"
 	"reflect"
 	"testing"
-
-	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
 const idField = "ID"
@@ -22,8 +20,7 @@ func objFieldInterfaces(obj interface{}, includeID bool) []interface{} {
 			continue
 		}
 
-		// builder is used to generate SQL queries, so here the same kinds must be supported
-		if !objValue.Type().Field(i).IsExported() || !structinfo.IsFieldTypeSupported(valueField.Type()) {
+		if !objValue.Type().Field(i).IsExported() {
 			continue
 		}
 

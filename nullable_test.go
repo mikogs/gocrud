@@ -278,7 +278,7 @@ func testNullableValidation(t *testing.T, crud *CRUD) {
 }
 
 func testNullableGetCountOnUniq(t *testing.T, crud *CRUD) {
-	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, Flags: GetCountOnUniq})
+	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, GetCountOnUniq: true})
 	recreateProfileTable(t, uniqCRUD)
 	ctx := context.Background()
 

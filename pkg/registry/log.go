@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"reflect"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 // WithLogger returns a copy of the registry that logs with logger instead of slog.Default().
@@ -14,6 +14,15 @@ func (c *CRUD) WithLogger(logger *slog.Logger) *CRUD {
 	registry := *c
 	registry.logger = logger
 	return &registry
+}
+
+// methodPrefix is the beginning of the names of the methods of the registry in the logs, e.g.
+// github.com/mikogs/gocrud/pkg/registry.CRUD.Save.
+var methodPrefix = reflect.TypeFor[CRUD]().PkgPath() + ".CRUD."
+
+// methodAttr returns the reg attribute of the logs, with the name of the method of the registry.
+func methodAttr(method string) slog.Attr {
+	return slog.String("reg", methodPrefix+method)
 }
 
 func (c *CRUD) log() *slog.Logger {
@@ -31,7 +40,7 @@ func (c *CRUD) logError(ctx context.Context, operation string, msg string, err e
 	if isRequestError(err) {
 		level = slog.LevelDebug
 	}
-	attrs = append(attrs, logger.AttrService(c, operation), logger.AttrError(err))
+	attrs = append(attrs, methodAttr(operation), slog.String("err", err.Error()))
 	c.log().LogAttrs(ctx, level, msg, attrs...)
 }
 

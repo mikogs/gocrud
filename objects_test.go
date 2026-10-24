@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestObjSetIDValue(t *testing.T) {
 	for _, id := range []interface{}{uint64(42), 42, int8(42), uint16(42), "42"} {
-		obj := &gocrudtest.TestStruct{}
+		obj := &fixtures.TestStruct{}
 		if err := ObjSetIDValue(obj, id); err != nil || obj.ID != 42 || ObjIDValue(obj) != uint64(42) {
 			t.Fatalf("ObjSetIDValue(%#v) returned %v and set ID %d, want 42", id, err, obj.ID)
 		}
@@ -20,7 +20,7 @@ func TestObjSetIDValue(t *testing.T) {
 		t.Fatalf("ObjSetIDValue returned %v and set ID %q, want the UUID in its standard form", err, ticket.ID)
 	}
 
-	for _, obj := range []interface{}{&gocrudtest.TestStruct{ID: 42}, ticket} {
+	for _, obj := range []interface{}{&fixtures.TestStruct{ID: 42}, ticket} {
 		if err := ObjSetIDValue(obj, nil); err != nil || !ObjIDIsZero(obj) {
 			t.Fatalf("ObjSetIDValue(nil) returned %v and left ID %v, want it cleared", err, ObjIDValue(obj))
 		}
@@ -30,9 +30,9 @@ func TestObjSetIDValue(t *testing.T) {
 		obj interface{}
 		id  interface{}
 	}{
-		"negative number":       {&gocrudtest.TestStruct{}, -1},
-		"text for a number":     {&gocrudtest.TestStruct{}, "forty-two"},
-		"float":                 {&gocrudtest.TestStruct{}, 4.2},
+		"negative number":       {&fixtures.TestStruct{}, -1},
+		"text for a number":     {&fixtures.TestStruct{}, "forty-two"},
+		"float":                 {&fixtures.TestStruct{}, 4.2},
 		"number for a UUID":     {&Ticket{}, 42},
 		"text that is not UUID": {&Ticket{}, "42"},
 	}

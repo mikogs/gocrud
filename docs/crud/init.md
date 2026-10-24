@@ -23,7 +23,7 @@ type Options struct {
     TableNamePrefix string
     TagName         string
     Dialect         string
-    Flags           uint64
+    GetCountOnUniq  bool
     QueryHook       QueryHook
 }
 ```
@@ -33,7 +33,7 @@ type Options struct {
 * **Dialect (string)** *(required)*: Selects the SQL dialect used to generate queries. Passing an empty or unrecognised value causes a panic at startup. Two constants are provided:
     * `gocrud.DialectPostgres` — PostgreSQL.
     * `gocrud.DialectSQLite` — SQLite. Use this when connecting via `modernc.org/sqlite`. Column types are mapped to SQLite affinities (`INTEGER`, `TEXT`, `REAL`) and `?` placeholders are used instead of `$1`, `$2`, …
-* **Flags (uint64)**: Enables specific behaviors via bitwise flags. Currently, one flag is supported: **GetCountOnUniq (const GetCountOnUniq = 1)**: When this flag is set, the library performs an additional COUNT(*) query on unique fields before attempting an insert or update. This ensures that the unique value does not already exist in the database, providing an extra layer of validation beyond standard database constraints. A flag can also be set later, with `crudInstance.SetFlag(gocrud.GetCountOnUniq)`.
+* **GetCountOnUniq (bool)**: Makes `Save` run an additional `COUNT(*)` query on each unique field before an insert or an update, and return a `UniqError` when another row already has the value, also when the table has no `UNIQUE` constraint, e.g. one created by hand without it.
 * **QueryHook (QueryHook)**: Is called around each query, see [Query hook](#query-hook).
 
 ## Example Usage
@@ -52,7 +52,7 @@ crudInstance := gocrud.New(db, gocrud.Options{
     Dialect:         gocrud.DialectPostgres,
     TableNamePrefix: "app_",
     TagName:         "crud",
-    Flags:           gocrud.GetCountOnUniq,
+    GetCountOnUniq:  true,
 })
 ```
 

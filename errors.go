@@ -11,9 +11,11 @@ import (
 	"github.com/mikogs/gocrud/internal/structinfo"
 )
 
+// CRUDError is the error of most operations. Op describes the step that failed, e.g. "database query row", for the
+// message of the error, and can change in any version, so check the errors with errors.Is and errors.As instead, e.g.
+// errors.Is(err, gocrud.ErrNotFound).
 type CRUDError struct {
 	Op  string
-	Tag string
 	Err error
 }
 

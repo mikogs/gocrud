@@ -1,4 +1,4 @@
-package gocrudtest
+package fixtures
 
 import (
 	"fmt"

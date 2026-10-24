@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/mikogs/gocrud"
-	"github.com/mikogs/gocrud/pkg/logger"
 )
 
 // Migrate runs gocrud.CRUD.Migrate for every constructor in the registry, in a single transaction, skipping
@@ -31,7 +30,7 @@ func (c *CRUD) Migrate(ctx context.Context) ([]*gocrud.Migration, error) {
 			}
 
 			for _, difference := range migration.Differences {
-				c.log().LogAttrs(ctx, slog.LevelWarn, "table differs from struct", logger.AttrService(c, "Migrate"),
+				c.log().LogAttrs(ctx, slog.LevelWarn, "table differs from struct", methodAttr("Migrate"),
 					slog.String("table", migration.Table), slog.String("difference", difference))
 			}
 			migrations = append(migrations, migration)

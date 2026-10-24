@@ -1,8 +1,8 @@
 # gocrud
 
-Package `gocrud` uses reflection to create CRUD operations for structs.
+Package `gocrud` uses reflection to create CRUD operations for structs, on PostgreSQL and SQLite.
 
-> ⚠️ The project might be good for small prototyping and showcase of reflection package. It is not recommended to use it in production. Please use a more mature library instead.
+It fits applications whose data is mostly records of structs, e.g. the backend of a REST API, an internal tool or an admin panel: it creates and migrates the tables, validates and saves the objects, and gets them with filters, relations, pagination and reports, in transactions. It is not an SQL query builder: queries that do not fit, e.g. with window functions or joins of many tables, are better written as SQL, and run in the same transactions. Tables need an `ID` field, a number or a UUID, so tables with composite primary keys are not supported.
 
 ## Documentation
 

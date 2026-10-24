@@ -163,7 +163,7 @@ func jsonEqual(a, b []byte) bool {
 
 func testUniqValuers(t *testing.T, crud *CRUD) {
 	ctx := context.Background()
-	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, Flags: GetCountOnUniq})
+	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, GetCountOnUniq: true})
 	_ = DropTable[UniqValuerItem](ctx, uniqCRUD)
 	if err := CreateTable[UniqValuerItem](ctx, uniqCRUD); err != nil {
 		t.Fatalf("CreateTable failed: %s", err.Error())

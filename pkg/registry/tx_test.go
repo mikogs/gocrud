@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 func TestRunInTx(t *testing.T) {
@@ -14,7 +14,7 @@ func TestRunInTx(t *testing.T) {
 
 	err := testService.RunInTx(ctx, func(tx *CRUD) error {
 		for i := 0; i < 2; i++ {
-			if err := tx.Save(ctx, gocrudtest.TestStructWithData(), 311); err != nil {
+			if err := tx.Save(ctx, fixtures.TestStructWithData(), 311); err != nil {
 				return err
 			}
 		}
@@ -26,7 +26,7 @@ func TestRunInTx(t *testing.T) {
 
 	errAbort := errors.New("abort")
 	err = testService.RunInTx(ctx, func(tx *CRUD) error {
-		if err := tx.Save(ctx, gocrudtest.TestStructWithData(), 311); err != nil {
+		if err := tx.Save(ctx, fixtures.TestStructWithData(), 311); err != nil {
 			return err
 		}
 
@@ -62,7 +62,7 @@ func TestWithTx(t *testing.T) {
 	if txService.Tx() != tx || testService.Tx() != nil {
 		t.Fatal("WithTx did not return a service running in the transaction only")
 	}
-	if err := txService.Save(ctx, gocrudtest.TestStructWithData(), 311); err != nil {
+	if err := txService.Save(ctx, fixtures.TestStructWithData(), 311); err != nil {
 		t.Fatalf("Save failed: %s", err.Error())
 	}
 	if err := tx.Rollback(); err != nil {

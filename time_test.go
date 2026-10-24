@@ -240,7 +240,7 @@ func testTimeValidation(t *testing.T, crud *CRUD) {
 }
 
 func testTimeGetCountOnUniq(t *testing.T, crud *CRUD) {
-	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, Flags: GetCountOnUniq})
+	uniqCRUD := New(crud.db, Options{Dialect: crud.dialect, GetCountOnUniq: true})
 	_ = uniqCRUD.DropTable(context.Background(), &Booking{})
 	_ = uniqCRUD.CreateTable(context.Background(), &Booking{})
 

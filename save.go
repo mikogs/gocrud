@@ -83,7 +83,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		return err
 	}
 
-	if c.flags&GetCountOnUniq > 0 {
+	if c.getCountOnUniq {
 		uniqFields := builder.UniqueFields()
 		for _, uniqField := range uniqFields {
 			// NULL values are not equal to each other, so they are never duplicates

@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
+	"github.com/mikogs/gocrud/internal/fixtures"
 	"github.com/mikogs/gocrud/pkg/gocrudtest"
 	_ "modernc.org/sqlite"
 )
@@ -52,13 +53,13 @@ func createCRUDSQLite() {
 	testCRUDSQLite = New(testDBSQLite, Options{Dialect: DialectSQLite})
 }
 
-// recreateTestStructs creates the table of gocrudtest.TestStruct again, with the objects returned by newObj for 1 to n.
-func recreateTestStructs(t *testing.T, crud *CRUD, n int, newObj func(i int) *gocrudtest.TestStruct) {
+// recreateTestStructs creates the table of fixtures.TestStruct again, with the objects returned by newObj for 1 to n.
+func recreateTestStructs(t *testing.T, crud *CRUD, n int, newObj func(i int) *fixtures.TestStruct) {
 	t.Helper()
 	ctx := context.Background()
 
-	_ = crud.DropTable(ctx, &gocrudtest.TestStruct{})
-	if err := crud.CreateTable(ctx, &gocrudtest.TestStruct{}); err != nil {
+	_ = crud.DropTable(ctx, &fixtures.TestStruct{})
+	if err := crud.CreateTable(ctx, &fixtures.TestStruct{}); err != nil {
 		t.Fatalf("CreateTable failed: %s", err.Error())
 	}
 
@@ -74,8 +75,8 @@ func recreateTestStructs(t *testing.T, crud *CRUD, n int, newObj func(i int) *go
 func recreateTwentyTestStructs(t *testing.T, crud *CRUD) {
 	t.Helper()
 
-	recreateTestStructs(t, crud, 20, func(i int) *gocrudtest.TestStruct {
-		ts := gocrudtest.TestStructWithData()
+	recreateTestStructs(t, crud, 20, func(i int) *fixtures.TestStruct {
+		ts := fixtures.TestStructWithData()
 		ts.Age = 20 + i
 		if i <= 10 {
 			ts.PrimaryEmail = "another@example.com"
@@ -84,7 +85,7 @@ func recreateTwentyTestStructs(t *testing.T, crud *CRUD) {
 	})
 }
 
-func testStructAges(objs []*gocrudtest.TestStruct) []int {
+func testStructAges(objs []*fixtures.TestStruct) []int {
 	ages := []int{}
 	for _, obj := range objs {
 		ages = append(ages, obj.Age)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikogs/gocrud/pkg/gocrudtest"
+	"github.com/mikogs/gocrud/internal/fixtures"
 )
 
 type ValidationTestStruct struct {
@@ -154,8 +154,8 @@ func TestValidateValues(t *testing.T) {
 	}
 }
 
-func invalidTestStruct() (*gocrudtest.TestStruct, map[string]string) {
-	ts := gocrudtest.TestStructWithData()
+func invalidTestStruct() (*fixtures.TestStruct, map[string]string) {
+	ts := fixtures.TestStructWithData()
 	ts.EmailSecondary = "invalidemail"
 	ts.FirstName = "x"
 	ts.PostCode2 = "abcdef"

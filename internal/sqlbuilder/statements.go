@@ -150,7 +150,7 @@ func newStatements(obj interface{}, structInfo *structinfo.StructInfo, tableName
 
 		// a UUID is not a string in a database with a type of UUIDs, e.g. LIKE needs it cast to text
 		isUUID := (fieldInfo.UUID || (field.Name == "ID" && structInfo.UUID)) && d.UUIDType() != ""
-		fieldType := structinfo.BaseType(field.Type).String()
+		fieldType := columnGoType(structinfo.BaseType(field.Type))
 		if structinfo.BaseType(field.Type).Kind() != reflect.String || isUUID {
 			q.ColumnNotString[columnName] = true
 		}
@@ -230,6 +230,15 @@ func columnDefinition(d dialect.Dialect, fieldName string, fieldType string, isU
 	}
 
 	return definition
+}
+
+// columnGoType returns the name of the Go type that the column of a field of type t is created for: the name of its
+// kind, so that a named type, e.g. type Level int, gets the column of int, or time.Time.
+func columnGoType(t reflect.Type) string {
+	if structinfo.IsTimeType(t) {
+		return "time.Time"
+	}
+	return t.Kind().String()
 }
 
 // columnType returns the type of the column for a field type, or the type set in the field tag.

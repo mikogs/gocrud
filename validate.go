@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/mikogs/gocrud/internal/structinfo"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 const (
@@ -157,18 +158,8 @@ func ValidateValues(obj interface{}, values map[string]interface{}, tagName stri
 			continue
 		}
 
-		valueVal := reflect.ValueOf(value)
-		switch {
-		case valueVal.IsValid() && valueVal.Type().AssignableTo(field.Type()):
-			field.Set(valueVal)
-		case field.Kind() == reflect.Pointer && !valueVal.IsValid():
-			// NULL
-			field.Set(reflect.Zero(field.Type()))
-		case field.Kind() == reflect.Pointer && valueVal.Type().AssignableTo(field.Type().Elem()):
-			pointer := reflect.New(field.Type().Elem())
-			pointer.Elem().Set(valueVal)
-			field.Set(pointer)
-		default:
+		// the values are set as the values of filters, e.g. a string on a field of type Status string
+		if err := sqlfilters.SetObjFields(objCopy.Interface(), &sqlfilters.Filters{name: {Op: sqlfilters.OpEqual, Val: value}}); err != nil {
 			typeViolations[name] = ViolationType
 			continue
 		}

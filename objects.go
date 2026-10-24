@@ -1,6 +1,7 @@
 package gocrud
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -23,6 +24,51 @@ func objFieldPointers(obj interface{}, indexes []int, pointers []interface{}) []
 		pointers[i] = objValue.Field(index).Addr().Interface()
 	}
 	return pointers
+}
+
+// objScanPointers returns the destinations of Scan for the fields of obj at indexes, as objFieldPointers, except for
+// the fields of named bool types, for which namedBools is true, see namedBoolScanner.
+func objScanPointers(obj interface{}, indexes []int, namedBools []bool, pointers []interface{}) []interface{} {
+	pointers = objFieldPointers(obj, indexes, pointers)
+	if namedBools == nil {
+		return pointers
+	}
+
+	objValue := reflect.ValueOf(obj).Elem()
+	for i, namedBool := range namedBools {
+		if namedBool {
+			pointers[i] = namedBoolScanner{field: objValue.Field(indexes[i])}
+		}
+	}
+	return pointers
+}
+
+// namedBoolScanner scans a value into a field of a named bool type, or a pointer to one, with the conversions of
+// driver.Bool, e.g. from the integers of SQLite.
+type namedBoolScanner struct {
+	field reflect.Value
+}
+
+func (s namedBoolScanner) Scan(src interface{}) error {
+	field := s.field
+	if src == nil {
+		if field.Kind() != reflect.Pointer {
+			return fmt.Errorf("cannot scan NULL into %s", field.Type())
+		}
+		field.Set(reflect.Zero(field.Type()))
+		return nil
+	}
+
+	value, err := driver.Bool.ConvertValue(src)
+	if err != nil {
+		return err
+	}
+	if field.Kind() == reflect.Pointer {
+		field.Set(reflect.New(field.Type().Elem()))
+		field = field.Elem()
+	}
+	field.SetBool(value.(bool))
+	return nil
 }
 
 // timeFieldsToUTC converts the values of the time fields of obj at indexes to UTC. Databases return times in

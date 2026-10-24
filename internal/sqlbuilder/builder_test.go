@@ -891,6 +891,41 @@ type TestStructWithAllTypes struct {
 	T   time.Time
 }
 
+type namedLevel int8
+
+type namedStatus string
+
+type namedFlag bool
+
+type TestStructWithNamedTypes struct {
+	ID     uint64
+	Level  namedLevel
+	Status namedStatus
+	Flag   *namedFlag
+}
+
+func TestSQLColumnTypes_NamedTypes(t *testing.T) {
+	wants := map[string]string{
+		DialectPostgres: `CREATE TABLE IF NOT EXISTS "test_struct_with_named_types" ("id" SERIAL PRIMARY KEY,` +
+			`"level" SMALLINT NOT NULL DEFAULT 0,"status" VARCHAR(255) NOT NULL DEFAULT '',"flag" BOOLEAN);`,
+		DialectSQLite: `CREATE TABLE IF NOT EXISTS "test_struct_with_named_types" ("id" INTEGER PRIMARY KEY,` +
+			`"level" INTEGER NOT NULL DEFAULT 0,"status" TEXT NOT NULL DEFAULT '',"flag" INTEGER);`,
+	}
+
+	for dialect, want := range wants {
+		builder := mustNew(t, &TestStructWithNamedTypes{}, Options{Dialect: dialect})
+		if got := builder.CreateTable(); got != want {
+			t.Fatalf("%s:\nwant %v\ngot  %v", dialect, want, got)
+		}
+		if got := builder.NamedBoolColumns(); !reflect.DeepEqual(got, []bool{false, false, false, true}) {
+			t.Fatalf("NamedBoolColumns returned %v", got)
+		}
+	}
+	if got := mustNew(t, &TestStruct{}, Options{}).NamedBoolColumns(); got != nil {
+		t.Fatalf("NamedBoolColumns returned %v for a struct without named bools", got)
+	}
+}
+
 func TestSQLColumnTypes(t *testing.T) {
 	wants := map[string]string{
 		DialectPostgres: `CREATE TABLE IF NOT EXISTS "test_struct_with_all_types" ("id" SERIAL PRIMARY KEY,` +

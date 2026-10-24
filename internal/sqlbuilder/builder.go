@@ -37,10 +37,11 @@ type Builder struct {
 
 	// the indexes of the fields in the struct, so that the fields of objects are not found by name for every row: in
 	// the orders of ColumnFieldNames, UpdateFieldNames, TimeFields and PasswordFields
-	columnIndexes   []int
-	updateIndexes   []int
-	timeIndexes     []int
-	passwordIndexes []int
+	columnIndexes    []int
+	updateIndexes    []int
+	timeIndexes      []int
+	passwordIndexes  []int
+	namedBoolColumns []bool
 }
 
 // New returns the Builder of obj, a pointer to a struct, or an error when the struct cannot be mapped to a table.
@@ -92,6 +93,14 @@ func New(obj interface{}, options Options) (*Builder, error) {
 	b.updateIndexes = indexes(b.structInfo.UpdateFieldNames)
 	b.timeIndexes = indexes(b.structInfo.TimeFields)
 	b.passwordIndexes = indexes(b.structInfo.PasswordFields)
+	for i, index := range b.columnIndexes {
+		if structinfo.IsNamedBoolType(objType.Field(index).Type) {
+			if b.namedBoolColumns == nil {
+				b.namedBoolColumns = make([]bool, len(b.columnIndexes))
+			}
+			b.namedBoolColumns[i] = true
+		}
+	}
 
 	return b, nil
 }
@@ -214,6 +223,10 @@ func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldN
 // ColumnIndexes returns the indexes of the fields of ColumnFieldNames in the struct, in the same order, for
 // reflect.Value.Field. The first one is the index of the ID.
 func (b *Builder) ColumnIndexes() []int { return b.columnIndexes }
+
+// NamedBoolColumns returns, for the columns of ColumnIndexes, whether the field is of a named bool type, e.g. type
+// Flag bool, or nil when the struct has none.
+func (b *Builder) NamedBoolColumns() []bool { return b.namedBoolColumns }
 
 func (b *Builder) UpdateIndexes() []int { return b.updateIndexes }
 

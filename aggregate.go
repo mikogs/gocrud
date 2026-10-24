@@ -372,7 +372,12 @@ func scanAggregateRow(rows *sql.Rows, result reflect.Value, fields []aggregateFi
 			destinations[i] = &texts[i]
 			continue
 		}
-		destinations[i] = result.FieldByName(field.name).Addr().Interface()
+		value := result.FieldByName(field.name)
+		if structinfo.IsNamedBoolType(value.Type()) {
+			destinations[i] = namedBoolScanner{field: value}
+			continue
+		}
+		destinations[i] = value.Addr().Interface()
 	}
 
 	if err := rows.Scan(destinations...); err != nil {

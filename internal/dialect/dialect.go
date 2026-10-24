@@ -9,7 +9,8 @@ type Dialect interface {
 	// IDColumn returns the definition of the column of the ID: a UUID for a string ID, and otherwise an integer that
 	// the database assigns.
 	IDColumn(uuid bool) string
-	// ColumnType returns the type of the column of a field of a Go type, e.g. "int64", and its default value.
+	// ColumnType returns the type of the column of a field of a kind of Go type, e.g. "int64", or of "time.Time", and its
+	// default value.
 	ColumnType(fieldType string) (columnType string, defaultValue string)
 	// UUIDType returns the type of the columns with UUIDs, which have no default value, or an empty string when UUIDs
 	// are stored as strings, in the columns of strings.

@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-var timeType = reflect.TypeOf(time.Time{})
+var (
+	timeType = reflect.TypeOf(time.Time{})
+	boolType = reflect.TypeOf(false)
+)
 
 // IsFieldKindSupported checks if a specific reflect kind of the field is supported by the Builder.
 // It does not include time.Time, which is a struct. Use IsFieldTypeSupported to check a field type.
@@ -46,6 +49,13 @@ func BaseType(t reflect.Type) reflect.Type {
 	}
 
 	return t
+}
+
+// IsNamedBoolType checks if t is a named bool type, e.g. type Flag bool, or a pointer to one. database/sql scans
+// only bools into such fields, and SQLite returns integers.
+func IsNamedBoolType(t reflect.Type) bool {
+	t = BaseType(t)
+	return t.Kind() == reflect.Bool && t != boolType
 }
 
 // IsTimeType checks if t is time.Time.

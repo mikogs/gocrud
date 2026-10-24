@@ -86,7 +86,8 @@ func SetObjFields(obj interface{}, values *Filters) error {
 	return firstErr
 }
 
-// setValue sets dest to inVal when it is of the same type, or when both are numbers and inVal fits in dest.
+// setValue sets dest to inVal when it is of the same type, when both are numbers and inVal fits in dest, or when both
+// are strings or bools, e.g. a string for a field of type Status string.
 func setValue(dest reflect.Value, inVal reflect.Value) bool {
 	if !inVal.IsValid() {
 		return false
@@ -99,6 +100,11 @@ func setValue(dest reflect.Value, inVal reflect.Value) bool {
 
 	// reflect also converts integers to strings (as runes), so conversion is limited to numbers
 	if isKindNumeric(inVal.Kind()) && isKindNumeric(dest.Kind()) && numberFits(inVal, dest.Type()) {
+		dest.Set(inVal.Convert(dest.Type()))
+		return true
+	}
+
+	if inVal.Kind() == dest.Kind() && (dest.Kind() == reflect.String || dest.Kind() == reflect.Bool) {
 		dest.Set(inVal.Convert(dest.Type()))
 		return true
 	}

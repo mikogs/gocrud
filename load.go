@@ -46,7 +46,7 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 		query = builder.SelectByID()
 	}
 
-	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objFieldPointers(obj, builder.ColumnIndexes(), nil)...)
+	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objScanPointers(obj, builder.ColumnIndexes(), builder.NamedBoolColumns(), nil)...)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		zeroObjFields(obj)

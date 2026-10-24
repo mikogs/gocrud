@@ -80,7 +80,7 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	var pointers []interface{}
 	for rows.Next() {
 		newObj := newObjFunc()
-		pointers = objFieldPointers(newObj, builder.ColumnIndexes(), pointers)
+		pointers = objScanPointers(newObj, builder.ColumnIndexes(), builder.NamedBoolColumns(), pointers)
 		err = rows.Scan(pointers...)
 		if err != nil {
 			return nil, nil, getDBFuncCRUDError("rows scan", err)

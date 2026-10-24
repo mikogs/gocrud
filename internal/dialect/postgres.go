@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Postgres is the dialect of PostgreSQL.
 type Postgres struct{}
 
 func (Postgres) Placeholder(n int) string { return fmt.Sprintf("$%d", n) }

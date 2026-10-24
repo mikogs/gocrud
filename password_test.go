@@ -7,8 +7,6 @@ import (
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
-// PasswordStruct is a minimal struct with a field tagged crud:"pass".
-// It maps to the table "password_struct".
 type PasswordStruct struct {
 	ID       uint64
 	Name     string `validate:"required,min=1,max=100"`
@@ -20,8 +18,6 @@ func recreatePasswordStructTable() {
 	_ = testCRUD.CreateTable(context.Background(), &PasswordStruct{})
 }
 
-// TestLoad_PasswordFieldIsZeroed verifies that Load returns an object with the
-// password field cleared even though a bcrypt hash exists in the database.
 func TestLoad_PasswordFieldIsZeroed(t *testing.T) {
 	recreatePasswordStructTable()
 
@@ -43,8 +39,6 @@ func TestLoad_PasswordFieldIsZeroed(t *testing.T) {
 	}
 }
 
-// TestGet_PasswordFieldIsZeroed verifies that Get returns objects with the
-// password field cleared.
 func TestGet_PasswordFieldIsZeroed(t *testing.T) {
 	recreatePasswordStructTable()
 
@@ -73,10 +67,6 @@ func TestGet_PasswordFieldIsZeroed(t *testing.T) {
 	}
 }
 
-// TestLoad_VerifyPasswordFields verifies that Load reports PassOK and
-// PassInvalid for the password fields listed in
-// LoadOptions.VerifyPasswordFields, and ignores keys that do not name an
-// actual password field.
 func TestLoad_VerifyPasswordFields(t *testing.T) {
 	recreatePasswordStructTable()
 
@@ -124,11 +114,6 @@ func TestLoad_VerifyPasswordFields(t *testing.T) {
 	}
 }
 
-// TestGet_SingleResultWithoutVerifyPasswordFields is a regression test: a
-// query matching exactly one record with VerifyPasswordFields left nil (the
-// common case) used to index into an empty slice and panic, because the
-// per-row hash capture was skipped whenever VerifyPasswordFields was empty
-// but the exactly-one-result branch didn't check for that.
 func TestGet_SingleResultWithoutVerifyPasswordFields(t *testing.T) {
 	recreatePasswordStructTable()
 
@@ -155,9 +140,6 @@ func TestGet_SingleResultWithoutVerifyPasswordFields(t *testing.T) {
 	}
 }
 
-// TestGet_VerifyPasswordFields verifies that Get reports PassOK/PassInvalid
-// the same way Load does, but only when the query matches exactly one
-// record; for any other result count the returned map is empty.
 func TestGet_VerifyPasswordFields(t *testing.T) {
 	recreatePasswordStructTable()
 

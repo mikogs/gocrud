@@ -9,26 +9,18 @@ import (
 	"github.com/mikogs/gocrud"
 )
 
-// PasswordStruct is a minimal struct with a field tagged crud:"pass",
-// registered in testService under the "passwordstruct" key.
 type PasswordStruct struct {
 	ID       uint64
 	Name     string `validate:"required,min=1,max=100"`
 	Password string `crud:"pass"`
 }
 
-// PasswordStruct_Touch is a projection of PasswordStruct with no Password
-// field, registered in testService under the "passwordstructtouch" key,
-// used only to exercise CreateTables' handling of underscore-named structs
-// that map onto a table another struct already owns.
+// PasswordStruct_Touch is a projection of PasswordStruct, without the Password field.
 type PasswordStruct_Touch struct {
 	ID   uint64
 	Name string `validate:"required,min=1,max=100"`
 }
 
-// TestList_VerifyPasswordFields verifies that List passes passFieldsToVerify
-// through to gocrud's Get, reporting PassOK/PassInvalid for a query that
-// matches exactly one record and ignoring keys that aren't password fields.
 func TestList_VerifyPasswordFields(t *testing.T) {
 	recreatePasswordStructTable()
 
@@ -70,14 +62,6 @@ func TestList_VerifyPasswordFields(t *testing.T) {
 	}
 }
 
-// TestCreateTables_SkipsUnderscoreProjections is a regression test: with
-// both "passwordstruct" (PasswordStruct) and "passwordstructtouch"
-// (PasswordStruct_Touch) registered, CreateTables must always create
-// password_struct using PasswordStruct's full column set. Before the fix,
-// CreateTables iterated the registry map in unspecified order and called
-// CreateTable for every entry; if the projection's CreateTable call won the
-// "IF NOT EXISTS" race, the table would end up missing the Password column
-// entirely.
 func TestCreateTables_SkipsUnderscoreProjections(t *testing.T) {
 	_ = testCRUD.DropTable(context.Background(), &PasswordStruct{})
 

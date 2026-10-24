@@ -24,21 +24,17 @@ var (
 )
 
 type StructInfo struct {
-	// Name of the struct.
 	Name string
 	// UUID indicates that the ID field is a string with a UUID, instead of a uint64 assigned by the database.
 	UUID bool
 	// ModificationFields indicates whether the struct has the following fields: CreatedAt and ModifiedAt of type time.Time,
 	// CreatedBy and ModifiedBy of type uint64, or of type string, e.g. for the IDs of users in another system.
 	ModificationFields bool
-	// TableName is the name of the table in the database.
-	TableName string
+	TableName          string
 	// AliasedColumnNames set to true indicates that some column names are in a format of "alias.column_name".
 	AliasedColumnNames bool
-	// Fields contains info on fields.
-	Fields map[string]*FieldInfo
-	// FieldNames contains an ordered list of field names.
-	FieldNames []string
+	Fields             map[string]*FieldInfo
+	FieldNames         []string
 	// ColumnFieldNames contains an ordered list of names of the fields that are stored in the database (not ignored).
 	ColumnFieldNames []string
 	// UpdateFieldNames contains an ordered list of names of the fields that are written when an object is updated:
@@ -100,8 +96,6 @@ func New(obj interface{}, tagName string) (*StructInfo, error) {
 			continue
 		}
 
-		// Only exported fields of basic golang types are included as columns for the database table.
-		// Check the function below for the details.
 		if !field.IsExported() || !IsFieldTypeSupported(field.Type) {
 			continue
 		}
@@ -291,8 +285,6 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 		if regexpColumnNameTag.MatchString(name) {
 			s.Fields[fieldName].OverrideColumnName = name
 
-			// If a column name is in the form of "alias.column_name", then we set the struct info's
-			// AliasedColumnNames to true.
 			if strings.Contains(name, ".") {
 				s.AliasedColumnNames = true
 			}

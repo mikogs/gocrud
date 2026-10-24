@@ -7,8 +7,7 @@ import (
 )
 
 type LoadOptions struct {
-	// VerifyPasswordFields maps a struct field name to a plaintext password
-	// to verify against the bcrypt hash stored in that field.
+	// VerifyPasswordFields maps the names of password fields to the passwords to verify with their hashes.
 	VerifyPasswordFields map[string]string
 
 	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
@@ -38,7 +37,6 @@ func (c *CRUD) Load(ctx context.Context, obj interface{}, id interface{}, option
 
 	var query string
 
-	// if the object has a SelectByID method, use it.
 	if selectByIDerImpl, ok := obj.(selectByIDQueryBuilder); ok {
 		query, err = selectByIDerImpl.SelectByIDQuery()
 		if err != nil {

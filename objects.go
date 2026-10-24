@@ -128,33 +128,20 @@ func objFieldValue(obj interface{}, fieldName string) interface{} {
 		return nil
 	}
 
-	// Get reflect.Value that we can inspect.
-	// If we received a pointer, dereference it once to get the underlying struct.
 	val := reflect.ValueOf(obj)
-
-	// Handle pointers: we need the element the pointer points to.
 	if val.Kind() == reflect.Pointer {
 		if val.IsNil() {
-			return nil // nil pointer – nothing to read
+			return nil
 		}
 		val = val.Elem()
 	}
 
-	// We must be dealing with a struct at this point.
 	if val.Kind() != reflect.Struct {
 		return nil
 	}
 
-	// Look up the field by name.
 	field := val.FieldByName(fieldName)
-	if !field.IsValid() {
-		// No such field.
-		return nil
-	}
-
-	// Unexported fields are not accessible via Interface().
-	// The CanInterface check protects us from a panic.
-	if !field.CanInterface() {
+	if !field.IsValid() || !field.CanInterface() {
 		return nil
 	}
 
@@ -166,10 +153,9 @@ func objFieldValue(obj interface{}, fieldName string) interface{} {
 		field = field.Elem()
 	}
 
-	// Return the value only for the supported kinds.
 	switch field.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return field.Int() // returns int64, which satisfies interface{}
+		return field.Int()
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return field.Uint()
 	case reflect.Bool:
@@ -184,7 +170,6 @@ func objFieldValue(obj interface{}, fieldName string) interface{} {
 		}
 		return nil
 	default:
-		// Unsupported type – caller gets nil.
 		return nil
 	}
 }

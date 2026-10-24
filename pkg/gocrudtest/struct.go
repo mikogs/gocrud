@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Test struct for all the tests
 type TestStruct struct {
 	ID             uint64
 	Flags          uint64

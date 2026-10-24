@@ -9,12 +9,8 @@ import (
 	"github.com/mikogs/gocrud/pkg/logger"
 )
 
-// List returns a paginated, filtered list of records. When constructor is nil
-// the registry's constructor for key is used; pass a non-nil value to scan rows
-// into a different struct type (e.g. a list-specific projection).
-// passFieldsToVerify maps a struct field name to a plaintext password to
-// verify against the stored hash; verification only happens when the query
-// matches exactly one record, see gocrud.PassOK / gocrud.PassInvalid.
+// List returns a page of the records of key that match the filters. A non-nil constructor scans the rows into another
+// struct, e.g. a projection. passFieldsToVerify is passed to gocrud.CRUD.Get, as VerifyPasswordFields.
 func (c *CRUD) List(ctx context.Context, key string, limit, offset int, order, orderDirection string, filters Filters, rowFunc func(interface{}) interface{}, constructor func() interface{}, passFieldsToVerify map[string]string) ([]interface{}, map[string]int, error) {
 	logAttrService := logger.AttrService(c, "List")
 

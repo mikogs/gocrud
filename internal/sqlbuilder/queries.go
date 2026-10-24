@@ -10,11 +10,9 @@ import (
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
-// The queries of a struct that depend on filters, orders and values, e.g. SELECT ... WHERE.
+// The queries of a struct that depend on filters, orders and values, e.g. SELECT ... WHERE. The values of their
+// placeholders are in the order of sqlfilters.FiltersInterfaces.
 
-// Select returns a SELECT query with a WHERE condition built from 'filters'.
-// The values of the placeholders are in the order of sqlfilters.FiltersInterfaces.
-// Columns in the SELECT query are ordered the same way as they are defined in the struct: SELECT field1_column, field2_column, ... etc.
 func (b *Builder) selectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error) {
 	query := b.st.SelectPrefix
 
@@ -42,8 +40,6 @@ func (b *Builder) selectQuery(order []string, limit int, offset int, filters sql
 	return query, nil
 }
 
-// SelectCount returns a SELECT COUNT(*) query to count rows with a WHERE condition built from 'filters'.
-// The values of the placeholders are in the order of sqlfilters.FiltersInterfaces.
 func (b *Builder) selectCountQuery(filters sqlfilters.Filter) (string, error) {
 	query := b.st.SelectCountPrefix
 
@@ -59,8 +55,6 @@ func (b *Builder) selectCountQuery(filters sqlfilters.Filter) (string, error) {
 	return query, nil
 }
 
-// Delete returns a DELETE query with a WHERE condition built from 'filters'.
-// The values of the placeholders are in the order of sqlfilters.FiltersInterfaces.
 func (b *Builder) deleteQuery(filters sqlfilters.Filter) (string, error) {
 	query := b.st.DeletePrefix
 
@@ -76,8 +70,6 @@ func (b *Builder) deleteQuery(filters sqlfilters.Filter) (string, error) {
 	return query, nil
 }
 
-// DeleteReturningID returns a DELETE query with a WHERE condition built from 'filters' with RETURNING id.
-// The values of the placeholders are in the order of sqlfilters.FiltersInterfaces.
 func (b *Builder) deleteReturningIDQuery(filters sqlfilters.Filter) (string, error) {
 	idFieldColumnName, ok := b.st.FieldColumnName["ID"]
 	if !ok {
@@ -102,8 +94,6 @@ func (b *Builder) deleteReturningIDQuery(filters sqlfilters.Filter) (string, err
 	return query, nil
 }
 
-// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters'.
-// The values of the placeholders are 'values' sorted by field name, followed by the values in the order of sqlfilters.FiltersInterfaces.
 func (b *Builder) updateQuery(values map[string]interface{}, filters sqlfilters.Filter) (string, error) {
 	query := b.st.UpdatePrefix
 
@@ -278,7 +268,6 @@ func (b *Builder) filterColumn(field string, withAlias bool) (string, error) {
 	return quoteColumn(columnName, withAlias), nil
 }
 
-// limitOffset returns a LIMIT and OFFSET clause for a query.
 func limitOffset(limit int, offset int) string {
 	if limit == 0 {
 		return ""

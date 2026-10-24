@@ -55,7 +55,6 @@ func CreateDocker(user, pass, name string) (*Container, *sql.DB) {
 	}
 }
 
-// RemoveDocker stops and removes the container.
 func RemoveDocker(container *Container) {
 	if _, err := dockerOutput("rm", "--force", container.id); err != nil {
 		log.Fatalf("Error removing docker container: %s", err)

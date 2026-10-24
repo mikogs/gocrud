@@ -1,7 +1,6 @@
 package structinfo
 
 type FieldInfo struct {
-	// Name contains name of the field.
 	Name string
 	// OverrideColumnName is the name of the column in the database table.
 	OverrideColumnName string
@@ -9,7 +8,7 @@ type FieldInfo struct {
 	OverrideColumnType string
 	// Unique is set to true if the field is marked with a tag 'uniq'.
 	Unique bool
-	// Password is set to true if the field is marked with a "password" tag.
+	// Password is set to true if the field is marked with a 'pass' tag.
 	Password bool
 	// Nullable is set to true if the field is a pointer, stored in a column that can be NULL.
 	Nullable bool

@@ -16,7 +16,6 @@ var ErrAliasedColumnsMigrate = errors.New("struct with aliased column names cann
 
 // Migration describes the changes that Migrate makes to a table, or that PlanMigration plans.
 type Migration struct {
-	// Table is the name of the table.
 	Table string
 	// CreatedTable is set to true when the table does not exist, and is created.
 	CreatedTable bool

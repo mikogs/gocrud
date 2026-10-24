@@ -64,7 +64,6 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 	}
 
 	var query string
-	// if the object has an Update method, use it.
 	if updateerImpl, ok := obj.(updateQueryBuilder); ok {
 		query, err = updateerImpl.UpdateQuery(fieldsToUpdate, options.Filters)
 		if err != nil {

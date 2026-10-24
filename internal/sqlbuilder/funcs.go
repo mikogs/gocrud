@@ -24,7 +24,6 @@ var timeFormats = []string{
 }
 var floatRegex = regexp.MustCompile(`^-?\d*\.\d+$`)
 
-// IsStructField checks if a field exists in a struct.
 func IsStructField(u interface{}, field string) bool {
 	v := reflect.ValueOf(u)
 	i := reflect.Indirect(v)
@@ -49,7 +48,6 @@ func StructFieldValueFromString(obj interface{}, name string, value string) (boo
 	return valueFromString(obj, name, value, false)
 }
 
-// SetStructFieldValueFromString sets a field from value that is string (converts it if necessary).
 func SetStructFieldValueFromString(obj interface{}, name string, value string) (bool, interface{}) {
 	return valueFromString(obj, name, value, true)
 }
@@ -68,7 +66,6 @@ func TimeFromString(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// PrettifyCreateTable prettifies SQL query to make it more human-readable.
 func PrettifyCreateTable(sql string) string {
 	sql = strings.Replace(sql, "(", "(\n  ", 1)
 	sql = strings.ReplaceAll(sql, ",", ",\n  ")
@@ -76,7 +73,6 @@ func PrettifyCreateTable(sql string) string {
 	return sql
 }
 
-// MapInterfaces returns a slice of interfaces from a map.
 func MapInterfaces(mapObj map[string]interface{}) []interface{} {
 	var interfaces []interface{}
 

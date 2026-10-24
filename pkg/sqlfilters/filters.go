@@ -38,7 +38,7 @@ func SetObjFields(obj interface{}, values *Filters) error {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 
-		if field.PkgPath != "" { // PkgPath is non‑empty for unexported fields
+		if !field.IsExported() {
 			continue
 		}
 

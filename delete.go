@@ -4,8 +4,8 @@ import "context"
 
 type DeleteOptions struct{}
 
-// Delete removes an object from the database table only when ID field is set.
-// Once deleted from the DB, all field values are zeroed
+// Delete deletes the object with the ID of obj, and sets the fields of obj to their zero values. An object without an
+// ID is not deleted.
 func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOptions) error {
 	builder, err := c.builder(obj)
 	if err != nil {
@@ -22,7 +22,6 @@ func (c *CRUD) Delete(ctx context.Context, obj interface{}, options DeleteOption
 	}
 
 	var query string
-	// if the object has a DeleteByID method, use it.
 	if deleteByIDerImpl, ok := obj.(deleteByIDQueryBuilder); ok {
 		query, err = deleteByIDerImpl.DeleteByIDQuery()
 		if err != nil {

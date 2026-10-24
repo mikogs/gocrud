@@ -24,7 +24,6 @@ func TestSave(t *testing.T) {
 		t.Fatalf("Save failed to insert struct to the table")
 	}
 
-	// Now, update the object in the database
 	objSaved.Flags = 7
 	objSaved.PrimaryEmail = "primary1@example.com"
 	objSaved.EmailSecondary = "secondary2@example.com"

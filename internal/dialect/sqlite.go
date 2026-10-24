@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// SQLite is the dialect of SQLite.
 type SQLite struct{}
 
 // SQLiteTimeFormat is the format that SQLite stores times in. All the times are stored in UTC and have the same

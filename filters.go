@@ -13,10 +13,6 @@ import (
 	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
-// The filters of the operations are prepared for the queries by prepareFilters: their values are converted from
-// strings, the UUIDs in them are in their standard form, the filters of their subqueries are prepared for the structs
-// of the subqueries, and they are validated with the tags of the fields that they are on.
-
 // prepareFilters returns a filter ready for a query of obj: with the values converted from strings when convert is
 // true, and with the UUIDs in their standard form, and validates it.
 func (c *CRUD) prepareFilters(obj interface{}, filter sqlfilters.Filter, convert bool) (sqlfilters.Filter, error) {

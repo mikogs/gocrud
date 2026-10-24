@@ -93,7 +93,6 @@ func (c *CRUD) databaseForeignKeys(ctx context.Context, table string) (map[strin
 	return foreignKeys, nil
 }
 
-// databaseIndexes returns the names of the indexes of the table.
 func (c *CRUD) databaseIndexes(ctx context.Context, table string) (map[string]bool, error) {
 	query := c.sqlDialect.IndexesQuery()
 

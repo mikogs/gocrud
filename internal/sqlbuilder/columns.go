@@ -12,13 +12,10 @@ type Column struct {
 	// Name is the name of the column, without an alias.
 	Name string
 	// Type is the type of the column, e.g. "VARCHAR(255)".
-	Type string
-	// Nullable is set to true if the column can be NULL.
+	Type     string
 	Nullable bool
-	// Unique is set to true if the column is unique.
-	Unique bool
-	// IsID is set to true for the column of the ID field.
-	IsID bool
+	Unique   bool
+	IsID     bool
 	// ForeignKey is the foreign key of the column, or nil when it does not reference another table.
 	ForeignKey *ForeignKey
 	// AddStatements are the statements that add the column to an existing table.

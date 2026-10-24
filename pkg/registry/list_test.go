@@ -16,7 +16,6 @@ import (
 func TestList_WithFilters(t *testing.T) {
 	recreateTestStructTable()
 
-	// Insert some data that should be ignored by Get later on
 	for i := 1; i < 51; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -26,7 +25,6 @@ func TestList_WithFilters(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Insert data that should be selected by filters
 	for i := 1; i < 51; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -34,7 +32,6 @@ func TestList_WithFilters(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Get the data from the database
 	testStructs, _, err := testService.List(context.Background(), "teststruct", 10, 20, "Age", "asc", Filters{Vals: map[string]string{
 		"Price":        "444",
 		"PrimaryEmail": "primary@example.com",
@@ -56,7 +53,6 @@ func TestList_WithFilters(t *testing.T) {
 func TestList_WithoutFilters(t *testing.T) {
 	recreateTestStructTable()
 
-	// Insert data to the database
 	for i := 1; i < 51; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -64,7 +60,6 @@ func TestList_WithoutFilters(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Get the data
 	testStructs, _, err := testService.List(context.Background(), "teststruct", 13, 14, "Age", "asc", Filters{}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Get failed to return list of objects: %s", err.Error())
@@ -80,7 +75,6 @@ func TestList_WithoutFilters(t *testing.T) {
 func TestList_WithRowObjTransformFunc(t *testing.T) {
 	recreateTestStructTable()
 
-	// Insert data to the database
 	for i := 1; i < 3; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -89,7 +83,6 @@ func TestList_WithRowObjTransformFunc(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Get the data
 	testCustomList, _, err := testService.List(context.Background(), "teststruct", 10, 0, "Age", "asc", Filters{}, func(obj interface{}) interface{} {
 		out := "<tr>"
 

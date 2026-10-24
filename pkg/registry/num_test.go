@@ -11,7 +11,6 @@ import (
 func TestNum(t *testing.T) {
 	recreateTestStructTable()
 
-	// Insert some data that should be ignored by GetCount later on
 	for i := 1; i < 51; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -21,7 +20,6 @@ func TestNum(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Insert data that should be selected by filters
 	for i := 1; i < 151; i++ {
 		ts := gocrudtest.TestStructWithData()
 		ts.ID = 0
@@ -29,7 +27,6 @@ func TestNum(t *testing.T) {
 		_ = testCRUD.Save(context.Background(), ts, gocrud.SaveOptions{})
 	}
 
-	// Get the data from the database
 	num, err := testService.Num(context.Background(), "teststruct", Filters{Vals: map[string]string{
 		"Price":        "444",
 		"PrimaryEmail": "primary@example.com",

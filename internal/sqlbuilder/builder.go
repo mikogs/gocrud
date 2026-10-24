@@ -43,8 +43,7 @@ type Builder struct {
 	passwordIndexes []int
 }
 
-// New takes a pointer to a struct and returns a Builder instance.
-// It returns an error when the struct cannot be mapped to a database table.
+// New returns the Builder of obj, a pointer to a struct, or an error when the struct cannot be mapped to a table.
 func New(obj interface{}, options Options) (*Builder, error) {
 	b := &Builder{}
 
@@ -176,10 +175,8 @@ func (b *Builder) WhereDialect(qualifier string, placeholder func() string) wher
 	return b.whereDialect(qualifier, false, placeholder)
 }
 
-// QuotedTableName returns the quoted name of the table.
 func (b *Builder) QuotedTableName() string { return `"` + b.tableName + `"` }
 
-// DropTable returns an SQL query for dropping the table.
 func (b *Builder) DropTable() string { return b.dropTable + ";" }
 
 // CreateTable returns SQL statements for creating the table, separated by "; ".
@@ -187,22 +184,18 @@ func (b *Builder) DropTable() string { return b.dropTable + ";" }
 // appended for each index after the CREATE TABLE statement.
 func (b *Builder) CreateTable() string { return b.createTable + ";" }
 
-// Insert returns an SQL query for inserting a new object to the table.
 func (b *Builder) Insert() string { return b.insert + ";" }
 
-// UpdateByID returns an SQL query for updating an object by their ID.
 func (b *Builder) UpdateByID() string { return b.updateByID + ";" }
 
-// InsertOnConflictUpdate returns an SQL query for inserting when a conflict is detected.
 func (b *Builder) InsertOnConflictUpdate() string { return b.insertOnConflictUpdate + ";" }
 
-// SelectByID returns an SQL query for selecting an object by its ID.
 func (b *Builder) SelectByID() string { return b.selectByID + ";" }
 
-// DeleteByID returns an SQL query for deleting an object by its ID.
 func (b *Builder) DeleteByID() string { return b.deleteByID + ";" }
 
-// HasModificationFields returns true if all the following int64 fields are present: CreatedAt, CreatedBy, ModifiedAt, ModifiedBy.
+// HasModificationFields returns true if the struct has the fields CreatedAt and ModifiedAt of type time.Time, and
+// CreatedBy and ModifiedBy of type uint64 or string.
 func (b *Builder) HasModificationFields() bool { return b.structInfo.ModificationFields }
 
 // HasUUID returns true if the ID field is a string with a UUID.
@@ -222,23 +215,18 @@ func (b *Builder) ColumnFieldNames() []string { return b.structInfo.ColumnFieldN
 // reflect.Value.Field. The first one is the index of the ID.
 func (b *Builder) ColumnIndexes() []int { return b.columnIndexes }
 
-// UpdateIndexes returns the indexes of the fields of UpdateFieldNames in the struct, in the same order.
 func (b *Builder) UpdateIndexes() []int { return b.updateIndexes }
 
-// TimeIndexes returns the indexes of the fields of TimeFields in the struct, in the same order.
 func (b *Builder) TimeIndexes() []int { return b.timeIndexes }
 
-// PasswordIndexes returns the indexes of the fields of PasswordFields in the struct, in the same order.
 func (b *Builder) PasswordIndexes() []int { return b.passwordIndexes }
 
 // UpdateFieldNames returns an ordered list of names of the fields that are written when an object is updated.
 // It is the order of columns in the SET clause of the generated UPDATE BY ID and INSERT ON CONFLICT UPDATE queries.
 func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldNames }
 
-// TimeFields returns a list with names of the time.Time fields that are stored in the database.
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
 
-// StructName returns the name of the struct type.
 func (b *Builder) StructName() string { return b.structInfo.Name }
 
 // TableName returns the name of the table, without quotes.
@@ -256,10 +244,8 @@ func (b *Builder) IndexNames() []string { return b.indexNames }
 // Relations returns the fields that hold related objects, declared with 'rel' tags.
 func (b *Builder) Relations() []*structinfo.RelationInfo { return b.structInfo.Relations }
 
-// UniqueFields returns a list with field names that are unique.
 func (b *Builder) UniqueFields() []string { return b.structInfo.UniqueFields }
 
-// PasswordFields returns a list with field names that are passwords.
 func (b *Builder) PasswordFields() []string { return b.structInfo.PasswordFields }
 
 // Select returns a SELECT query with a WHERE condition built from 'filters'.
@@ -298,7 +284,8 @@ func (b *Builder) DeleteReturningID(filters sqlfilters.Filter) (string, error) {
 	return query + ";", nil
 }
 
-// Update returns an UPDATE query where specified struct fields (columns) are updated and rows match specific WHERE condition built from 'filters'.
+// Update returns an UPDATE query of the fields in values, of the rows that match filters. The values of the
+// placeholders are values sorted by field name, followed by the values of filters.
 func (b *Builder) Update(values map[string]interface{}, filters sqlfilters.Filter) (string, error) {
 	query, err := b.updateQuery(values, filters)
 	if err != nil {

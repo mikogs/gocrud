@@ -30,18 +30,9 @@ func New(registry map[string]func() interface{}, dbConn *sql.DB, dialect string)
 	}
 }
 
-// CreateTables creates a table for every constructor in the registry, except
-// for structs whose type name contains an underscore. gocrud derives table
-// names from the part of the struct name before the first underscore, so a
-// struct like User_SaveLogIn is a projection mapping onto the table another
-// struct (User) already owns, exposing only a subset of its columns —
-// creating a table from that projection would define it with the wrong
-// (partial) column set. Since registry iteration order is unspecified, this
-// keeps CreateTables deterministic regardless of how many projections are
-// registered alongside the owning struct.
-// The tables are created in the order of the registry keys, except that the
-// tables referenced by foreign keys are created before the tables that
-// reference them.
+// CreateTables creates the tables of the structs in the registry, in the order of the registry keys, except that the
+// tables referenced by foreign keys are created first. A struct whose name contains an underscore, e.g. User_SaveLogIn,
+// is a projection of the table of another struct, User, so its table is not created.
 func (c *CRUD) CreateTables(ctx context.Context) error {
 	logAttrService := logger.AttrService(c, "CreateTables")
 
@@ -74,9 +65,8 @@ func (c *CRUD) ID(obj interface{}) interface{} {
 	return gocrud.ObjIDValue(obj)
 }
 
-// PasswordFieldNames returns the struct field names tagged as passwords for
-// the constructor registered at key. Returns nil if the key is unknown or
-// the struct has no password fields.
+// PasswordFieldNames returns the names of the password fields of the struct of key, or nil for a key that is not
+// registered.
 func (c *CRUD) PasswordFieldNames(key string) []string {
 	constructor, ok := c.registry[key]
 	if !ok {

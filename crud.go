@@ -20,9 +20,8 @@ type CRUD struct {
 	tagName         string
 	tableNamePrefix string
 	dialect         string
-	// sqlDialect is the SQL of the dialect
-	sqlDialect dialect.Dialect
-	flags      uint64
+	sqlDialect      dialect.Dialect
+	flags           uint64
 }
 
 // builderCache is shared between a CRUD and its copies running in transactions.
@@ -73,8 +72,7 @@ func (c *CRUD) SetFlag(flag uint64) {
 	}
 }
 
-// PasswordFieldsFor returns the struct field names tagged as passwords for the
-// type of obj. Returns nil if obj has no password fields.
+// PasswordFieldsFor returns the names of the password fields of obj.
 func (c *CRUD) PasswordFieldsFor(obj interface{}) []string {
 	builder, err := c.builder(obj)
 	if err != nil {

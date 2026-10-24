@@ -20,20 +20,16 @@ type GetOptions struct {
 	RowObjTransformFunc      func(interface{}) interface{}
 	ConvertFiltersFromString bool
 
-	// VerifyPasswordFields maps a struct field name to a plaintext password
-	// to verify against the bcrypt hash stored in that field. Verification
-	// only happens when the query matches exactly one record; for any other
-	// result count the returned map is empty.
+	// VerifyPasswordFields maps the names of password fields to the passwords to verify with their hashes, when exactly
+	// one object matches.
 	VerifyPasswordFields map[string]string
 
 	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
 	Preload []string
 }
 
-// Get returns the matching records and, for every password field that also
-// appears in options.VerifyPasswordFields, either PassOK or PassInvalid —
-// but only when exactly one record was found. Keys in VerifyPasswordFields
-// that do not name an actual password field are ignored.
+// Get returns the matching objects, and PassOK or PassInvalid for each password field in
+// options.VerifyPasswordFields when exactly one object matches. Other keys of VerifyPasswordFields are ignored.
 func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options GetOptions) ([]interface{}, map[string]int, error) {
 	obj := newObjFunc()
 
@@ -50,7 +46,6 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 		return nil, nil, getCRUDFuncCRUDError("order", err)
 	}
 
-	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
 	options.Filters, err = c.prepareFilters(obj, options.Filters, options.ConvertFiltersFromString)
 	if err != nil {
 		return nil, nil, err
@@ -61,7 +56,6 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 
 	var query string
 
-	// if the object has a Select method, use it.
 	if selectedImpl, ok := obj.(selectQueryBuilder); ok {
 		query, err = selectedImpl.SelectQuery(options.Order, options.Limit, options.Offset, options.Filters)
 		if err != nil {
@@ -124,7 +118,6 @@ func (c *CRUD) Get(ctx context.Context, newObjFunc func() interface{}, options G
 	}
 
 	for _, obj := range objs {
-		// If options.RowObjTransformFunc is defined, then call it on the row.
 		if options.RowObjTransformFunc != nil {
 			returnValue = append(returnValue, options.RowObjTransformFunc(obj))
 			continue

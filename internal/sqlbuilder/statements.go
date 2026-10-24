@@ -132,14 +132,11 @@ func newStatements(obj interface{}, structInfo *structinfo.StructInfo, tableName
 	for j := 0; j < numField; j++ {
 		field := objType.Field(j)
 
-		// Only basic golang types are included as columns for the database table.
-		// Check the function below for the details.
 		if !field.IsExported() || !structinfo.IsFieldTypeSupported(field.Type) {
 			continue
 		}
 
 		fieldInfo := structInfo.Fields[field.Name]
-		// Skip ignored fields (tagged with "-")
 		if fieldInfo.Ignored {
 			continue
 		}

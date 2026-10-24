@@ -54,7 +54,6 @@ type Dialect interface {
 	StoredIndexName(name string) string
 }
 
-// Names of the dialects.
 const (
 	NamePostgres = "postgres"
 	NameSQLite   = "sqlite"

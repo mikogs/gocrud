@@ -35,7 +35,6 @@ func (c *CRUD) CreateTable(ctx context.Context, obj interface{}) error {
 func createTableStatements(obj interface{}, builder *sqlbuilder.Builder) ([]string, error) {
 	query := builder.CreateTable()
 
-	// if the object has a CreateTable method, use it.
 	if createTableerImpl, ok := obj.(createTableQueryBuilder); ok {
 		var err error
 		query, err = createTableerImpl.CreateTableQuery()
@@ -54,7 +53,6 @@ func createTableStatements(obj interface{}, builder *sqlbuilder.Builder) ([]stri
 	return statements, nil
 }
 
-// DropTable drops the database table for the specified object.
 func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 	builder, err := c.builder(obj)
 	if err != nil {
@@ -62,7 +60,6 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 	}
 
 	var query string
-	// if the object has a DropTable method, use it.
 	if dropTableerImpl, ok := obj.(dropTableQueryBuilder); ok {
 		query, err = dropTableerImpl.DropTableQuery()
 		if err != nil {
@@ -80,7 +77,6 @@ func (c *CRUD) DropTable(ctx context.Context, obj interface{}) error {
 	return nil
 }
 
-// TableName returns the name of the database table of obj.
 func (c *CRUD) TableName(obj interface{}) (string, error) {
 	builder, err := c.builder(obj)
 	if err != nil {

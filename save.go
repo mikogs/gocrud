@@ -111,7 +111,6 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		setObjStringField(obj, passField, string(hash))
 	}
 
-	// run GetCount on unique fields
 	if c.flags&GetCountOnUniq > 0 {
 		uniqFields := builder.UniqueFields()
 		for _, uniqField := range uniqFields {
@@ -149,15 +148,11 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	columnIndexes := builder.ColumnIndexes()
 	updateIndexes := builder.UpdateIndexes()
 
-	// update
 	if !isNew {
 		var result sql.Result
 
-		// do no try to insert if NoInsert is set
 		if options.NoInsert {
 			var query string
-
-			// if the object has an UpdateByID method, use it.
 			if updateByIDerImpl, ok := obj.(updateByIDQueryBuilder); ok {
 				query, err = updateByIDerImpl.UpdateByIDQuery()
 				if err != nil {
@@ -168,11 +163,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			}
 			result, err = c.conn.ExecContext(ctx, query, c.args(append(objFieldPointers(obj, updateIndexes, nil), idPointer))...)
 		} else {
-			// try to insert - if ID already exists then try to update it
-
 			var query string
-
-			// if the object has an UpdateByID method, use it.
 			if insertOnConflictUpdateerImpl, ok := obj.(insertOnConflictUpdateQueryBuilder); ok {
 				query, err = insertOnConflictUpdateerImpl.InsertOnConflictUpdateQuery()
 				if err != nil {
@@ -204,9 +195,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		return nil
 	}
 
-	// insert
 	var query string
-	// if the object has an Insert method, use it.
 	if inserterImpl, ok := obj.(insertQueryBuilder); ok {
 		query, err = inserterImpl.InsertQuery()
 		if err != nil {
@@ -216,7 +205,6 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 		query = builder.Insert()
 	}
 
-	// a UUID is generated before the insert, and inserted with the other columns
 	// the ID, the first column, is inserted only when it is a UUID, which is generated before
 	insertIndexes := columnIndexes
 	if !builder.HasUUID() {

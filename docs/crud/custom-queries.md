@@ -49,8 +49,8 @@ The query is run with the same arguments as the generated query, in the order be
 | Method | Used by | Arguments of the query | The query returns |
 |---|---|---|---|
 | `InsertQuery() (string, error)` | `Save` of a new object | the columns without `ID`, or all the columns for a UUID, which `Save` generates | the new `ID` |
-| `InsertOnConflictUpdateQuery() (string, error)` | `Save` of an object with an `ID` | all the columns, then the updated columns | nothing |
-| `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID` | nothing, and `Save` returns `ErrNotFound` when it changes no rows |
+| `InsertOnConflictUpdateQuery() (string, error)` | `Save` of an object with an `ID` | all the columns, then the updated columns, then the version of the object, for a struct with a [version](../struct.md#10-version) | nothing, or the stored version for a struct with a version, and no row when it is another one |
+| `UpdateByIDQuery() (string, error)` | `Save` with `NoInsert` | the updated columns, then the `ID`, then the version of the object, for a struct with a version | nothing, and `Save` returns `ErrNotFound`, or `ErrVersionConflict` when the row exists, when it changes no rows |
 | `SelectByIDQuery() (string, error)` | `Load` | the `ID` | the columns |
 | `SelectQuery(order []string, limit int, offset int, filters sqlfilters.Filter) (string, error)` | `Get` | the filter values | the columns |
 | `SelectCountQuery(filters sqlfilters.Filter) (string, error)` | `GetCount` | the filter values | the number of rows |
@@ -60,7 +60,7 @@ The query is run with the same arguments as the generated query, in the order be
 | `CreateTableQuery() (string, error)` | `CreateTable`, `Migrate` | none, statements can be separated with `;` | nothing |
 | `DropTableQuery() (string, error)` | `DropTable` | none | nothing |
 
-* **The updated columns** are the columns without `ID`, and without `CreatedAt` and `CreatedBy` when the struct has the [creation and modification fields](../struct.md#4-creation-and-modification-fields).
+* **The updated columns** are the columns without `ID` and the [version](../struct.md#10-version), and without `CreatedAt` and `CreatedBy` when the struct has the [creation and modification fields](../struct.md#4-creation-and-modification-fields). The version is incremented by the query itself, e.g. `"version"="note"."version"+1`.
 * **The filter values** are the values that `sqlfilters.FiltersInterfaces(filters)` returns: the values of the filters of a group in their order, and of the conditions in a map ordered by field name, with one value for each element of `OpIn`, the values of the filter of a subquery, none for `IS NULL` conditions, and one for each element of a slice in a raw filter. `sqlfilters.Conditions(filters)` returns the conditions on fields in the same order, e.g. to build the `WHERE` clause.
 * **Placeholders** are `$1`, `$2`, … in PostgreSQL and `?` in SQLite. Times are converted for SQLite as in the generated queries.
 * **Password columns** get an empty value when the password of an object is not changed, see [`pass`](../struct.md#the-crud-tag). The generated update queries keep the stored password then, e.g. `"password"=COALESCE(NULLIF($2,''),"user"."password")`, and so should your own `UpdateByIDQuery` and `InsertOnConflictUpdateQuery`, as well as `BuildUpdateByIDQuery` and `BuildInsertOnConflictUpdateQuery` below.

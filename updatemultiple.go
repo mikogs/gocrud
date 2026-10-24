@@ -2,6 +2,7 @@ package gocrud
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"reflect"
 
@@ -23,6 +24,12 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 	builder, err := c.builder(obj)
 	if err != nil {
 		return getBuilderObjectCRUDError(err)
+	}
+
+	if versionField := builder.VersionField(); versionField != "" {
+		if _, ok := fieldsToUpdate[versionField]; ok {
+			return getCRUDFuncCRUDError("update multiple", fmt.Errorf("%w: %s", ErrVersionField, versionField))
+		}
 	}
 
 	fieldsToUpdate = maps.Clone(fieldsToUpdate)

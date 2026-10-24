@@ -93,6 +93,9 @@ var (
 	ErrPasswordField = structinfo.ErrPasswordField
 	// ErrModificationFields is matched by the error of a struct whose CreatedBy and ModifiedBy are of different types.
 	ErrModificationFields = structinfo.ErrModificationFields
+	// ErrVersionField is matched by the error of a struct with more than one field tagged with "version", or with one
+	// that is not an integer, and of UpdateMultiple with a value of the version field.
+	ErrVersionField = structinfo.ErrVersionField
 	// ErrRelation is matched by the error of a struct with a relation field that cannot be used, e.g. with a key field
 	// that does not exist.
 	ErrRelation = structinfo.ErrRelation
@@ -106,6 +109,10 @@ var (
 // ErrQueryMethod is matched by the error of an operation on a struct that has a query method, e.g. SelectQuery,
 // with a signature other than the one that gocrud calls.
 var ErrQueryMethod = errors.New("invalid query method")
+
+// ErrVersionConflict is matched by the error of Save of an object whose version field has another value than the
+// stored one, as the object was changed since it was loaded, see the "version" tag.
+var ErrVersionConflict = errors.New("version conflict")
 
 // ErrForeignKeyViolation is matched by the errors of queries that violate a foreign key, e.g. a save of an object
 // that references an object that does not exist, or a delete of an object that is referenced.

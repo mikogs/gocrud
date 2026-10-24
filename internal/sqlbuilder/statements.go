@@ -81,6 +81,8 @@ type statements struct {
 	Columns []Column
 	// IndexNames contains the names of the indexes created by IndexStatements.
 	IndexNames []string
+	// VersionColumn is the quoted name of the column of the version field, or empty when the struct has none.
+	VersionColumn string
 	// UniqueKeyFields contains the fields of the unique columns and indexes, by dialect.Dialect.UniqueKey.
 	UniqueKeyFields map[string][]string
 
@@ -181,6 +183,9 @@ func newStatements(obj interface{}, structInfo *structinfo.StructInfo, tableName
 			AddStatements: d.AddColumn(rawTableName, columnWithoutAlias(columnName), definition, fieldInfo.Unique),
 		})
 		q.ColumnNames = append(q.ColumnNames, quoteName(columnWithoutAlias(columnName)))
+		if fieldInfo.Version {
+			q.VersionColumn = quoteName(columnWithoutAlias(columnName))
+		}
 		if fieldInfo.Unique {
 			q.UniqueKeyFields[d.UniqueKey(rawTableName, "", []string{columnWithoutAlias(columnName)})] = []string{field.Name}
 		}
@@ -312,6 +317,13 @@ func setClause(d dialect.Dialect, columns []string, first int, table string, pas
 	return strings.Join(values, ",")
 }
 
+func joinSet(set string, assignment string) string {
+	if set == "" {
+		return assignment
+	}
+	return set + "," + assignment
+}
+
 // setQueries sets the queries of the struct. The INSERT of a struct with a UUID includes the ID, which is generated
 // before the object is inserted, instead of the one assigned by the database.
 func (q *statements) setQueries(obj interface{}, tableNamePrefix string, uuid bool, d dialect.Dialect) (err error) {
@@ -329,6 +341,20 @@ func (q *statements) setQueries(obj interface{}, tableNamePrefix string, uuid bo
 	onConflictUpdateSet := setClause(d, q.UpdateColumnNames, numColumn+1, q.TableName, q.PasswordColumnNames)
 
 	idColumn := `"id"`
+
+	// the version is incremented by the database, and the update is made only when the stored version is the one
+	// that follows the other values, so that the object was not changed since it was loaded
+	updateByIDCondition := ""
+	onConflictCondition := ""
+	onConflictReturning := idColumn
+	if q.VersionColumn != "" {
+		version := q.TableName + "." + q.VersionColumn
+		updateSet = joinSet(updateSet, fmt.Sprintf("%s=%s+1", q.VersionColumn, version))
+		onConflictUpdateSet = joinSet(onConflictUpdateSet, fmt.Sprintf("%s=%s+1", q.VersionColumn, version))
+		updateByIDCondition = fmt.Sprintf(" AND %s = %s", version, d.Placeholder(numUpdateColumn+2))
+		onConflictCondition = fmt.Sprintf(" WHERE %s = %s", version, d.Placeholder(numColumn+numUpdateColumn+1))
+		onConflictReturning = q.VersionColumn
+	}
 
 	if dropTableBuilderImpl, ok := obj.(DropTableBuilder); ok {
 		query, err := dropTableBuilderImpl.BuildDropTableQuery(tableNamePrefix)
@@ -378,7 +404,7 @@ func (q *statements) setQueries(obj interface{}, tableNamePrefix string, uuid bo
 		}
 		q.UpdateByID = query
 	} else {
-		q.UpdateByID = fmt.Sprintf("UPDATE %s SET %s WHERE %s = %s", q.TableName, updateSet, idColumn, d.Placeholder(numUpdateColumn+1))
+		q.UpdateByID = fmt.Sprintf("UPDATE %s SET %s WHERE %s = %s%s", q.TableName, updateSet, idColumn, d.Placeholder(numUpdateColumn+1), updateByIDCondition)
 	}
 
 	if updatePrefixBuilderImpl, ok := obj.(UpdatePrefixBuilder); ok {
@@ -411,7 +437,7 @@ func (q *statements) setQueries(obj interface{}, tableNamePrefix string, uuid bo
 		}
 		q.InsertOnConflictUpdate = query
 	} else {
-		q.InsertOnConflictUpdate = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING %s", q.TableName, columnNames, values, idColumn, onConflictUpdateSet, idColumn)
+		q.InsertOnConflictUpdate = fmt.Sprintf("INSERT INTO %s(%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s%s RETURNING %s", q.TableName, columnNames, values, idColumn, onConflictUpdateSet, onConflictCondition, onConflictReturning)
 	}
 
 	if selectByIDBuilderImpl, ok := obj.(SelectByIDBuilder); ok {

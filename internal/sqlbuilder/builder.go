@@ -284,6 +284,8 @@ func (b *Builder) PasswordIndexes() []int { return b.passwordIndexes }
 // It is the order of columns in the SET clause of the generated UPDATE BY ID and INSERT ON CONFLICT UPDATE queries.
 func (b *Builder) UpdateFieldNames() []string { return b.structInfo.UpdateFieldNames }
 
+func (b *Builder) VersionField() string { return b.structInfo.VersionField }
+
 func (b *Builder) TimeFields() []string { return b.structInfo.TimeFields }
 
 func (b *Builder) JSONFields() []string { return b.structInfo.JSONFields }

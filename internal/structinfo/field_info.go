@@ -15,6 +15,8 @@ type FieldInfo struct {
 	Nullable bool
 	// JSON is set to true if the field is marked with a 'json' tag, and is stored as JSON, with encoding/json.
 	JSON bool
+	// Version is set to true if the field is marked with a 'version' tag.
+	Version bool
 	// ForeignKeyTable is the name of the table that the field references with an 'fk:<table>' tag, without
 	// the table name prefix.
 	ForeignKeyTable string

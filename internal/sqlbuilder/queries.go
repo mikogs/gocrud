@@ -198,6 +198,10 @@ func (b *Builder) querySet(values map[string]interface{}) (string, int, error) {
 	for i := 1; i <= numColumn; i++ {
 		querySet += fmt.Sprintf(`,%s=%s`, quoteName(columnWithoutAlias(columns[i-1])), b.dialect.Placeholder(i))
 	}
+	// the rows are changed, so that the objects loaded before cannot be saved without loading them again
+	if b.st.VersionColumn != "" {
+		querySet += fmt.Sprintf(`,%s=%s+1`, b.st.VersionColumn, b.st.VersionColumn)
+	}
 
 	return querySet[1:], numColumn, nil
 }

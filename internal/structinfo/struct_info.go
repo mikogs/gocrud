@@ -19,6 +19,9 @@ var (
 	// ErrColumnType is returned for a field with an invalid type tag, or of a Valuer type whose column type is not
 	// known, which needs a type tag.
 	ErrColumnType = errors.New("invalid column type")
+	// ErrVersionField is returned for a struct with more than one field tagged with "version", or with one that is
+	// not an integer, and for a value of the version field in UpdateMultiple, as gocrud sets it.
+	ErrVersionField = errors.New(`field tagged with "version" must be the only one, of an integer type, and is set by gocrud`)
 )
 
 var (
@@ -42,8 +45,12 @@ type StructInfo struct {
 	// ColumnFieldNames contains an ordered list of names of the fields that are stored in the database (not ignored).
 	ColumnFieldNames []string
 	// UpdateFieldNames contains an ordered list of names of the fields that are written when an object is updated:
-	// all ColumnFieldNames except ID, and CreatedAt and CreatedBy when the struct has the modification fields.
+	// all ColumnFieldNames except ID, the version field, and CreatedAt and CreatedBy when the struct has the
+	// modification fields.
 	UpdateFieldNames []string
+	// VersionField is the name of the field tagged with "version", whose value is checked and incremented on each
+	// update, or empty when the struct has none.
+	VersionField string
 	// UniqueFields contains a list of field names that are marked with a tag 'uniq'.
 	UniqueFields []string
 	// PasswordFields contains a list of field names that are marked with a tag 'pass'.
@@ -183,10 +190,19 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 	if len(columns) == 1 {
 		return ErrNoColumns
 	}
+	if s.Fields["ID"].Version {
+		return fmt.Errorf("%w: ID", ErrVersionField)
+	}
 
 	s.ColumnFieldNames = columns
 
 	for _, column := range columns[1:] {
+		if s.Fields[column].Version {
+			if err := s.setVersionField(objType, column); err != nil {
+				return err
+			}
+			continue
+		}
 		if s.ModificationFields && (column == "CreatedAt" || column == "CreatedBy") {
 			continue
 		}
@@ -206,6 +222,21 @@ func (s *StructInfo) checkColumns(objType reflect.Type) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *StructInfo) setVersionField(objType reflect.Type, name string) error {
+	field, _ := objType.FieldByName(name)
+	info := s.Fields[name]
+	if s.VersionField != "" || info.JSON || info.Password {
+		return fmt.Errorf("%w: %s", ErrVersionField, name)
+	}
+	switch field.Type.Kind() {
+	case reflect.Int, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint32, reflect.Uint64:
+	default:
+		return fmt.Errorf("%w: %s", ErrVersionField, name)
+	}
+	s.VersionField = name
 	return nil
 }
 
@@ -282,6 +313,11 @@ func (s *StructInfo) setFieldFromTagOptWithoutVal(opt string, fieldName string) 
 
 	if opt == "json" {
 		s.Fields[fieldName].JSON = true
+		return
+	}
+
+	if opt == "version" {
+		s.Fields[fieldName].Version = true
 		return
 	}
 

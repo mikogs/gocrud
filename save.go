@@ -3,6 +3,7 @@ package gocrud
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"reflect"
 	"time"
 
@@ -145,6 +146,25 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 	columnIndexes := builder.ColumnIndexes()
 	updateIndexes := builder.UpdateIndexes()
 
+	// a new row has version 1, which is also the value inserted by an "upsert", and the stored version of an updated
+	// row has to be the one of the object
+	var version reflect.Value
+	var versionArgs []interface{}
+	if versionField := builder.VersionField(); versionField != "" {
+		version = reflect.ValueOf(obj).Elem().FieldByName(versionField)
+		loaded := reflect.New(version.Type()).Elem()
+		loaded.Set(version)
+		versionArgs = []interface{}{loaded.Interface()}
+		defer func() {
+			if err != nil {
+				version.Set(loaded)
+			}
+		}()
+		if isNew || !options.NoInsert {
+			setVersion(version, 1)
+		}
+	}
+
 	if !isNew {
 		var result sql.Result
 
@@ -158,7 +178,8 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			} else {
 				query = builder.UpdateByID()
 			}
-			result, err = c.conn.ExecContext(ctx, query, c.args(append(objArgs(obj, updateIndexes, builder.FieldKinds()), idPointer))...)
+			args := append(objArgs(obj, updateIndexes, builder.FieldKinds()), idPointer)
+			result, err = c.conn.ExecContext(ctx, query, c.args(append(args, versionArgs...))...)
 		} else {
 			var query string
 			if insertOnConflictUpdateerImpl, ok := obj.(insertOnConflictUpdateQueryBuilder); ok {
@@ -169,7 +190,16 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 			} else {
 				query = builder.InsertOnConflictUpdate()
 			}
-			_, err = c.conn.ExecContext(ctx, query, c.args(append(objArgs(obj, columnIndexes, builder.FieldKinds()), objArgs(obj, updateIndexes, builder.FieldKinds())...))...)
+			args := append(objArgs(obj, columnIndexes, builder.FieldKinds()), objArgs(obj, updateIndexes, builder.FieldKinds())...)
+			if version.IsValid() {
+				// the stored version, which is not returned when the version of the object is another one
+				err = c.conn.QueryRowContext(ctx, query, c.args(append(args, versionArgs...))...).Scan(version.Addr().Interface())
+				if errors.Is(err, sql.ErrNoRows) {
+					return getCRUDFuncCRUDError("update", ErrVersionConflict)
+				}
+			} else {
+				_, err = c.conn.ExecContext(ctx, query, c.args(args)...)
+			}
 		}
 
 		if err != nil {
@@ -185,7 +215,10 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) (
 				return getDBFuncCRUDError("rows affected", err)
 			}
 			if updated == 0 {
-				return getCRUDFuncCRUDError("update", ErrNotFound)
+				return c.updateNotFoundError(ctx, obj, version)
+			}
+			if version.IsValid() {
+				setVersion(version, versionNumber(version)+1)
 			}
 		}
 
@@ -277,4 +310,36 @@ func checkUniqueErr(builder *sqlbuilder.Builder, err error) *UniqError {
 		return nil
 	}
 	return getUniqError(builder.UniqueKeyFields(key), key)
+}
+
+// updateNotFoundError returns the error of an update by ID that changed no rows: ErrVersionConflict when the object has
+// a version and its row exists, as its stored version is another one, and ErrNotFound otherwise.
+func (c *CRUD) updateNotFoundError(ctx context.Context, obj interface{}, version reflect.Value) error {
+	if version.IsValid() {
+		count, err := c.GetCount(ctx, obj, GetCountOptions{Filters: &sqlfilters.Filters{
+			"ID": sqlfilters.OpVal{Op: sqlfilters.OpEqual, Val: ObjIDValue(obj)},
+		}})
+		if err != nil {
+			return getCRUDFuncCRUDError("get count", err)
+		}
+		if count > 0 {
+			return getCRUDFuncCRUDError("update", ErrVersionConflict)
+		}
+	}
+	return getCRUDFuncCRUDError("update", ErrNotFound)
+}
+
+func versionNumber(version reflect.Value) uint64 {
+	if version.CanInt() {
+		return uint64(version.Int()) // #nosec G115 -- a version is not negative
+	}
+	return version.Uint()
+}
+
+func setVersion(version reflect.Value, number uint64) {
+	if version.CanInt() {
+		version.SetInt(int64(number)) // #nosec G115 -- a version is far below the largest int64
+		return
+	}
+	version.SetUint(number)
 }

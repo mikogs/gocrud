@@ -265,6 +265,26 @@ type Customer struct {
 * **`UpdateMultiple`** takes values of the type of the field, or a pointer to it. A value of another type is the violation `type`.
 * **Not allowed.** The `ID`, password fields and fields of [Valuer types](#7-valuer-types), which are written with their `Value` methods, cannot be stored as JSON, and neither can types that `encoding/json` cannot write, e.g. a struct with a func field. Such a struct cannot be used, see `gocrud.ErrColumnType`.
 
+### 10. Version
+
+A field with the `version` option of the `crud` tag makes `Save` check that the object was not changed since it was loaded, e.g. by another request, so that a change is not overwritten without being seen:
+
+```go
+type Article struct {
+    ID      uint64 `json:"id"`
+    Title   string `json:"title"`
+    Version int64  `json:"version" crud:"version"`
+}
+```
+
+* **New objects** get version `1`, also when they have an `ID`. A version set on a new object is ignored.
+* **Updates** are made only when the stored version is the version of the object, and they increment it, in the same query, e.g. `UPDATE ... SET ..., "version"="article"."version"+1 WHERE "id" = $2 AND "article"."version" = $3`. The object gets the new version.
+* **A conflict**: when the stored version is another one, nothing is saved, the object keeps its version, and `Save` returns an error that matches `gocrud.ErrVersionConflict`. Load the object again, and apply the change to it, or report the conflict, e.g. with the `409 VERSION_CONFLICT` of [gorestapi](https://github.com/mikogs/gorestapi). `Save` with `NoInsert` returns `ErrNotFound` when there is no object with the `ID`.
+* **`UpdateMultiple`** increments the versions of the rows it changes, so the objects loaded before cannot be saved without loading them again. It cannot set the version field, see `gocrud.ErrVersionField`.
+* **`Delete`** does not check the version.
+* **Type.** The field is an integer, e.g. `int64`, `uint32` or a named type of one, and not a pointer. A struct has at most one, and it cannot be the `ID`, a password or JSON, otherwise the struct cannot be used, see `gocrud.ErrVersionField`.
+* **`Migrate`** adds the column with the version `0` to the existing rows, which `Save` treats like any other version.
+
 ## Tagging
 
 To configure field behavior, you will use three struct tags: `json`, `validate` and `crud`.
@@ -313,6 +333,7 @@ The `crud` tag defines how the field is stored in the database. Multiple options
 * `uidx`: Same as `idx`, but creates a `UNIQUE` index instead of a regular one. Use `uidx:<name>` for a composite unique index across multiple fields.
 * `-`: The field is not stored in the database.
 * `json`: Stores the field as JSON, see [JSON](#9-json).
+* `version`: Makes the integer field the version of the object, which `Save` checks and increments, see [Version](#10-version).
 * `type:<column type>`: Overrides the type of the column, e.g. `type:numeric(12,2)`, `type:varchar(20)` or `type:text`. The type is a name of letters, digits and `_`, with an optional length, or a precision and a scale, in parentheses. Another type, e.g. `varchar(20);`, is an error that matches `gocrud.ErrColumnType`, as the type is a part of the SQL of the queries. The options are separated with spaces, so a type cannot have one: use e.g. `float8` instead of `double precision`. The default of the column stays the zero value of the field, e.g. `'0.00'` for a decimal type.
 * `name:<column>`: Overrides the column name generated from the field name. Only lowercase letters, digits and `_` are allowed.
 * `fk:<table>` and `on_delete:<action>`: Make the field a foreign key that references the `id` of another table, see [Foreign keys](crud/relations.md#foreign-keys).

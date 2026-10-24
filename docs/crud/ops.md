@@ -17,6 +17,7 @@ func (c *CRUD) Save(ctx context.Context, obj interface{}, options SaveOptions) e
 * **New objects**: An object with an empty `ID`, `0` or `""`, is inserted. The database assigns a numeric `ID`, and `Save` generates a UUID for a `string` ID, see [The ID Field](../struct.md#1-the-id-field). The `ID` is set on the object.
 * **Default Behavior (Upsert)**: An object with an `ID` is inserted with that `ID`. If a record with the same `ID` already exists in the database, it automatically falls back to performing an update.
 * **Update Only**: To force an update operation without attempting an insertion, set the `NoInsert` flag to `true` in the options. When there is no object with the `ID`, nothing is saved, and `Save` returns an error that matches `gocrud.ErrNotFound`.
+* **Versions**: An object with a [version field](../struct.md#10-version) is updated only when it has the stored version, and otherwise `Save` returns an error that matches `gocrud.ErrVersionConflict`.
 * **Password fields**: A field tagged `crud:"pass"` is hashed with bcrypt, and is empty after the object is saved, as after `Load`. An empty password keeps the stored password of an object that is updated, so an object can be loaded, changed and saved without changing its password. Set the field to a new password to change it. When `Save` fails, the field has the password again.
 
 **Parameters**
@@ -273,6 +274,7 @@ func (c *CRUD) UpdateMultiple(ctx context.Context, obj interface{}, fieldsToUpda
 * **Filtering**: The same [filters](#filters) as in `Get` and `DeleteMultiple` select the rows that are updated.
 * **Password fields**: A password is hashed with bcrypt, once, so all the updated rows get the same hash. An empty password keeps the stored passwords, as in `Save`.
 * **The map** `fieldsToUpdate` is not changed, also when the values are converted from strings or hashed.
+* **Versions**: The [version field](../struct.md#10-version) of the updated rows is incremented, and a value of it in `fieldsToUpdate` is an error that matches `gocrud.ErrVersionField`.
 
 **Parameters**
 
@@ -520,6 +522,7 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `*gocrud.UniqError` | a unique field already has the value, see below |
 | `gocrud.ErrForeignKeyViolation` | a foreign key is violated, see [Relations](relations.md#violations) |
 | `gocrud.ErrNotFound` | `Load[T]` did not find the object, or `Save` with `NoInsert` did not find the object to update |
+| `gocrud.ErrVersionConflict` | `Save` of an object whose [version](../struct.md#10-version) is not the stored one, as the object was changed since it was loaded |
 | `gocrud.ErrAggregate` | a result struct or options of [`Aggregate`](reports.md) cannot be used |
 | `gocrud.ErrInvalidOrder` | `Order` of `Get` has a field that does not exist, a password field, a path through a field that is not a belongs-to relation, or an odd number of elements |
 | `gocrud.ErrSubquery` | a filter has a [subquery](#subqueries) that cannot be used |
@@ -530,7 +533,7 @@ Most errors are a `*gocrud.CRUDError`, whose `Op` describes the step that failed
 | `gocrud.ErrQueryMethod` | a [custom query method](custom-queries.md#query-methods) has a signature other than the one gocrud calls |
 | `*gocrud.SchemaError`, `gocrud.ErrSchemaDiffers` | `CheckSchema` found tables that do not match the structs, see [Migrations](migrations.md#checking-the-schema) |
 | `gocrud.ErrAliasedColumnsMigrate` | `Migrate` of a struct with [column aliases](../struct.md#column-aliases) |
-| `gocrud.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrColumnType`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
+| `gocrud.ErrNotStructPointer`, `ErrIDField`, `ErrNoColumns`, `ErrPasswordField`, `ErrModificationFields`, `ErrColumnType`, `ErrVersionField`, `ErrRelation`, `ErrForeignKey` | the struct cannot be used, see [Struct](../struct.md) |
 | `gocrud.ErrRawFilter` | a [raw filter](#raw-sql) has another number of `?` than of values |
 | `gocrud.ErrInFilter` | the value of an `OpIn` condition is not a slice, an array or a [subquery](#subqueries) |
 | `gocrud.ErrMatchFilter` | `OpMatch` with SQLite, which does not support it |

@@ -1035,3 +1035,37 @@ func TestSQLColumnTypes(t *testing.T) {
 		}
 	}
 }
+
+type VersionedDoc struct {
+	ID      uint64
+	Title   string
+	Version int64 `crud:"version"`
+}
+
+func TestSQLVersionQueries(t *testing.T) {
+	for dialect, want := range map[string][]string{
+		DialectPostgres: {
+			`UPDATE "versioned_doc" SET "title"=$1,"version"="versioned_doc"."version"+1 WHERE "id" = $2 AND "versioned_doc"."version" = $3;`,
+			`INSERT INTO "versioned_doc"("id","title","version") VALUES ($1,$2,$3) ON CONFLICT ("id") DO UPDATE SET "title"=$4,` +
+				`"version"="versioned_doc"."version"+1 WHERE "versioned_doc"."version" = $5 RETURNING "version";`,
+			`UPDATE "versioned_doc" SET "title"=$1,"version"="version"+1;`,
+		},
+		DialectSQLite: {
+			`UPDATE "versioned_doc" SET "title"=?,"version"="versioned_doc"."version"+1 WHERE "id" = ? AND "versioned_doc"."version" = ?;`,
+			`INSERT INTO "versioned_doc"("id","title","version") VALUES (?,?,?) ON CONFLICT ("id") DO UPDATE SET "title"=?,` +
+				`"version"="versioned_doc"."version"+1 WHERE "versioned_doc"."version" = ? RETURNING "version";`,
+			`UPDATE "versioned_doc" SET "title"=?,"version"="version"+1;`,
+		},
+	} {
+		h := mustNew(t, &VersionedDoc{}, Options{Dialect: dialect})
+		update, err := h.Update(map[string]interface{}{"Title": "x"}, nil)
+		if err != nil {
+			t.Fatalf("Update failed: %s", err.Error())
+		}
+		for i, got := range []string{h.UpdateByID(), h.InsertOnConflictUpdate(), update} {
+			if got != want[i] {
+				t.Fatalf("%s:\nwant %v\ngot  %v", dialect, want[i], got)
+			}
+		}
+	}
+}

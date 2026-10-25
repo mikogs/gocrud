@@ -31,4 +31,4 @@ It fits applications whose data is mostly records of structs, e.g. the backend o
 * `scripts/vulncheck.sh` checks the code and the dependencies for known vulnerabilities with `govulncheck`.
 * `scripts/bench.sh` runs the benchmarks of gocrud, next to the same queries written with `database/sql`.
 
-The GitHub workflows run the tests, the static analysis and the vulnerability check on pull requests and on `main`, and Dependabot proposes updates of the dependencies and of the actions every week.
+The GitHub workflows run the tests, the static analysis and the vulnerability check on pull requests and on `main`, and the vulnerability check also every Monday, as new vulnerabilities are found without any change of the code. Dependabot proposes updates of the dependencies and of the actions every week.

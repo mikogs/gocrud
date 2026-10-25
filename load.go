@@ -3,88 +3,56 @@ package gocrud
 import (
 	"context"
 	"database/sql"
-	"strconv"
-
-	"golang.org/x/crypto/bcrypt"
+	"errors"
 )
 
 type LoadOptions struct {
-	Unused bool
-
-	// VerifyPasswordFields maps a struct field name to a plaintext password
-	// to verify against the bcrypt hash stored in that field.
-	VerifyPasswordFields map[string]string
+	// Preload contains the names of relation fields whose related objects are loaded, e.g. []string{"Customer", "Items"}.
+	Preload []string
 }
 
-// LoadOutput is returned by Load. PasswordFields holds, for every password
-// field that also appears in LoadOptions.VerifyPasswordFields, either PassOK
-// or PassInvalid. Keys in VerifyPasswordFields that do not name an actual
-// password field are ignored.
-type LoadOutput struct {
-	Error          error
-	PasswordFields map[string]int
-}
-
-func (c *CRUD) Load(ctx context.Context, obj interface{}, id string, options LoadOptions) *LoadOutput {
-	output := &LoadOutput{
-		PasswordFields: map[string]int{},
-	}
-
-	idInt, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		output.Error = getConvertIDToIntCRUDError(err)
-		return output
-	}
-
+// Load sets obj to the object with the given ID: a non-negative integer or a decimal string for an ID of type uint64,
+// and a UUID for a string ID. When there is no such object, all the fields of obj are set to their zero values. The
+// password fields of obj are empty, see VerifyPasswords.
+func (c *CRUD) Load(ctx context.Context, obj any, id any, options LoadOptions) error {
 	builder, err := c.builder(obj)
 	if err != nil {
-		output.Error = getBuilderObjectCRUDError(err)
-		return output
+		return getBuilderObjectCRUDError(err)
+	}
+	ctx = c.withQuery(ctx, "Load", builder.TableName())
+
+	idArg, err := idValue(builder.HasUUID(), id)
+	if err != nil {
+		return getCRUDFuncCRUDError("load", err)
+	}
+
+	if err := c.checkPreload(builder, options.Preload, ""); err != nil {
+		return getCRUDFuncCRUDError("preload", err)
 	}
 
 	var query string
 
-	// if the object has a SelectByID method, use it.
 	if selectByIDerImpl, ok := obj.(selectByIDQueryBuilder); ok {
 		query, err = selectByIDerImpl.SelectByIDQuery()
 		if err != nil {
-			output.Error = getObjFuncCRUDError("select by id query", err)
-			return output
+			return getObjFuncCRUDError("select by id query", err)
 		}
 	} else {
 		query = builder.SelectByID()
 	}
 
-	err = c.db.QueryRowContext(ctx, query, idInt).Scan(ObjFieldInterfaces(obj, true)...)
+	err = c.conn.QueryRowContext(ctx, query, idArg).Scan(objScanPointers(obj, builder.ColumnIndexes(), builder.FieldKinds(), nil)...)
 	switch {
-	case err == sql.ErrNoRows:
-		ZeroObjFields(obj)
-
-		return output
-
+	case errors.Is(err, sql.ErrNoRows):
+		zeroObjFields(obj)
+		return nil
 	case err != nil:
-		output.Error = getDBFuncCRUDError("query row", err)
-		return output
-
-	default:
-		passwordFields := builder.PasswordFields()
-
-		for _, fieldName := range passwordFields {
-			password, ok := options.VerifyPasswordFields[fieldName]
-			if !ok {
-				continue
-			}
-
-			hash, _ := ObjFieldValue(obj, fieldName).(string)
-			if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-				output.PasswordFields[fieldName] = PassInvalid
-				continue
-			}
-
-			output.PasswordFields[fieldName] = PassOK
-		}
-
-		zeroPasswordFields(obj, passwordFields)
-		return output
+		return getDBFuncCRUDError("query row", err)
 	}
+
+	timeFieldsToUTC(obj, builder.TimeIndexes())
+
+	zeroPasswordFields(obj, builder.PasswordIndexes())
+
+	return c.preload(ctx, builder, []any{obj}, options.Preload)
 }

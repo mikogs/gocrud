@@ -23,16 +23,18 @@ type Options struct {
     TableNamePrefix string
     TagName         string
     Dialect         string
-    Flags           uint64
+    GetCountOnUniq  bool
+    QueryHook       QueryHook
 }
 ```
 
-* **TableNamePrefix (string)**: Allows you to define a prefix for all database table names managed by this instance. This is useful for organizing tables in shared databases or separating environments (e.g., dev_, prod_). If left empty, the library uses the default table name derived from the struct.
-* **TagName (string)**: Specifies the name of the struct tag used for validation and mapping rules. Default: `crud`. If you set this to `mytag`, the library will look for tags like `mytag:"unique"` instead of the default `crud:"unique"`.
+* **TableNamePrefix (string)**: Allows you to define a prefix for all database table names managed by this instance. This is useful for organizing tables in shared databases or separating environments (e.g., dev_, prod_). If left empty, the library uses the default table name derived from the struct. The prefix can have only lowercase letters, digits and underscores, as it is a part of the SQL of the queries, otherwise `New` panics.
+* **TagName (string)**: Specifies the name of the struct tag used for database mapping rules. Default: `crud`. If you set this to `mytag`, the library will look for tags like `mytag:"uniq"` instead of the default `crud:"uniq"`, and for regular expressions in `mytag_regexp` instead of `crud_regexp`. Validation rules are always read from the `validate` tag.
 * **Dialect (string)** *(required)*: Selects the SQL dialect used to generate queries. Passing an empty or unrecognised value causes a panic at startup. Two constants are provided:
     * `gocrud.DialectPostgres` — PostgreSQL.
     * `gocrud.DialectSQLite` — SQLite. Use this when connecting via `modernc.org/sqlite`. Column types are mapped to SQLite affinities (`INTEGER`, `TEXT`, `REAL`) and `?` placeholders are used instead of `$1`, `$2`, …
-* **Flags (uint64)**: Enables specific behaviors via bitwise flags. Currently, one flag is supported: **GetCountOnUniq (const GetCountOnUniq = 1)**: When this flag is set, the library performs an additional COUNT(*) query on unique fields before attempting an insert or update. This ensures that the unique value does not already exist in the database, providing an extra layer of validation beyond standard database constraints.
+* **GetCountOnUniq (bool)**: Makes `Save` run an additional `COUNT(*)` query on each unique field before an insert or an update, and return a `UniqError` when another row already has the value, also when the table has no `UNIQUE` constraint, e.g. one created by hand without it.
+* **QueryHook (QueryHook)**: Is called around each query, see [Query hook](#query-hook).
 
 ## Example Usage
 
@@ -40,25 +42,43 @@ type Options struct {
 
 ```go
 import (
-    "github.com/mikolajgasior/gocrud"
+    "github.com/mikogs/gocrud"
     _ "github.com/lib/pq"
 )
 
-db, err := sql.Open("postgres", "host=localhost user=myuser password=mypass dbname=mydb sslmode=disable")
+db, err := sql.Open("postgres", "host=localhost user=myuser password=mypass dbname=mydb sslmode=disable statement_timeout=10000")
 
 crudInstance := gocrud.New(db, gocrud.Options{
     Dialect:         gocrud.DialectPostgres,
     TableNamePrefix: "app_",
     TagName:         "crud",
-    Flags:           gocrud.GetCountOnUniq,
+    GetCountOnUniq:  true,
 })
 ```
+
+`statement_timeout=10000` makes PostgreSQL cancel any query that takes longer than 10 seconds, e.g. one with filters from a request that the database cannot answer quickly. gocrud also cancels a query when the `ctx` of the operation is cancelled, e.g. with `context.WithTimeout`.
+
+The pgx driver works in the same way, with its name in `sql.Open`:
+
+```go
+import (
+    "github.com/mikogs/gocrud"
+    _ "github.com/jackc/pgx/v5/stdlib"
+)
+
+db, err := sql.Open("pgx", "host=localhost user=myuser password=mypass dbname=mydb sslmode=disable statement_timeout=10000")
+```
+
+gocrud does not depend on a driver: it recognizes the errors of both, e.g. a [`UniqError`](ops.md#errors), by what they have in common. The only differences are of the drivers themselves:
+
+* **Times.** PostgreSQL stores microseconds: lib/pq rounds the nanoseconds of a time, and pgx cuts them off.
+* **Prepared statements.** pgx prepares each query once on each connection and reuses it. When the type of a column changes while the program runs, e.g. a table is dropped and created again with another type of a column, or altered by hand, each connection fails each query of the table once, e.g. with `cached plan must not change result type`, and then prepares it again. Restart the program after such a change, or add `default_query_exec_mode=describe_exec` to the connection string, so that pgx does not keep the statements, at the cost of a round trip to the database per query. `Migrate` only adds columns, which does not change the queries of gocrud, as they name their columns.
 
 ### SQLite
 
 ```go
 import (
-    "github.com/mikolajgasior/gocrud"
+    "github.com/mikogs/gocrud"
     _ "modernc.org/sqlite"
 )
 
@@ -80,6 +100,93 @@ Pass `:memory:` as the path to `sql.Open` for an in-memory SQLite database (usef
 | String columns | `VARCHAR(255)` | `TEXT` |
 | Integer columns | `BIGINT`, `INTEGER`, … | `INTEGER` |
 | Boolean columns | `BOOLEAN` | `INTEGER` (0/1) |
-| Float columns | driver default | `REAL` |
+| Float columns | `DOUBLE PRECISION` (`float64`), `REAL` (`float32`) | `REAL` |
+| Time columns | `TIMESTAMPTZ` | `DATETIME` |
+| Pointer fields | nullable column, without `NOT NULL` and a default | the same |
 | Regex filter (`OpMatch`) | supported (`~`) | not supported |
 
+## Query hook
+
+`QueryHook` is called around each query that gocrud runs, also in transactions and migrations, e.g. to log the queries, to find the slow ones, to trace them, or to measure them:
+
+```go
+type QueryHook interface {
+    BeforeQuery(ctx context.Context, event *QueryEvent) context.Context
+    AfterQuery(ctx context.Context, event *QueryEvent)
+}
+
+type QueryEvent struct {
+    Op       string // the operation, e.g. "Save", "Get", "Migrate", or "RunInTx"
+    Table    string // the table of the struct, empty for "RunInTx"
+    Query    string
+    Args     []any
+    Duration time.Duration // set for AfterQuery
+    Err      error         // set for AfterQuery
+}
+```
+
+* **`BeforeQuery`** returns the context that the query runs with, which is also passed to `AfterQuery`, e.g. with the span of a trace that `AfterQuery` ends.
+* **`AfterQuery`** is called when the database has run the query. For a query that returns rows, that is when the database starts returning them, before they are read, so `Err` does not have the errors that the driver returns only when the rows are read, e.g. some errors of SQLite. A row that is not found, e.g. by `Load`, is not an error of the query.
+* **`Op` and `Table`** name the operation and its table, e.g. `"Get"` and `"order"`, also for the queries that an operation runs for another one, e.g. `"GetCount"` for the `GetCountOnUniq` check of `Save`, or `"Get"` and the related table for `Preload`. They have few values, so they can be the labels of metrics and the names of spans, unlike `Query`, which has the values of `IN` lists and of the limits.
+* **Transactions** of `RunInTx` are events too: `BEGIN`, `COMMIT` and `ROLLBACK`, with the `Op` `"RunInTx"`. A transaction of `WithTx` is yours, so its statements are not.
+* **`Args`** are the values of the placeholders, as `database/sql` converts them for the driver, e.g. the value of the `Value` method of a [Valuer type](../struct.md#7-valuer-types). They include the bcrypt hashes of the passwords that are saved, and any personal data of the objects, so log them with care.
+* **Without a hook,** the queries are run on the database directly, with no overhead. The queries that you run yourself, e.g. on `tx.Tx()`, are not seen by the hook.
+
+For a hook that only needs `AfterQuery`, e.g. a log of the slow queries, `QueryHookFunc` is enough:
+
+```go
+crudInstance := gocrud.New(db, gocrud.Options{
+    Dialect: gocrud.DialectPostgres,
+    QueryHook: gocrud.QueryHookFunc(func(ctx context.Context, event *gocrud.QueryEvent) {
+        if event.Err != nil || event.Duration > 100*time.Millisecond {
+            slog.WarnContext(ctx, "query", "op", event.Op, "table", event.Table, "sql", event.Query,
+                "duration", event.Duration, "err", event.Err)
+        }
+    }),
+})
+```
+
+### OpenTelemetry
+
+The module `github.com/mikogs/gocrud/otelhook` is a hook for [OpenTelemetry](https://opentelemetry.io/docs/languages/go/), by its [semantic conventions of databases](https://opentelemetry.io/docs/specs/semconv/database/). It is a module of its own, so that gocrud does not depend on OpenTelemetry:
+
+```go
+import "github.com/mikogs/gocrud/otelhook"
+
+hook, err := otelhook.New(otelhook.Options{Dialect: gocrud.DialectPostgres})
+crudInstance := gocrud.New(db, gocrud.Options{Dialect: gocrud.DialectPostgres, QueryHook: hook})
+```
+
+* **A span of each query**, of the kind client, e.g. `SELECT note`, a child of the span of the context of the operation, e.g. of an HTTP request. It has the attributes `db.system.name`, e.g. `postgresql`, `db.operation.name`, e.g. `SELECT`, `db.collection.name`, the table, `db.query.text`, the query with its placeholders but not its values, and `gocrud.operation`, the operation of gocrud, e.g. `Save`. A query that fails has the status `Error`, and the attribute `error.type`.
+* **The histogram `db.client.operation.duration`**, in seconds, by `db.system.name`, `db.operation.name`, `db.collection.name` and `error.type`.
+* **The providers** are the global ones, of `otel.SetTracerProvider` and `otel.SetMeterProvider`, or the `TracerProvider` and `MeterProvider` of the options. Without an SDK of OpenTelemetry, the spans and the metrics are not recorded, at almost no cost.
+
+The queries of [raw filters](ops.md#raw-sql) are in `db.query.text` as you write them, so do not put the values in their SQL, but in their placeholders, as you should anyway.
+
+### Metrics
+
+gocrud does not depend on a library of metrics, but the hook gives everything that metrics need. Besides `otelhook`, whose metrics can also be exported for Prometheus, a hook can measure the queries with any library, e.g. with [Prometheus](https://github.com/prometheus/client_golang), a histogram of the durations of the queries, by the operation, the table and whether the query failed:
+
+```go
+queryDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+    Name:    "gocrud_query_duration_seconds",
+    Help:    "The durations of the queries of gocrud.",
+    Buckets: prometheus.DefBuckets,
+}, []string{"op", "table", "status"})
+prometheus.MustRegister(queryDuration)
+
+crudInstance := gocrud.New(db, gocrud.Options{
+    Dialect: gocrud.DialectPostgres,
+    QueryHook: gocrud.QueryHookFunc(func(_ context.Context, event *gocrud.QueryEvent) {
+        status := "ok"
+        if event.Err != nil {
+            status = "error"
+        }
+        queryDuration.WithLabelValues(event.Op, event.Table, status).Observe(event.Duration.Seconds())
+    }),
+})
+```
+
+Do not use `Query` or `Args` as labels: each different value is a new time series.
+
+The connections of the database are often the first to run out, e.g. when queries wait for a free connection. `database/sql` counts them in `db.Stats()`, the open and the used connections, and how many times and how long the queries waited for one, and Prometheus collects them with `collectors.NewDBStatsCollector(db, "app")`, from `github.com/prometheus/client_golang/prometheus/collectors`.

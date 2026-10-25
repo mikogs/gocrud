@@ -3,63 +3,28 @@ package gocrud
 import (
 	"context"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	sqlbuilder "github.com/mikolajgasior/gocrud/pkg/sql/builder"
-	validator "github.com/mikolajgasior/struct-validator"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type GetCountOptions struct {
-	Filters                  *sqlfilters.Filters
+	Filters                  sqlfilters.Filter
 	ConvertFiltersFromString bool
 }
 
-// GetCount runs a 'SELECT COUNT(*)' query on the database with specified filters, order, limit and offset and returns count of rows
-func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOptions) (uint64, error) {
+// GetCount returns the number of the rows that match the filters.
+func (c *CRUD) GetCount(ctx context.Context, obj any, options GetCountOptions) (uint64, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
 		return 0, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "GetCount", builder.TableName())
 
-	// Filter values can be passed as string. We do not want any use of reflect outside of CRUD.
-	if options.ConvertFiltersFromString && options.Filters != nil {
-		newFilters := &sqlfilters.Filters{}
-
-		for filterName, filterOpVal := range *(options.Filters) {
-			// ignore the raw filters entirely, that's too complicated
-			if filterName == sqlfilters.Raw {
-				continue
-			}
-
-			valueAsString, ok := filterOpVal.Val.(string)
-			if !ok {
-				return 0, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
-				})
-			}
-
-			ok, valueAsFieldType := sqlbuilder.StructFieldValueFromString(obj, filterName, valueAsString)
-			if !ok {
-				return 0, getObjInvalidCRUDError(map[string]uint64{
-					filterName: validator.FailType,
-				})
-			}
-
-			newFilters.Add(filterName, sqlfilters.OpVal{
-				Op:  filterOpVal.Op,
-				Val: valueAsFieldType,
-			})
-		}
-
-		options.Filters = newFilters
-	}
-
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = c.prepareFilters(obj, options.Filters, options.ConvertFiltersFromString)
 	if err != nil {
 		return 0, err
 	}
 
 	var query string
-	// if the object has a SelectCount method, use it.
 	if selectCounterImpl, ok := obj.(selectCountQueryBuilder); ok {
 		query, err = selectCounterImpl.SelectCountQuery(options.Filters)
 		if err != nil {
@@ -72,7 +37,7 @@ func (c *CRUD) GetCount(ctx context.Context, obj interface{}, options GetCountOp
 		}
 	}
 
-	row := c.db.QueryRowContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
+	row := c.conn.QueryRowContext(ctx, query, c.args(sqlfilters.FiltersInterfaces(options.Filters))...)
 	var cnt uint64
 	err = row.Scan(&cnt)
 	if err != nil {

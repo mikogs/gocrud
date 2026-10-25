@@ -2,57 +2,60 @@ package gocrud
 
 import (
 	"context"
+	"reflect"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
 type DeleteMultipleOptions struct {
-	Filters *sqlfilters.Filters
+	Filters sqlfilters.Filter
 }
 
-// DeleteMultiple removes objects from the database based on specified filters
-func (c *CRUD) DeleteMultiple(ctx context.Context, obj interface{}, options DeleteMultipleOptions) error {
+// DeleteMultiple removes objects from the database based on specified filters, and returns the IDs of the
+// removed objects, of the type of the ID field. Rows of other tables that are deleted by foreign keys are not included.
+func (c *CRUD) DeleteMultiple(ctx context.Context, obj any, options DeleteMultipleOptions) ([]any, error) {
 	builder, err := c.builder(obj)
 	if err != nil {
-		return getBuilderObjectCRUDError(err)
+		return nil, getBuilderObjectCRUDError(err)
 	}
+	ctx = c.withQuery(ctx, "DeleteMultiple", builder.TableName())
 
-	err = ValidateFilters(obj, options.Filters, c.tagName)
+	options.Filters, err = c.prepareFilters(obj, options.Filters, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var query string
-	// if the object has a DeleteReturningID method, use it.
 	if deleteReturningIDerImpl, ok := obj.(deleteReturningIDQueryBuilder); ok {
 		query, err = deleteReturningIDerImpl.DeleteReturningIDQuery()
 		if err != nil {
-			return getObjFuncCRUDError("delete returning id query", err)
+			return nil, getObjFuncCRUDError("delete returning id query", err)
 		}
 	} else {
 		query, err = builder.DeleteReturningID(options.Filters)
 		if err != nil {
-			return getBuilderFuncCRUDError("delete returning id", err)
+			return nil, getBuilderFuncCRUDError("delete returning id", err)
 		}
 	}
 
-	rows, err := c.db.QueryContext(ctx, query, sqlfilters.FiltersInterfaces(options.Filters)...)
+	rows, err := c.conn.QueryContext(ctx, query, c.args(sqlfilters.FiltersInterfaces(options.Filters))...)
 	if err != nil {
-		return getDBFuncCRUDError("query", err)
+		return nil, getDBFuncCRUDError("query", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
-	returnedIDs := []uint64{}
-
+	deletedIDs := []any{}
 	for rows.Next() {
-		var returnedID uint64
-		errScan := rows.Scan(&returnedID)
-		if errScan != nil {
-			return getDBFuncCRUDError("rows scan", errScan)
+		deletedID := reflect.New(reflect.ValueOf(obj).Elem().FieldByName(IDField).Type())
+		if err := rows.Scan(deletedID.Interface()); err != nil {
+			return nil, getDBFuncCRUDError("rows scan", err)
 		}
 
-		returnedIDs = append(returnedIDs, returnedID)
+		deletedIDs = append(deletedIDs, deletedID.Elem().Interface())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, getDBFuncCRUDError("rows", err)
 	}
 
-	return nil
+	return deletedIDs, nil
 }

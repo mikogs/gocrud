@@ -2,231 +2,156 @@ package gocrud
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"html"
 	"reflect"
-	"strings"
 	"testing"
 
-	sqlfilters "github.com/mikolajgasior/gocrud/pkg/filters"
-	"github.com/mikolajgasior/gocrud/pkg/test"
+	"github.com/mikogs/gocrud/internal/fixtures"
+	"github.com/mikogs/gocrud/pkg/sqlfilters"
 )
 
-// TestGet tests if Get properly gets many objects from the database, filtered and ordered, with results limited to specific number
-func TestGet_WithFilters(t *testing.T) {
-	recreateTestStructTable()
+func testGet(t *testing.T, crud *CRUD) {
+	recreateTwentyTestStructs(t, crud)
+	ctx := context.Background()
 
-	// Insert some data that should be ignored by Get later on
-	for i := 1; i < 51; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 10 + i
-		ts.Price = 444
-		ts.PrimaryEmail = "another@example.com"
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
+	tests := map[string]struct {
+		options GetOptions
+		want    []int
+	}{
+		"filters, order and pagination": {GetOptions{
+			Order:  []string{"Age", "desc"},
+			Limit:  3,
+			Offset: 2,
+			Filters: sqlfilters.And(
+				sqlfilters.Filters{"Price": {Op: sqlfilters.OpEqual, Val: 444}, "PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"}},
+				sqlfilters.Raw(".Age NOT IN (?)", []int{38}),
+			),
+		}, []int{37, 36, 35}},
+		"values from strings": {GetOptions{
+			Order:                    []string{"Age", "desc"},
+			Limit:                    3,
+			Filters:                  sqlfilters.Filters{"Price": {Op: sqlfilters.OpEqual, Val: "444"}, "Age": {Op: sqlfilters.OpLower, Val: "30"}},
+			ConvertFiltersFromString: true,
+		}, []int{29, 28, 27}},
+		"without filters": {GetOptions{
+			Order:  []string{"Age", "asc"},
+			Limit:  4,
+			Offset: 3,
+		}, []int{24, 25, 26, 27}},
 	}
 
-	// Insert data that should be selected by filters
-	for i := 1; i < 51; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 30 + i
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
-	}
-
-	// Get the data from the database
-	testStructs, _, err := testCRUD.Get(context.Background(), func() interface{} {
-		return &test.TestStruct{}
-	}, GetOptions{
-		Order:  []string{"Age", "asc", "Price", "asc"},
-		Limit:  10,
-		Offset: 20,
-		Filters: &sqlfilters.Filters{
-			"Price": {
-				Op:  sqlfilters.OpEqual,
-				Val: 444,
-			},
-			"PrimaryEmail": {
-				Op:  sqlfilters.OpEqual,
-				Val: "primary@example.com",
-			},
-			sqlfilters.Raw: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Get failed to return list of objects: %s", err.(*CRUDError).Op)
-	}
-	if len(testStructs) != 10 {
-		t.Fatalf("Get failed to return list of objects, want %v, got %v", 10, len(testStructs))
-	}
-	if testStructs[2].(*test.TestStruct).Age != 53 {
-		t.Fatalf("Get failed to return correct list of objects, want %v, got %v", 53, testStructs[2].(*test.TestStruct).Age)
-	}
-}
-
-// TestGetWithStringFilters tests if Get properly gets many objects but with filter values being strings.
-func TestGet_WithStringFilters(t *testing.T) {
-	recreateTestStructTable()
-
-	// Insert some data that should be ignored by Get later on
-	for i := 1; i < 51; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 10 + i
-		ts.Price = 444
-		ts.PrimaryEmail = "another@example.com"
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
-	}
-
-	// Insert data that should be selected by filters
-	for i := 1; i < 51; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 30 + i
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
-	}
-
-	// Get the data from the database
-	testStructs, _, err := testCRUD.Get(context.Background(), func() interface{} {
-		return &test.TestStruct{}
-	}, GetOptions{
-		Order:  []string{"Age", "asc", "Price", "asc"},
-		Limit:  10,
-		Offset: 20,
-		Filters: &sqlfilters.Filters{
-			"Price": {
-				Op:  sqlfilters.OpEqual,
-				Val: "444",
-			},
-			"PrimaryEmail": {
-				Op:  sqlfilters.OpEqual,
-				Val: "primary@example.com",
-			},
-			sqlfilters.Raw: {
-				Op: sqlfilters.OpAND,
-				Val: []interface{}{
-					".Price > ? AND .Price NOT IN (?)",
-					-200,
-					[]int{9999, 9998, 9997},
-				},
-			},
-		},
-		ConvertFiltersFromString: true,
-	})
-	if err != nil {
-		t.Fatalf("Get failed to return list of objects when string filters are used: %s", err.(*CRUDError).Op)
-	}
-	if len(testStructs) != 10 {
-		t.Fatalf("Get failed to return list of objects when string filters are used, want %v, got %v", 10, len(testStructs))
-	}
-	if testStructs[2].(*test.TestStruct).Age != 53 {
-		t.Fatalf("Get failed to return correct list of objects when string filters are used, want %v, got %v", 53, testStructs[2].(*test.TestStruct).Age)
-	}
-}
-
-// TestGetWithoutFilters tests if Get properly gets many objects from the database, without any filters
-func TestGet_WithoutFilters(t *testing.T) {
-	recreateTestStructTable()
-
-	// Insert data to the database
-	for i := 1; i < 51; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 30 + i
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
-	}
-
-	// Get the data
-	testStructs, _, err := testCRUD.Get(context.Background(), func() interface{} {
-		return &test.TestStruct{}
-	}, GetOptions{
-		Order:  []string{"Age", "asc", "Price", "asc"},
-		Limit:  13,
-		Offset: 14,
-	})
-	if err != nil {
-		t.Fatalf("Get failed to return list of objects: %s", err.(*CRUDError).Op)
-	}
-	if len(testStructs) != 13 {
-		t.Fatalf("Get failed to return list of objects, want %v, got %v", 10, len(testStructs))
-	}
-	if testStructs[2].(*test.TestStruct).Age != 47 {
-		t.Fatalf("Get failed to return correct list of objects, want %v, got %v", 47, testStructs[2].(*test.TestStruct).Age)
-	}
-}
-
-// TestGetWithRowObjTransformFunc tests if Get can properly return a list of custom elements (eg. string)
-// where each object (row from the database) is transform with a specific function
-func TestGet_WithRowObjTransformFunc(t *testing.T) {
-	recreateTestStructTable()
-
-	// Insert data to the database
-	for i := 1; i < 3; i++ {
-		ts := test.TestStructWithData()
-		ts.ID = 0
-		ts.Age = 30 + i
-		ts.FirstName = fmt.Sprintf("%s %d", ts.FirstName, i)
-		_ = testCRUD.Save(context.Background(), ts, SaveOptions{})
-	}
-
-	// Get the data
-	testCustomList, _, err := testCRUD.Get(context.Background(), func() interface{} {
-		return &test.TestStruct{}
-	}, GetOptions{
-		Order: []string{"Age", "asc"},
-		RowObjTransformFunc: func(obj interface{}) interface{} {
-			out := "<tr>"
-
-			v := reflect.ValueOf(obj)
-			elem := v.Elem()
-			i := reflect.Indirect(v)
-			s := i.Type()
-			for j := 0; j < s.NumField(); j++ {
-				field := s.Field(j)
-				fieldType := field.Type.Kind()
-
-				// print only few fields
-				if field.Name != "ID" && field.Name != "PrimaryEmail" {
-					continue
-				}
-
-				out += "<td>"
-				if fieldType == reflect.String {
-					out += html.EscapeString(elem.Field(j).String())
-				}
-				if fieldType == reflect.Bool {
-					out += fmt.Sprintf("%v", elem.Field(j).Bool())
-				}
-				if fieldType == reflect.Int || fieldType == reflect.Int64 {
-					out += fmt.Sprintf("%d", elem.Field(j).Int())
-				}
-				if fieldType == reflect.Uint || fieldType == reflect.Uint64 {
-					out += fmt.Sprintf("%d", elem.Field(j).Uint())
-				}
-				out += "</td>"
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			objs, err := Get[fixtures.TestStruct](ctx, crud, tc.options)
+			if got := testStructAges(objs); err != nil || !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("Get returned ages %v, %v, want %v", got, err, tc.want)
 			}
+		})
+	}
 
-			out += "</tr>"
+	cnt, err := GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{
+		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "primary@example.com"}},
+	})
+	if err != nil || cnt != 10 {
+		t.Fatalf("GetCount returned %d, %v, want 10", cnt, err)
+	}
+}
 
-			return out
+func testGetRowObjTransformFunc(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 2, func(int) *fixtures.TestStruct { return fixtures.TestStructWithData() })
+
+	rows, err := crud.Get(context.Background(), func() any { return &fixtures.TestStruct{} }, GetOptions{
+		Order: []string{"ID", "asc"},
+		RowObjTransformFunc: func(obj any) any {
+			return fmt.Sprintf("%d:%s", obj.(*fixtures.TestStruct).ID, obj.(*fixtures.TestStruct).FirstName)
 		},
 	})
-	if err != nil {
-		t.Fatalf("Get failed to return list of objects modified with transform func: %s", err.(*CRUDError).Op)
+	if err != nil || !reflect.DeepEqual(rows, []any{"1:John", "2:John"}) {
+		t.Fatalf("Get returned %v, %v, want the transformed rows", rows, err)
 	}
-	if len(testCustomList) != 2 {
-		t.Fatalf("Get with transform func returned invalid number of objects, wanted %d got %d", 2, len(testCustomList))
+}
+
+func testGetInvalidFilters(t *testing.T, crud *CRUD) {
+	recreateTestStructs(t, crud, 0, nil)
+	ctx := context.Background()
+
+	tests := map[string]struct {
+		filter  sqlfilters.Filter
+		convert bool
+		want    string
+	}{
+		"value that breaks a rule":    {sqlfilters.Filters{"Age": {Op: sqlfilters.OpEqual, Val: 500}}, false, "max"},
+		"string that is not a number": {sqlfilters.Filters{"Age": {Op: sqlfilters.OpEqual, Val: "notanint"}}, true, ViolationType},
 	}
 
-	// One of the columns is a random number so testing just the beginning
-	if !strings.HasPrefix(testCustomList[0].(string), "<tr><td>1</td><td>primary@example.com</td>") || !strings.HasPrefix(testCustomList[1].(string), "<tr><td>2</td><td>primary@example.com</td>") {
-		t.Fatalf("Get with transform func returned invalid objects")
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := Get[fixtures.TestStruct](ctx, crud, GetOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
+			fatalIfNotViolations(t, err, map[string]string{"Age": tc.want})
+
+			_, err = GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{Filters: tc.filter, ConvertFiltersFromString: tc.convert})
+			fatalIfNotViolations(t, err, map[string]string{"Age": tc.want})
+		})
+	}
+}
+
+func testUpdateMultiple(t *testing.T, crud *CRUD) {
+	recreateTwentyTestStructs(t, crud)
+	ctx := context.Background()
+
+	err := UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]any{"PrimaryEmail": "new@example.com", "Age": 98}, UpdateMultipleOptions{
+		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "another@example.com"}},
+	})
+	if err != nil {
+		t.Fatalf("UpdateMultiple failed: %s", err.Error())
+	}
+
+	cnt, _ := GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{
+		Filters: sqlfilters.Filters{"PrimaryEmail": {Op: sqlfilters.OpEqual, Val: "new@example.com"}, "Age": {Op: sqlfilters.OpEqual, Val: 98}},
+	})
+	if cnt != 10 {
+		t.Fatalf("UpdateMultiple updated %d objects, want 10", cnt)
+	}
+
+	err = UpdateMultiple[fixtures.TestStruct](ctx, crud, map[string]any{"FirstName": "x", "Age": "notanint"}, UpdateMultipleOptions{})
+	fatalIfNotViolations(t, err, map[string]string{"FirstName": "min", "Age": ViolationType})
+
+	if cnt, _ := GetCount[fixtures.TestStruct](ctx, crud, GetCountOptions{Filters: sqlfilters.Filters{"FirstName": {Op: sqlfilters.OpEqual, Val: "John"}}}); cnt != 20 {
+		t.Fatalf("UpdateMultiple with invalid values changed objects, %d are unchanged, want 20", cnt)
+	}
+}
+
+func TestGet(t *testing.T)        { testGet(t, testCRUD) }
+func TestSQLite_Get(t *testing.T) { testGet(t, testCRUDSQLite) }
+
+func TestGet_RowObjTransformFunc(t *testing.T)        { testGetRowObjTransformFunc(t, testCRUD) }
+func TestSQLite_Get_RowObjTransformFunc(t *testing.T) { testGetRowObjTransformFunc(t, testCRUDSQLite) }
+
+func TestGet_InvalidFilters(t *testing.T)        { testGetInvalidFilters(t, testCRUD) }
+func TestSQLite_Get_InvalidFilters(t *testing.T) { testGetInvalidFilters(t, testCRUDSQLite) }
+
+func TestUpdateMultiple(t *testing.T)        { testUpdateMultiple(t, testCRUD) }
+func TestSQLite_UpdateMultiple(t *testing.T) { testUpdateMultiple(t, testCRUDSQLite) }
+
+func TestGet_InvalidOrder(t *testing.T) {
+	createPreloadData(t, testCRUDSQLite)
+
+	tests := map[string][]string{
+		"unknown field":            {"Unknown", "asc"},
+		"relation field":           {"Customer", "asc"},
+		"has many":                 {"Items.Product", "asc"},
+		"not a relation":           {"Status.Name", "asc"},
+		"unknown field of related": {"Customer.Unknown", "asc"},
+		"no direction":             {"ID"},
+	}
+	for name, order := range tests {
+		if _, err := Get[PreOrder](context.Background(), testCRUDSQLite, GetOptions{Order: order}); !errors.Is(err, ErrInvalidOrder) {
+			t.Fatalf("Get ordered by %s returned %v, want %v", name, err, ErrInvalidOrder)
+		}
+	}
+
+	if _, err := Get[PreOrder](context.Background(), testCRUDSQLite, GetOptions{Order: []string{"Customer.Name", "asc", "ID", "desc"}}); err != nil {
+		t.Fatalf("Get ordered by valid fields returned %v", err)
 	}
 }

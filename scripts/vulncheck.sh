@@ -7,7 +7,7 @@ GOVULNCHECK_VERSION=v1.9.0
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 
-for module in "$root" "$root/bench"; do
+for module in "$root" "$root/bench" "$root/otelhook"; do
   echo "== $module"
   cd "$module"
   go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" -test ./...

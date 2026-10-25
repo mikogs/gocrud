@@ -8,7 +8,7 @@ GOSEC_VERSION=v2.30.0
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 
-for module in "$root" "$root/bench"; do
+for module in "$root" "$root/bench" "$root/otelhook"; do
   echo "== $module: golangci-lint"
   cd "$module"
   go run "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$GOLANGCI_LINT_VERSION" run ./...

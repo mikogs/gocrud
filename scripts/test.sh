@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Checks the formatting and runs go vet and the tests of gocrud and of its bench module, and the tests of gocrud again
-# with the pgx driver of PostgreSQL instead of lib/pq. The tests start PostgreSQL in docker, so docker has to be running.
+# Checks the formatting and runs go vet and the tests of gocrud, of its bench module and of its otelhook module, and
+# the tests of gocrud again with the pgx driver of PostgreSQL instead of lib/pq. The tests start PostgreSQL in docker, so
+# docker has to be running.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 
-for module in "$root" "$root/bench"; do
+for module in "$root" "$root/bench" "$root/otelhook"; do
   echo "== $module"
   cd "$module"
 

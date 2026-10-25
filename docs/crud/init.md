@@ -146,9 +146,26 @@ crudInstance := gocrud.New(db, gocrud.Options{
 })
 ```
 
+### OpenTelemetry
+
+The module `github.com/mikogs/gocrud/otelhook` is a hook for [OpenTelemetry](https://opentelemetry.io/docs/languages/go/), by its [semantic conventions of databases](https://opentelemetry.io/docs/specs/semconv/database/). It is a module of its own, so that gocrud does not depend on OpenTelemetry:
+
+```go
+import "github.com/mikogs/gocrud/otelhook"
+
+hook, err := otelhook.New(otelhook.Options{Dialect: gocrud.DialectPostgres})
+crudInstance := gocrud.New(db, gocrud.Options{Dialect: gocrud.DialectPostgres, QueryHook: hook})
+```
+
+* **A span of each query**, of the kind client, e.g. `SELECT note`, a child of the span of the context of the operation, e.g. of an HTTP request. It has the attributes `db.system.name`, e.g. `postgresql`, `db.operation.name`, e.g. `SELECT`, `db.collection.name`, the table, `db.query.text`, the query with its placeholders but not its values, and `gocrud.operation`, the operation of gocrud, e.g. `Save`. A query that fails has the status `Error`, and the attribute `error.type`.
+* **The histogram `db.client.operation.duration`**, in seconds, by `db.system.name`, `db.operation.name`, `db.collection.name` and `error.type`.
+* **The providers** are the global ones, of `otel.SetTracerProvider` and `otel.SetMeterProvider`, or the `TracerProvider` and `MeterProvider` of the options. Without an SDK of OpenTelemetry, the spans and the metrics are not recorded, at almost no cost.
+
+The queries of [raw filters](ops.md#raw-sql) are in `db.query.text` as you write them, so do not put the values in their SQL, but in their placeholders, as you should anyway.
+
 ### Metrics
 
-gocrud does not depend on a library of metrics, but the hook gives everything that metrics need. E.g. with [Prometheus](https://github.com/prometheus/client_golang), a histogram of the durations of the queries, by the operation, the table and whether the query failed:
+gocrud does not depend on a library of metrics, but the hook gives everything that metrics need. Besides `otelhook`, whose metrics can also be exported for Prometheus, a hook can measure the queries with any library, e.g. with [Prometheus](https://github.com/prometheus/client_golang), a histogram of the durations of the queries, by the operation, the table and whether the query failed:
 
 ```go
 queryDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
